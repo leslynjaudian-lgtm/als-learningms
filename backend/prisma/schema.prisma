@@ -1,0 +1,444 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. ENUMS (Roles, Statuses, ALS Levels)
+// ==========================================
+
+enum Role {
+  ADMIN
+  TEACHER
+  LEARNER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AlsLevel {
+  ELEMENTARY
+  JUNIOR
+}
+
+enum ModuleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssessmentType {
+  PRE_TEST
+  POST_TEST
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  IDENTIFICATION
+  TRUE_FALSE
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MasteryStatus {
+  NOT_EVALUATED
+  MASTERED
+  NOT_MASTERED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AnnouncementAudience {
+  ALL
+  TEACHERS
+  LEARNERS
+}
+
+// ==========================================
+// 2. USERS & AUTHENTICATION
+// ==========================================
+
+model User {
+  id           Int        @id @default(autoincrement())
+  username     String     @unique @db.VarChar(100)
+  email        String?    @unique @db.VarChar(150)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         Role       @default(LEARNER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  // Role profile relations (1-to-1)
+  adminProfile   Admin?
+  teacherProfile Teacher?
+  learnerProfile Learner?
+
+  // Authored announcements
+  announcements Announcement[]
+
+  @@map("users")
+}
+
+// ==========================================
+// 3. ADMIN / ALS COORDINATOR
+// ==========================================
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String   @map("full_name") @db.VarChar(150)
+  contactNo String?  @map("contact_no") @db.VarChar(50)
+  position  String   @default("ALS District Coordinator") @db.VarChar(100)
+  district  String   @default("Naawan District") @db.VarChar(100)
+  division  String   @default("Misamis Oriental") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+// ==========================================
+// 4. LEARNING CENTERS & LEARNING AREAS
+// ==========================================
+
+model LearningCenter {
+  id              Int      @id @default(autoincrement())
+  code            String?  @unique @db.VarChar(50)
+  name            String   @db.VarChar(150)
+  type            String   @default("Community Learning Center (CLC)") @db.VarChar(100)
+  locationAddress String?  @map("location_address") @db.VarChar(255)
+  barangay        String?  @db.VarChar(100)
+  municipality    String   @default("Naawan") @db.VarChar(100)
+  province        String   @default("Misamis Oriental") @db.VarChar(100)
+  contactPerson   String?  @map("contact_person") @db.VarChar(150)
+  contactPhone    String?  @map("contact_phone") @db.VarChar(50)
+  status          String   @default("active") @db.VarChar(50)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  teachers       Teacher[]
+  learners       Learner[]
+  modules        Module[]
+  attendanceLogs Attendance[]
+
+  @@map("learning_centers")
+}
+
+model LearningArea {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(50) // e.g., "LS1-ENG", "LS2", "LS6"
+  name        String   @db.VarChar(150) // e.g., "Communication Skills (English)"
+  description String?  @db.Text
+  sortOrder   Int      @default(1) @map("sort_order")
+  status      String   @default("active") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  modules Module[]
+
+  @@map("learning_areas")
+}
+
+// ==========================================
+// 5. ALS TEACHERS
+// ==========================================
+
+model Teacher {
+  id               Int             @id @default(autoincrement())
+  userId           Int             @unique @map("user_id")
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teacherIdNumber  String?         @unique @map("teacher_id_number") @db.VarChar(50) // DepEd Employee ID
+  fullName         String          @map("full_name") @db.VarChar(150)
+  position         String          @default("ALS Teacher") @db.VarChar(100) // e.g., Mobile Teacher, DALSC
+  contactNo        String?         @map("contact_no") @db.VarChar(50)
+  specialization   String?         @db.VarChar(150)
+  learningCenterId Int?            @map("learning_center_id")
+  learningCenter   LearningCenter? @relation(fields: [learningCenterId], references: [id], onDelete: SetNull)
+  status           String          @default("Active") @db.VarChar(50)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  assignedLearners   Learner[]
+  createdModules     Module[]
+  createdAssessments Assessment[]
+  attendanceMarked   Attendance[]
+
+  @@map("teachers")
+}
+
+// ==========================================
+// 6. LEARNERS
+// ==========================================
+
+model Learner {
+  id                Int             @id @default(autoincrement())
+  userId            Int             @unique @map("user_id")
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lrn               String?         @unique @db.VarChar(20)
+  fullName          String          @map("full_name") @db.VarChar(150)
+  birthDate         DateTime?       @map("birth_date") @db.Date
+  gender            String?         @db.VarChar(20)
+  address           String?         @db.VarChar(255)
+  contactNo         String?         @map("contact_no") @db.VarChar(50)
+  level             AlsLevel        @default(JUNIOR)
+  learningCenterId  Int?            @map("learning_center_id")
+  learningCenter    LearningCenter? @relation(fields: [learningCenterId], references: [id], onDelete: SetNull)
+  assignedTeacherId Int?            @map("assigned_teacher_id")
+  assignedTeacher   Teacher?        @relation(fields: [assignedTeacherId], references: [id], onDelete: SetNull)
+  status            String          @default("Active") @db.VarChar(50)
+  dateRegistered    DateTime?       @map("date_registered") @db.Date
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  attempts          AssessmentAttempt[]
+  progressRecords   LearnerProgress[]
+  attendanceRecords Attendance[]
+
+  @@map("learners")
+}
+
+// ==========================================
+// 7. MODULES & MODULE PAGES (Teacher managed)
+// ==========================================
+
+model Module {
+  id               Int             @id @default(autoincrement())
+  code             String?         @db.VarChar(50)
+  title            String          @db.VarChar(255)
+  description      String?         @db.Text
+  learningAreaId   Int             @map("learning_area_id")
+  learningArea     LearningArea    @relation(fields: [learningAreaId], references: [id], onDelete: Restrict)
+  teacherId        Int             @map("teacher_id")
+  teacher          Teacher         @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  learningCenterId Int?            @map("learning_center_id")
+  learningCenter   LearningCenter? @relation(fields: [learningCenterId], references: [id], onDelete: SetNull)
+  targetLevel      AlsLevel        @default(JUNIOR) @map("target_level")
+  fileUrl          String?         @map("file_url") @db.VarChar(500)
+  coverImageUrl    String?         @map("cover_image_url") @db.VarChar(500)
+  status           ModuleStatus    @default(DRAFT)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  pages           ModulePage[]
+  assessments     Assessment[]
+  learnerProgress LearnerProgress[]
+
+  @@map("modules")
+}
+
+model ModulePage {
+  id         Int      @id @default(autoincrement())
+  moduleId   Int      @map("module_id")
+  module     Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  pageNumber Int      @map("page_number")
+  title      String   @db.VarChar(255)
+  content    String   @db.LongText
+  mediaUrl   String?  @map("media_url") @db.VarChar(500)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([moduleId, pageNumber])
+  @@map("module_pages")
+}
+
+// ==========================================
+// 8. ASSESSMENTS, QUESTIONS & OPTIONS
+// ==========================================
+
+model Assessment {
+  id              Int            @id @default(autoincrement())
+  moduleId        Int            @map("module_id")
+  module          Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  teacherId       Int            @map("teacher_id")
+  teacher         Teacher        @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  title           String         @db.VarChar(255)
+  description     String?        @db.Text
+  type            AssessmentType // PRE_TEST or POST_TEST
+  passingScorePct Decimal        @default(75.00) @map("passing_score_pct") @db.Decimal(5, 2)
+  timeLimitMin    Int?           @map("time_limit_min")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  questions Question[]
+  attempts  AssessmentAttempt[]
+
+  @@map("assessments")
+}
+
+model Question {
+  id           Int          @id @default(autoincrement())
+  assessmentId Int          @map("assessment_id")
+  assessment   Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionText String       @map("question_text") @db.Text
+  questionType QuestionType @default(MULTIPLE_CHOICE) @map("question_type")
+  points       Int          @default(1)
+  sortOrder    Int          @default(1) @map("sort_order")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  options        AnswerOption[]
+  learnerAnswers LearnerAnswer[]
+
+  @@map("questions")
+}
+
+model AnswerOption {
+  id         Int      @id @default(autoincrement())
+  questionId Int      @map("question_id")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  optionText String   @map("option_text") @db.Text
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  sortOrder  Int      @default(1) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  learnerAnswers LearnerAnswer[]
+
+  @@map("answer_options")
+}
+
+// ==========================================
+// 9. ASSESSMENT ATTEMPTS & ANSWERS
+// ==========================================
+
+model AssessmentAttempt {
+  id           Int           @id @default(autoincrement())
+  assessmentId Int           @map("assessment_id")
+  assessment   Assessment    @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  learnerId    Int           @map("learner_id")
+  learner      Learner       @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  score        Decimal       @default(0.00) @db.Decimal(5, 2)
+  maxScore     Decimal       @default(0.00) @map("max_score") @db.Decimal(5, 2)
+  percentage   Decimal       @default(0.00) @db.Decimal(5, 2)
+  isPassed     Boolean       @default(false) @map("is_passed")
+  status       AttemptStatus @default(IN_PROGRESS)
+  startedAt    DateTime      @default(now()) @map("started_at")
+  submittedAt  DateTime?     @map("submitted_at")
+
+  // Relations
+  answers LearnerAnswer[]
+
+  @@map("assessment_attempts")
+}
+
+model LearnerAnswer {
+  id               Int               @id @default(autoincrement())
+  attemptId        Int               @map("attempt_id")
+  attempt          AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       Int               @map("question_id")
+  question         Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId Int?              @map("selected_option_id")
+  selectedOption   AnswerOption?     @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  textAnswer       String?           @map("text_answer") @db.Text
+  isCorrect        Boolean           @default(false) @map("is_correct")
+  scoreAwarded     Decimal           @default(0.00) @map("score_awarded") @db.Decimal(5, 2)
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@map("learner_answers")
+}
+
+// ==========================================
+// 10. LEARNER PROGRESS & MODULE FLOW
+// ==========================================
+
+model LearnerProgress {
+  id             Int            @id @default(autoincrement())
+  learnerId      Int            @map("learner_id")
+  learner        Learner        @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  moduleId       Int            @map("module_id")
+  module         Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  status         ProgressStatus @default(NOT_STARTED)
+  completedPages Int            @default(0) @map("completed_pages")
+  totalPages     Int            @default(0) @map("total_pages")
+  preTestScore   Decimal?       @map("pre_test_score") @db.Decimal(5, 2)
+  postTestScore  Decimal?       @map("post_test_score") @db.Decimal(5, 2)
+  masteryStatus  MasteryStatus  @default(NOT_EVALUATED) @map("mastery_status")
+  completedAt    DateTime?      @map("completed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@unique([learnerId, moduleId])
+  @@map("learner_progress")
+}
+
+// ==========================================
+// 11. ATTENDANCE (Teacher recorded)
+// ==========================================
+
+model Attendance {
+  id               Int              @id @default(autoincrement())
+  learnerId        Int              @map("learner_id")
+  learner          Learner          @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  recordedById     Int              @map("recorded_by_id")
+  recordedBy       Teacher          @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  learningCenterId Int              @map("learning_center_id")
+  learningCenter   LearningCenter   @relation(fields: [learningCenterId], references: [id], onDelete: Restrict)
+  sessionDate      DateTime         @map("session_date") @db.Date
+  status           AttendanceStatus @default(PRESENT)
+  remarks          String?          @db.VarChar(255)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@unique([learnerId, sessionDate])
+  @@map("attendance")
+}
+
+// ==========================================
+// 12. ANNOUNCEMENTS (Admin managed)
+// ==========================================
+
+model Announcement {
+  id        Int                  @id @default(autoincrement())
+  title     String               @db.VarChar(255)
+  content   String               @db.Text
+  audience  AnnouncementAudience @default(ALL)
+  isPinned  Boolean              @default(false) @map("is_pinned")
+  authorId  Int                  @map("author_id")
+  author    User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  @@map("announcements")
+}
+
+// ==========================================
+// 13. SYSTEM SETTINGS (Admin managed)
+// ==========================================
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.VarChar(255)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}

@@ -1,0 +1,22 @@
+{
+  "name": "als-learningms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Learning Management System for the Alternative Learning System (ALS) — Naawan District",
+  "workspaces": [
+    "backend",
+    "admin-portal",
+    "teacher-portal",
+    "learner-portal"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,admin,teacher,learner -c blue,green,yellow,magenta \"npm run dev -w backend\" \"npm run dev -w admin-portal\" \"npm run dev -w teacher-portal\" \"npm run dev -w learner-portal\"",
+    "dev:backend": "npm run dev -w backend",
+    "dev:admin": "npm run dev -w admin-portal",
+    "dev:teacher": "npm run dev -w teacher-portal",
+    "dev:learner": "npm run dev -w learner-portal"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
