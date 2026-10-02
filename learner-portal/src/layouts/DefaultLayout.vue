@@ -43,15 +43,6 @@
         <span>Modules</span>
       </router-link>
 
-      <router-link to="/assessments" class="bottom-tab-item" :class="{ active: isCurrentRoute('/assessments') }">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-          <rect x="8" y="2" width="8" height="4" rx="1"/>
-          <polyline points="9 14 11 16 15 12"/>
-        </svg>
-        <span>Assessments</span>
-      </router-link>
-
       <router-link to="/progress" class="bottom-tab-item" :class="{ active: isCurrentRoute('/progress') }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 6 13.5 15.5 8.5 10.5 18"/>
@@ -103,14 +94,6 @@
             <span>My Modules</span>
           </router-link>
 
-          <router-link to="/assessments" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/assessments') }" @click="drawerOpen = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-              <rect x="8" y="2" width="8" height="4" rx="1"/>
-            </svg>
-            <span>Assessments</span>
-          </router-link>
-
           <router-link to="/progress" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/progress') }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
@@ -141,7 +124,7 @@
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-            <span>Logout</span>
+            <span>Signout</span>
           </button>
         </nav>
       </div>
@@ -153,21 +136,21 @@
       </div>
     </div>
 
-    <!-- Screen 10: Logout Confirmation Modal -->
+    <!-- Screen 10: Signout Confirmation Modal -->
     <div v-if="logoutModalOpen" class="modal-overlay" @click.self="logoutModalOpen = false">
       <div class="logout-modal-card">
         <div class="logout-icon-wrap">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
         </div>
-        <h2 class="logout-title">Logout</h2>
-        <p class="logout-desc">Are you sure you want to logout?</p>
+        <h2 class="logout-title">Signout</h2>
+        <p class="logout-desc">Are you sure you want to signout?</p>
 
         <button type="button" class="btn-logout-confirm" @click="confirmLogout">
-          Yes, Logout
+          Yes, Signout
         </button>
         <button type="button" class="btn-logout-cancel" @click="logoutModalOpen = false">
           Cancel
@@ -201,6 +184,7 @@ function confirmLogout() {
   logoutModalOpen.value = false;
   localStorage.removeItem('als_learner_authenticated');
   localStorage.removeItem('als_learner_user');
-  router.push('/login');
+  localStorage.removeItem('als_learner_token');
+  router.push({ name: 'Login' });
 }
 </script>

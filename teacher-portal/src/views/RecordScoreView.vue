@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb / Back Link -->
     <nav class="breadcrumb">
-      <router-link to="/clc" class="back-link">
+      <router-link to="/dashboard/learners" class="back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
@@ -125,7 +125,7 @@
 
         <!-- Action Buttons -->
         <div class="form-footer-actions">
-          <router-link to="/clc" class="btn btn-secondary">Cancel</router-link>
+          <router-link to="/dashboard/learners" class="btn btn-secondary">Cancel</router-link>
           <button type="submit" class="btn btn-primary">Save Score</button>
         </div>
       </form>
@@ -147,7 +147,7 @@ const learnersList = [
   { id: 1, name: 'Ana Mae B. Dela Cruz', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
   { id: 2, name: 'John Rey L. Abad', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
   { id: 3, name: 'Maria Fe S. Ignacio', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
-  { id: 4, name: 'Carla M. Baylon', level: 'ALS K-12', learningCenter: 'Poblacion CLC' },
+  { id: 4, name: 'Carla M. Baylon', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
   { id: 5, name: 'Liza T. Ramon', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
   { id: 6, name: 'Juan Dela Cruz', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
 ];
@@ -194,7 +194,7 @@ function onLearnerChange() {
 
 function saveScore() {
   alert(`Score of ${form.score}/${form.totalItems} recorded for ${selectedLearner.value.name} on "${form.assessment}".`);
-  router.push(`/learners/${selectedLearner.value.id}`);
+  router.push(`/dashboard/learners/${selectedLearner.value.id}`);
 }
 </script>
 

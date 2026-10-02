@@ -14,7 +14,7 @@
 
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
-      <router-link to="/">Dashboard</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">Teachers</span>
     </nav>
@@ -97,8 +97,9 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>#</th>
+              <th style="width: 50px;">No.</th>
               <th>Name</th>
+              <th>Username</th>
               <th>Position</th>
               <th>Learning Center</th>
               <th>Status</th>
@@ -109,6 +110,9 @@
             <tr v-for="(teacher, idx) in filteredTeachers" :key="teacher.id">
               <td>{{ idx + 1 }}</td>
               <td style="font-weight: 600;">{{ teacher.name }}</td>
+              <td style="font-family: monospace; font-size: 0.85rem; font-weight: 600; color: #1e40af;">
+                {{ teacher.username || '—' }}
+              </td>
               <td>{{ teacher.position || 'ALS Teacher' }}</td>
               <td>{{ teacher.learningCenter }}</td>
               <td>
@@ -151,8 +155,8 @@
             <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>
           </svg>
         </div>
-        <h3>No teachers yet</h3>
-        <p>Teacher records will appear here once they are added to the system.</p>
+        <h3>No ALS Teachers registered yet.</h3>
+        <p>Only display teachers that are added through the Add Teacher form.</p>
       </div>
     </div>
 
@@ -251,6 +255,19 @@
               </div>
 
               <div class="field-group">
+                <label class="field-label">Assigned Program Level <span class="required">*</span></label>
+                <div class="select-wrapper">
+                  <select v-model="teacherForm.programLevel" class="field-select" required>
+                    <option value="Both">Both (A&E Elementary & Junior)</option>
+                    <option value="A&E Elementary">A&E Elementary</option>
+                    <option value="A&E Junior">A&E Junior</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="field-group">
                 <label class="field-label">Status</label>
                 <div class="select-wrapper">
                   <select v-model="teacherForm.status" class="field-select">
@@ -274,11 +291,14 @@
                   v-model="teacherForm.username"
                   type="text"
                   class="field-input"
-                  placeholder="Enter username"
+                  placeholder="e.g. als-t1001"
                   required
                   autocomplete="off"
                   @input="handleUsernameInput"
                 />
+                <span class="field-hint" style="font-size: 0.775rem; color: #64748b; margin-top: 0.35rem; display: block;">
+                  Auto-generated format: <code>als-t1001</code>. You can edit this username before saving.
+                </span>
               </div>
 
               <div class="field-group">
@@ -373,6 +393,10 @@
               <span class="detail-value">{{ viewingTeacher?.learningCenter || '—' }}</span>
             </div>
             <div class="detail-item">
+              <span class="detail-label">Assigned Program Level</span>
+              <span class="detail-value">{{ viewingTeacher?.programLevel || viewingTeacher?.specialization || 'Both' }}</span>
+            </div>
+            <div class="detail-item">
               <span class="detail-label">Status</span>
               <span class="detail-value">
                 <span class="badge" :class="viewingTeacher?.status === 'Active' ? 'badge-success' : 'badge-muted'">
@@ -404,6 +428,7 @@
     <DeleteConfirmModal
       :show="showDeleteModal"
       title="Delete Teacher"
+      message="Are you sure you want to delete this teacher?"
       :item-name="deletingTeacher?.name || ''"
       :loading="deleting"
       @confirm="confirmDeleteTeacher"
@@ -416,7 +441,14 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
-import { getTeachers, registerTeacher, deleteTeacher } from '../api/teachers.js';
+import {
+  getTeachers,
+  registerTeacher,
+  updateTeacher,
+  deleteTeacher,
+  getNextTeacherUsername,
+  checkTeacherUsername,
+} from '../api/teachers.js';
 
 // Delete Modal state
 const showDeleteModal = ref(false);
@@ -440,18 +472,17 @@ async function confirmDeleteTeacher() {
   const name = deletingTeacher.value.name || 'Teacher';
   const id = deletingTeacher.value.id;
   try {
-    if (typeof id === 'number' && id < 100000000000) {
-      await deleteTeacher(id);
-    }
-    teachers.value = teachers.value.filter((t) => t.id !== id);
-    showToast(`Teacher "${name}" deleted.`);
+    await deleteTeacher(id);
+    showToast(`Teacher "${name}" deleted successfully.`);
     showDeleteModal.value = false;
     deletingTeacher.value = null;
+    await loadTeachers();
   } catch (err) {
-    teachers.value = teachers.value.filter((t) => t.id !== id);
-    showToast(`Teacher "${name}" deleted.`);
-    showDeleteModal.value = false;
-    deletingTeacher.value = null;
+    console.error('Failed to delete teacher:', err);
+    showToast(
+      err.response?.data?.error || `Failed to delete teacher "${name}".`,
+      'error'
+    );
   } finally {
     deleting.value = false;
   }
@@ -482,6 +513,7 @@ const teacherForm = reactive({
   contactNumber: '',
   email: '',
   learningCenterId: '',
+  programLevel: 'Both',
   status: 'Active',
   username: '',
   password: '',
@@ -554,6 +586,7 @@ function openEditModal(teacher) {
   teacherForm.contactNumber = teacher.contactNumber || teacher.contactNo || '';
   teacherForm.email = teacher.email || '';
   teacherForm.learningCenterId = matchedCenter?.id || learningCenters.value[0]?.id || '';
+  teacherForm.programLevel = teacher.programLevel || teacher.specialization || 'Both';
   teacherForm.status = teacher.status || 'Active';
   teacherForm.username = teacher.username || '';
   teacherForm.password = '••••••••';
@@ -561,7 +594,7 @@ function openEditModal(teacher) {
   showAddModal.value = true;
 }
 
-function openAddModal() {
+async function openAddModal() {
   editingTeacher.value = null;
   formError.value = '';
   showPassword.value = false;
@@ -570,10 +603,20 @@ function openAddModal() {
   teacherForm.contactNumber = '';
   teacherForm.email = '';
   teacherForm.learningCenterId = learningCenters.value[0]?.id || '';
+  teacherForm.programLevel = 'Both';
   teacherForm.status = 'Active';
-  teacherForm.username = '';
   teacherForm.password = '';
   teacherForm.passwordModified = false;
+
+  // Auto-generate username in format als-t1001, als-t1002, ...
+  try {
+    const { data } = await getNextTeacherUsername();
+    teacherForm.username = data?.nextUsername || 'als-t1001';
+  } catch (err) {
+    teacherForm.username = 'als-t1001';
+  }
+  teacherForm.password = teacherForm.username;
+
   showAddModal.value = true;
 }
 
@@ -635,6 +678,12 @@ async function handleRegisterTeacher() {
     formError.value = 'Username must be at least 3 characters long.';
     return;
   }
+
+  // If creating new teacher and password was not modified or is empty, use username as default password
+  if (!editingTeacher.value && (!teacherForm.passwordModified || !teacherForm.password.trim())) {
+    teacherForm.password = teacherForm.username.trim();
+  }
+
   if (!teacherForm.password.trim()) {
     formError.value = 'Password is required.';
     return;
@@ -656,27 +705,30 @@ async function handleRegisterTeacher() {
   if (editingTeacher.value) {
     try {
       const fullName = `${teacherForm.firstName.trim()} ${teacherForm.lastName.trim()}`;
-      const centerObj = learningCenters.value.find((c) => c.id === teacherForm.learningCenterId);
+      const payload = {
+        firstName: teacherForm.firstName.trim(),
+        lastName: teacherForm.lastName.trim(),
+        contactNumber: teacherForm.contactNumber.trim(),
+        email: teacherForm.email.trim() || undefined,
+        learningCenterId: teacherForm.learningCenterId,
+        programLevel: teacherForm.programLevel,
+        status: teacherForm.status,
+        username: teacherForm.username.trim().toLowerCase(),
+      };
+      if (teacherForm.password && teacherForm.password !== '••••••••' && teacherForm.password.trim()) {
+        payload.password = teacherForm.password.trim();
+      }
+
+      const { data } = await updateTeacher(editingTeacher.value.id, payload);
       const idx = teachers.value.findIndex((t) => t.id === editingTeacher.value.id);
       if (idx !== -1) {
-        teachers.value[idx] = {
-          ...teachers.value[idx],
-          name: fullName,
-          fullName: fullName,
-          firstName: teacherForm.firstName.trim(),
-          lastName: teacherForm.lastName.trim(),
-          contactNumber: teacherForm.contactNumber.trim(),
-          contactNo: teacherForm.contactNumber.trim(),
-          email: teacherForm.email.trim(),
-          learningCenterId: teacherForm.learningCenterId,
-          learningCenter: centerObj ? centerObj.name : teachers.value[idx].learningCenter,
-          status: teacherForm.status,
-          username: teacherForm.username.trim(),
-        };
+        teachers.value[idx] = data;
       }
       showToast(`Teacher "${fullName}" updated successfully.`);
       showAddModal.value = false;
       editingTeacher.value = null;
+    } catch (err) {
+      formError.value = err.response?.data?.error || 'Failed to update teacher.';
     } finally {
       submitting.value = false;
     }
@@ -690,8 +742,9 @@ async function handleRegisterTeacher() {
       contactNumber: teacherForm.contactNumber.trim(),
       email: teacherForm.email.trim() || undefined,
       learningCenterId: teacherForm.learningCenterId,
+      programLevel: teacherForm.programLevel,
       status: teacherForm.status,
-      username: teacherForm.username.trim(),
+      username: teacherForm.username.trim().toLowerCase(),
       password: teacherForm.password.trim(),
     };
 

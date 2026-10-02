@@ -1,3 +1,4 @@
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -14,20 +15,23 @@ const PORT = process.env.PORT || 3000;
 // ---------------------
 // Middleware
 // ---------------------
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(morgan('dev'));
 app.use(
   cors({
-    origin: [
-      'http://localhost:5173', // admin-portal
-      'http://localhost:5174', // teacher-portal
-      'http://localhost:5175', // learner-portal
-    ],
+    origin: true,
     credentials: true,
   })
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded static files (profile photos, etc.)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // ---------------------
 // Routes

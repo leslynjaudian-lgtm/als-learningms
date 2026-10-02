@@ -13,7 +13,7 @@
       <router-link
         v-for="center in clcList"
         :key="center.id"
-        :to="`/clc/${center.slug}`"
+        :to="`/dashboard/clc/${center.slug}`"
         class="clc-main-card"
       >
         <div class="clc-card-left">
@@ -59,18 +59,23 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { useTeacherSession } from '../composables/useTeacherSession.js';
 
-const clcList = ref([
-  {
-    id: 1,
-    slug: 'poblacion-clc',
-    name: 'Poblacion CLC',
+const { assignedCenters, currentTeacher } = useTeacherSession();
+
+const clcList = computed(() => {
+  return assignedCenters.value.map((c) => ({
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
     district: 'Naawan District',
-    location: 'Poblacion, Naawan',
-    learnersCount: 17,
-  },
-]);
+    location: c.location || 'Naawan, Misamis Oriental',
+    learnersCount: Array.isArray(currentTeacher.value?.assignedLearners)
+      ? currentTeacher.value.assignedLearners.length
+      : 0,
+  }));
+});
 </script>
 
 <style scoped>

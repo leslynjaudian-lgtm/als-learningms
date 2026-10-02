@@ -431,6 +431,19 @@ textarea {
   justify-content: center;
   font-weight: 600;
   font-size: 0.875rem;
+  overflow: hidden;
+}
+
+.user-avatar.has-photo {
+  background: transparent;
+}
+
+.user-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .user-meta {
@@ -1641,3 +1654,123 @@ textarea {
     height: 64px;
   }
 }
+
+/* ================================================
+   PRINT STYLES (@media print)
+   Only show #report-content, hide all LMS interface
+   ================================================ */
+@media print {
+  /* 1. Hide all navigation, sidebars, headers, footers, and system UI */
+  .sidebar,
+  aside.sidebar,
+  .sidebar-overlay,
+  .topbar,
+  header.topbar,
+  .portal-footer,
+  footer,
+  .breadcrumb,
+  .breadcrumb-nav,
+  .page-header-row,
+  .controls-card,
+  .filter-card,
+  .filters-card,
+  .report-filter-bar,
+  .report-stats-grid,
+  .reports-tabs-bar,
+  .pdf-action-container,
+  .scroll-down-container,
+  .report-actions-bar,
+  .preview-actions-bar,
+  .modal-overlay,
+  .modal-backdrop,
+  .no-print,
+  .print-hidden,
+  button,
+  .btn,
+  .btn-generate-pdf,
+  .btn-print-report,
+  .btn-view-details,
+  .btn-reset-filters,
+  .btn-generate-report {
+    display: none !important;
+  }
+
+  /* 2. Reset html, body, and app layout containers for clean document printing */
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .app-layout,
+  .main-wrapper,
+  .main-content,
+  .page-container,
+  .report-preview-container,
+  .summary-results-card,
+  .report-content-card,
+  .af2-report-paper,
+  .table-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  /* 3. Dedicated report container display rules */
+  #report-content,
+  .report-paper-sheet,
+  .af2-report-paper,
+  .af2-paper-sheet {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    page-break-after: avoid;
+  }
+
+  /* Page margins */
+  @page {
+    size: auto;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+
+  /* Table rules for clean print */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
+

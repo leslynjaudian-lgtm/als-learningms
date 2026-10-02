@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb / Back link -->
     <nav class="breadcrumb">
-      <router-link :to="`/clc/${clcSlug}/strand/${strandSlug}`" class="back-link">
+      <router-link :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}`" class="back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
@@ -108,7 +108,7 @@
 
         <!-- Action Buttons matching Screen 4 -->
         <div class="form-footer-actions">
-          <router-link :to="`/clc/${clcSlug}/strand/${strandSlug}`" class="btn btn-secondary">
+          <router-link :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}`" class="btn btn-secondary">
             Cancel
           </router-link>
           <button type="submit" class="btn btn-primary" :disabled="isUploading">
@@ -178,7 +178,7 @@ function handleUpload() {
   setTimeout(() => {
     isUploading.value = false;
     alert(`Module "${form.title}" uploaded successfully to ${strandName.value} for Poblacion CLC!`);
-    router.push(`/clc/${clcSlug}/strand/${strandSlug}/module/4`);
+    router.push(`/dashboard/clc/${clcSlug}/strand/${strandSlug}/module/4`);
   }, 400);
 }
 </script>

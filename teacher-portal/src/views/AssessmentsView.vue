@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
-      <router-link to="/">Dashboard</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">Assessments</span>
     </nav>
@@ -14,17 +14,17 @@
         <p>Manage all assessments and view submission status.</p>
       </div>
       <div style="display: flex; gap: 0.65rem; align-items: center;">
-        <router-link to="/assessments/record" class="btn btn-secondary">
+        <router-link to="/dashboard/assessments/record" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 02 2h14a2 2 0 0 02-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
           <span>Record F2F Score</span>
         </router-link>
-        <button class="btn btn-primary" @click="showAddModal = true">
+        <button class="btn btn-primary" @click="openAddModal">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>+ Create Assessment</span>
+          <span>Create Assessment</span>
         </button>
       </div>
     </div>
@@ -95,9 +95,9 @@
             <tr v-for="(item, idx) in filteredAssessments" :key="item.id">
               <td>{{ idx + 1 }}</td>
               <td style="font-weight: 600;">
-                <router-link :to="`/modules/1/activities/create?id=${item.id}`" style="color: var(--color-primary);">
+                <button type="button" @click="openEditAssessment(item)" style="background: none; border: none; color: var(--color-primary); font-weight: 600; cursor: pointer; padding: 0; text-align: left; font-size: inherit;">
                   {{ item.title }}
-                </router-link>
+                </button>
               </td>
               <td>{{ item.module }}</td>
               <td>{{ item.type }}</td>
@@ -107,15 +107,16 @@
               </td>
               <td>
                 <div class="cell-actions" style="justify-content: flex-end;">
-                  <router-link
-                    :to="`/modules/1/activities/create?id=${item.id}`"
+                  <button
+                    type="button"
                     class="btn-icon"
                     title="Edit Assessment"
+                    @click="openEditAssessment(item)"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 02 2h14a2 2 0 0 02-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                     </svg>
-                  </router-link>
+                  </button>
                   <button class="btn-icon" title="Delete Assessment" @click="deleteAssessment(item.id, item.title)">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -164,7 +165,7 @@
     <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h2>Create New Assessment</h2>
+          <h2>{{ editingItem ? 'Edit Assessment' : 'Create New Assessment' }}</h2>
           <button class="modal-close" @click="showAddModal = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -256,19 +257,59 @@ const filteredAssessments = computed(() => {
   });
 });
 
-function saveAssessment() {
-  assessments.value.unshift({
-    id: Date.now(),
-    title: form.title,
-    module: form.module,
-    type: form.type,
-    items: form.items,
-    mode: form.deliveryMode,
-    status: 'Published',
-  });
-  alert(`Assessment "${form.title}" created successfully.`);
-  showAddModal.value = false;
+const editingItem = ref(null);
+
+function openEditAssessment(item) {
+  editingItem.value = item;
+  form.title = item.title;
+  form.module = item.module;
+  form.deliveryMode = item.mode;
+  form.type = item.type;
+  form.items = item.items;
+  form.status = item.status || 'Published';
+  showAddModal.value = true;
+}
+
+function openAddModal() {
+  editingItem.value = null;
   form.title = '';
+  form.module = 'Module 1';
+  form.deliveryMode = 'Online';
+  form.type = 'Multiple Choice';
+  form.items = 10;
+  form.status = 'Published';
+  showAddModal.value = true;
+}
+
+function saveAssessment() {
+  if (editingItem.value) {
+    const idx = assessments.value.findIndex((a) => a.id === editingItem.value.id);
+    if (idx !== -1) {
+      assessments.value[idx] = {
+        ...assessments.value[idx],
+        title: form.title,
+        module: form.module,
+        type: form.type,
+        items: form.items,
+        mode: form.deliveryMode,
+        status: form.status,
+      };
+    }
+    alert(`Assessment "${form.title}" updated successfully.`);
+  } else {
+    assessments.value.unshift({
+      id: Date.now(),
+      title: form.title,
+      module: form.module,
+      type: form.type,
+      items: form.items,
+      mode: form.deliveryMode,
+      status: 'Published',
+    });
+    alert(`Assessment "${form.title}" created successfully.`);
+  }
+  showAddModal.value = false;
+  editingItem.value = null;
 }
 
 function deleteAssessment(id, title) {

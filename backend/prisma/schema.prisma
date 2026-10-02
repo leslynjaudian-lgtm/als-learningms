@@ -73,7 +73,17 @@ enum AnnouncementAudience {
   ALL
   TEACHERS
   LEARNERS
+  ALL_TEACHERS
+  ALL_LEARNERS
+  SPECIFIC_LEARNER
+  INDIVIDUAL_LEARNER
 }
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+}
+
 
 // ==========================================
 // 2. USERS & AUTHENTICATION
@@ -86,6 +96,7 @@ model User {
   passwordHash String     @map("password_hash") @db.VarChar(255)
   role         Role       @default(LEARNER)
   status       UserStatus @default(ACTIVE)
+  profilePhoto String?    @map("profile_photo") @db.LongText
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -143,6 +154,7 @@ model LearningCenter {
   learners       Learner[]
   modules        Module[]
   attendanceLogs Attendance[]
+  schedules      Schedule[]
 
   @@map("learning_centers")
 }
@@ -187,6 +199,7 @@ model Teacher {
   createdModules     Module[]
   createdAssessments Assessment[]
   attendanceMarked   Attendance[]
+  schedules          Schedule[]
 
   @@map("teachers")
 }
@@ -201,6 +214,9 @@ model Learner {
   user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   lrn               String?         @unique @db.VarChar(20)
   fullName          String          @map("full_name") @db.VarChar(150)
+  firstName         String?         @map("first_name") @db.VarChar(100)
+  middleName        String?         @map("middle_name") @db.VarChar(100)
+  lastName          String?         @map("last_name") @db.VarChar(100)
   birthDate         DateTime?       @map("birth_date") @db.Date
   gender            String?         @db.VarChar(20)
   address           String?         @db.VarChar(255)
@@ -218,6 +234,8 @@ model Learner {
   attempts          AssessmentAttempt[]
   progressRecords   LearnerProgress[]
   attendanceRecords Attendance[]
+  assignedModules   ModuleAssignment[]
+  submissions       Submission[]
 
   @@map("learners")
 }
@@ -231,6 +249,8 @@ model Module {
   code             String?         @db.VarChar(50)
   title            String          @db.VarChar(255)
   description      String?         @db.Text
+  instructions     String?         @db.Text
+  activitiesRelated String?        @map("activities_related") @db.Text
   learningAreaId   Int             @map("learning_area_id")
   learningArea     LearningArea    @relation(fields: [learningAreaId], references: [id], onDelete: Restrict)
   teacherId        Int             @map("teacher_id")
@@ -240,6 +260,8 @@ model Module {
   targetLevel      AlsLevel        @default(JUNIOR) @map("target_level")
   fileUrl          String?         @map("file_url") @db.VarChar(500)
   coverImageUrl    String?         @map("cover_image_url") @db.VarChar(500)
+  dateStarted      DateTime?       @map("date_started") @db.Date
+  dateEnded        DateTime?       @map("date_ended") @db.Date
   status           ModuleStatus    @default(DRAFT)
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
@@ -248,8 +270,42 @@ model Module {
   pages           ModulePage[]
   assessments     Assessment[]
   learnerProgress LearnerProgress[]
+  assignments     ModuleAssignment[]
+  submissions     Submission[]
 
   @@map("modules")
+}
+
+model ModuleAssignment {
+  id          Int       @id @default(autoincrement())
+  moduleId    Int       @map("module_id")
+  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  learnerId   Int       @map("learner_id")
+  learner     Learner   @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime  @default(now()) @map("assigned_at")
+  dueDate     DateTime? @map("due_date") @db.Date
+
+  @@unique([moduleId, learnerId])
+  @@map("module_assignments")
+}
+
+model Submission {
+  id          Int       @id @default(autoincrement())
+  moduleId    Int       @map("module_id")
+  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  learnerId   Int       @map("learner_id")
+  learner     Learner   @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  title       String?   @db.VarChar(255)
+  fileUrl     String?   @map("file_url") @db.VarChar(500)
+  fileName    String?   @map("file_name") @db.VarChar(255)
+  content     String?   @db.Text
+  grade       Decimal?  @db.Decimal(5, 2)
+  feedback    String?   @db.Text
+  status      String    @default("SUBMITTED") @db.VarChar(50)
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("submissions")
 }
 
 model ModulePage {
@@ -299,6 +355,7 @@ model Question {
   questionText String       @map("question_text") @db.Text
   questionType QuestionType @default(MULTIPLE_CHOICE) @map("question_type")
   points       Int          @default(1)
+  explanation  String?      @db.Text
   sortOrder    Int          @default(1) @map("sort_order")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
@@ -416,15 +473,21 @@ model Attendance {
 // ==========================================
 
 model Announcement {
-  id        Int                  @id @default(autoincrement())
-  title     String               @db.VarChar(255)
-  content   String               @db.Text
-  audience  AnnouncementAudience @default(ALL)
-  isPinned  Boolean              @default(false) @map("is_pinned")
-  authorId  Int                  @map("author_id")
-  author    User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  createdAt DateTime             @default(now()) @map("created_at")
-  updatedAt DateTime             @updatedAt @map("updated_at")
+  id               Int                  @id @default(autoincrement())
+  title            String               @db.VarChar(255)
+  content          String               @db.Text
+  audience         AnnouncementAudience @default(ALL_TEACHERS)
+  status           AnnouncementStatus   @default(PUBLISHED)
+  isPinned         Boolean              @default(false) @map("is_pinned")
+  authorId         Int                  @map("author_id")
+  author           User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  creatorRole      Role                 @default(ADMIN) @map("creator_role")
+  learningCenterId Int?                 @map("learning_center_id")
+  targetLearnerId  Int?                 @map("target_learner_id")
+  teacherId        Int?                 @map("teacher_id")
+  programLevel     String?              @map("program_level") @db.VarChar(50)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
 
   @@map("announcements")
 }
@@ -441,4 +504,27 @@ model SystemSetting {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("system_settings")
+}
+
+// ==========================================
+// 14. SCHEDULES (Admin managed, Teacher viewed)
+// ==========================================
+
+model Schedule {
+  id               Int            @id @default(autoincrement())
+  title            String         @db.VarChar(255)
+  date             DateTime       @db.Date
+  startTime        String         @map("start_time") @db.VarChar(50)
+  endTime          String         @map("end_time") @db.VarChar(50)
+  activityType     String         @default("Learning Session") @map("activity_type") @db.VarChar(100)
+  learningCenterId Int            @map("learning_center_id")
+  learningCenter   LearningCenter @relation(fields: [learningCenterId], references: [id], onDelete: Cascade)
+  teacherId        Int?           @map("teacher_id")
+  teacher          Teacher?       @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  description      String?        @db.Text
+  status           String         @default("Upcoming") @db.VarChar(50)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@map("schedules")
 }

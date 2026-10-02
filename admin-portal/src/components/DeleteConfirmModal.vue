@@ -33,9 +33,12 @@
 
         <!-- Message -->
         <p class="delete-modal-message">
-          Are you sure you want to delete
-          <strong class="delete-item-highlight">{{ itemName }}</strong>?
-          This action cannot be undone.
+          <template v-if="message">{{ message }}</template>
+          <template v-else>
+            Are you sure you want to delete
+            <strong class="delete-item-highlight">{{ itemName }}</strong>?
+            This action cannot be undone.
+          </template>
         </p>
 
         <!-- Action Buttons -->
@@ -92,7 +95,11 @@ defineProps({
   },
   itemName: {
     type: String,
-    required: true,
+    default: '',
+  },
+  message: {
+    type: String,
+    default: '',
   },
   loading: {
     type: Boolean,

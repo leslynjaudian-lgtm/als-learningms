@@ -80,6 +80,11 @@
             </div>
           </div>
 
+          <!-- Error Banner -->
+          <div v-if="loginError" class="login-error-banner" style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: 0.8125rem; padding: 0.6rem 0.85rem; border-radius: 8px; margin-bottom: 1rem; text-align: center;">
+            {{ loginError }}
+          </div>
+
           <!-- Primary Submit Button -->
           <button type="submit" class="btn-login" :disabled="submitting">
             <span>{{ submitting ? 'Signing In…' : 'Sign In' }}</span>
@@ -91,12 +96,20 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import api from '../api/axios.js';
+import { useAdminSession } from '../composables/useAdminSession.js';
 
 const router = useRouter();
+const { setAdminSession, clearAdminSession } = useAdminSession();
 const showPassword = ref(false);
 const submitting = ref(false);
+const loginError = ref('');
+
+onMounted(() => {
+  clearAdminSession();
+});
 
 const form = reactive({
   username: '',
@@ -104,16 +117,23 @@ const form = reactive({
 });
 
 async function handleLogin() {
+  loginError.value = '';
   submitting.value = true;
   try {
-    localStorage.setItem('als_admin_authenticated', 'true');
-    localStorage.setItem('als_admin_user', JSON.stringify({
-      username: form.username || 'admin',
-      name: 'Admin User',
-      role: 'ALS Coordinator',
-    }));
-    // Navigate to admin dashboard
-    router.push('/');
+    const res = await api.post('/auth/login', {
+      username: form.username.trim(),
+      password: form.password,
+      role: 'ADMIN',
+    });
+
+    if (res.data?.token) {
+      setAdminSession(res.data.user, res.data.token);
+      router.push({ name: 'Dashboard' });
+    }
+  } catch (err) {
+    loginError.value =
+      err.response?.data?.error ||
+      'Invalid admin username or password. Please verify your credentials.';
   } finally {
     submitting.value = false;
   }

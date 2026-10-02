@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
-      <router-link to="/">Dashboard</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">User Management</span>
     </nav>

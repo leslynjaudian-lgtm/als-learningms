@@ -85,6 +85,11 @@
           </div>
         </div>
 
+        <!-- Error Banner -->
+        <div v-if="loginError" class="login-error-message">
+          {{ loginError }}
+        </div>
+
         <!-- Submit Button -->
         <button type="submit" class="btn-signin-primary" :disabled="submitting">
           <span>{{ submitting ? 'Signing In…' : 'Sign In' }}</span>
@@ -102,12 +107,20 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { reactive, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { loginTeacher } from '../api/auth.js';
+import { useTeacherSession } from '../composables/useTeacherSession.js';
 
 const router = useRouter();
+const { setSession, clearSession } = useTeacherSession();
 const showPassword = ref(false);
 const submitting = ref(false);
+const loginError = ref('');
+
+onMounted(() => {
+  clearSession();
+});
 
 const form = reactive({
   teacherId: '',
@@ -119,17 +132,40 @@ function handleForgotPassword() {
 }
 
 async function handleLogin() {
+  loginError.value = '';
   submitting.value = true;
   try {
-    localStorage.setItem('als_teacher_authenticated', 'true');
-    localStorage.setItem('als_teacher_user', JSON.stringify({
-      teacherId: form.teacherId || 'TCH-001',
-      name: 'Maria Santos',
-      role: 'ALS Teacher',
-    }));
-    router.push('/');
+    const { data } = await loginTeacher({
+      username: form.teacherId.trim(),
+      teacherId: form.teacherId.trim(),
+      password: form.password,
+    });
+    if (data) {
+      const teacherProfile = data.teacher || data.user?.profile || data.user;
+      if (teacherProfile) {
+        setSession(teacherProfile, data.token);
+        router.push({ name: 'Dashboard' });
+      }
+    }
+  } catch (err) {
+    loginError.value =
+      err.response?.data?.error ||
+      'Failed to sign in. Please verify your Teacher credentials or make sure the backend server is running.';
   } finally {
     submitting.value = false;
   }
 }
 </script>
+
+<style scoped>
+.login-error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  text-align: center;
+  margin-top: 0.25rem;
+}
+</style>

@@ -10,68 +10,69 @@ import AnnouncementsView from '../views/AnnouncementsView.vue';
 import ProfileView from '../views/ProfileView.vue';
 
 const routes = [
-  // First screen: Learner Login Interface on / and /login
+  // Root login — first screen for all unauthenticated users
   {
     path: '/',
-    name: 'RootLogin',
+    name: 'Login',
     component: LoginView,
-    meta: { title: 'Learner Login' },
+    meta: { title: 'Learner Login', guest: true },
   },
   {
     path: '/login',
-    name: 'Login',
-    component: LoginView,
-    meta: { title: 'Learner Login' },
+    redirect: '/',
   },
 
   // Authenticated Portal Pages under DefaultLayout
   {
     path: '/home',
     component: DefaultLayout,
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',
         name: 'Dashboard',
         component: DashboardView,
-        meta: { title: 'Home' },
+        meta: { title: 'Home', requiresAuth: true },
       },
       {
         path: '/modules',
         name: 'MyModules',
         component: MyModulesView,
-        meta: { title: 'My Modules' },
+        meta: { title: 'My Modules', requiresAuth: true },
       },
       {
         path: '/modules/:id',
         name: 'ModuleDetail',
         component: ModuleDetailView,
-        meta: { title: 'Study Module' },
+        meta: { title: 'Study Module', requiresAuth: true },
       },
       {
         path: '/assessments',
-        name: 'Assessments',
-        component: AssessmentsView,
-        meta: { title: 'Assessments' },
+        redirect: '/modules',
       },
       {
         path: '/progress',
         name: 'Progress',
         component: ProgressView,
-        meta: { title: 'My Progress' },
+        meta: { title: 'My Progress', requiresAuth: true },
       },
       {
         path: '/announcements',
         name: 'Announcements',
         component: AnnouncementsView,
-        meta: { title: 'Announcements' },
+        meta: { title: 'Announcements', requiresAuth: true },
       },
       {
         path: '/profile',
         name: 'Profile',
         component: ProfileView,
-        meta: { title: 'My Profile' },
+        meta: { title: 'My Profile', requiresAuth: true },
       },
     ],
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/',
   },
 ];
 
@@ -80,11 +81,39 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to) => {
+  // Set page title
   document.title = to.meta.title
     ? `${to.meta.title} — ALS LMS Learner`
     : 'ALS LMS — Learner Portal';
-  next();
+
+  // Direct access to localhost root / login: always show Login View cleanly
+  if (to.name === 'Login') {
+    localStorage.removeItem('als_learner_authenticated');
+    localStorage.removeItem('als_learner_user');
+    localStorage.removeItem('als_learner_token');
+    return;
+  }
+
+  const isAuthenticated = localStorage.getItem('als_learner_authenticated') === 'true';
+  const rawUser = localStorage.getItem('als_learner_user');
+  let user = null;
+  try {
+    user = rawUser ? JSON.parse(rawUser) : null;
+  } catch (e) {
+    user = null;
+  }
+
+  // If the route requires auth and user is not authenticated or not a LEARNER
+  if (to.meta.requiresAuth) {
+    if (!isAuthenticated || !user || user.role !== 'LEARNER') {
+      localStorage.removeItem('als_learner_authenticated');
+      localStorage.removeItem('als_learner_user');
+      localStorage.removeItem('als_learner_token');
+      return { name: 'Login' };
+    }
+  }
 });
 
 export default router;
+

@@ -3,8 +3,13 @@
     <h1 class="page-title">Announcements</h1>
     <p class="page-subtitle">Stay updated with the latest news and reminders.</p>
 
+    <!-- Loading State -->
+    <div v-if="loading" class="learner-card" style="padding: 2rem; text-align: center; color: #64748b;">
+      <p>Loading announcements...</p>
+    </div>
+
     <!-- Announcements List -->
-    <div v-if="announcements.length > 0" style="display: flex; flex-direction: column; gap: 0.85rem;">
+    <div v-else-if="announcements.length > 0" style="display: flex; flex-direction: column; gap: 0.85rem;">
       <div
         v-for="item in announcements"
         :key="item.id"
@@ -12,7 +17,7 @@
         style="display: flex; gap: 0.85rem; align-items: flex-start; padding: 1.15rem;"
       >
         <div
-          :style="{ background: item.iconBg, color: item.iconColor }"
+          :style="{ background: item.iconBg || '#eff6ff', color: item.iconColor || '#165dfc' }"
           style="width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -22,15 +27,20 @@
         </div>
 
         <div style="flex: 1;">
-          <h2 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; line-height: 1.25;">
-            {{ item.title }}
-          </h2>
-          <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-top: 2px;">
-            {{ item.date }}
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+            <h2 style="font-size: 0.95rem; font-weight: 800; color: #0f172a; line-height: 1.25; margin: 0;">
+              {{ item.title }}
+            </h2>
+            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b;">
+              {{ item.datePosted || item.date }}
+            </span>
           </div>
-          <p style="font-size: 0.825rem; color: #475569; margin-top: 0.35rem; line-height: 1.4;">
-            {{ item.content }}
+          <p style="font-size: 0.825rem; color: #475569; margin-top: 0.45rem; line-height: 1.45; white-space: pre-wrap;">
+            {{ item.message || item.content }}
           </p>
+          <div style="font-size: 0.725rem; color: #94a3b8; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.35rem;">
+            <span>From: {{ item.createdBy || item.author || 'Administrator' }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -43,8 +53,8 @@
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
       </div>
-      <h3 style="font-size: 0.95rem; font-weight: 700; color: #334155;">No announcements yet</h3>
-      <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.35rem;">
+      <h3 style="font-size: 0.95rem; font-weight: 700; color: #334155; margin: 0;">No announcements yet</h3>
+      <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.35rem; margin-bottom: 0;">
         District updates and learning schedules will be posted here.
       </p>
     </div>
@@ -52,8 +62,69 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import api from '../api/axios.js';
 
-// Zero Fake Data Rule: starts empty
 const announcements = ref([]);
+const loading = ref(false);
+
+async function loadAnnouncements() {
+  loading.value = true;
+  try {
+    let learnerId = null;
+    let learningCenterId = null;
+    try {
+      const meRes = await api.get('/learners/me');
+      if (meRes.data?.data) {
+        learnerId = meRes.data.data.id;
+        learningCenterId = meRes.data.data.learningCenterId;
+      }
+    } catch {
+      try {
+        const rawUser = localStorage.getItem('als_learner_user');
+        if (rawUser) {
+          const u = JSON.parse(rawUser);
+          learnerId = u.profile?.id || u.id;
+          learningCenterId = u.profile?.learningCenterId || u.learningCenterId;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const { data } = await api.get('/announcements', {
+      params: {
+        portal: 'learner',
+        learnerId: learnerId || undefined,
+        learningCenterId: learningCenterId || undefined,
+      },
+    });
+
+    if (Array.isArray(data)) {
+      announcements.value = data.map((d, index) => {
+        const colors = [
+          { iconBg: '#eff6ff', iconColor: '#165dfc' },
+          { iconBg: '#f5f3ff', iconColor: '#7c3aed' },
+          { iconBg: '#ecfdf5', iconColor: '#059669' },
+        ];
+        const color = colors[index % colors.length];
+        return {
+          ...d,
+          ...color,
+        };
+      });
+    } else {
+      announcements.value = [];
+    }
+  } catch (err) {
+    console.error('Failed to load announcements for learner:', err);
+    announcements.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(() => {
+  loadAnnouncements();
+});
 </script>

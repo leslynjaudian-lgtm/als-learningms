@@ -435,6 +435,19 @@ textarea {
   justify-content: center;
   font-weight: 600;
   font-size: 0.875rem;
+  overflow: hidden;
+}
+
+.user-avatar.has-photo {
+  background: transparent;
+}
+
+.user-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 .user-meta {
@@ -627,6 +640,143 @@ textarea {
 .stat-status-text {
   font-size: 0.725rem;
   color: var(--color-text-muted);
+}
+
+/* --- Reports Summary Cards (Standard ALS LMS Layout) --- */
+.report-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .report-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .report-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-summary-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.report-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.report-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+
+.report-card-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.35rem;
+  line-height: 1.3;
+}
+
+.report-card-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1.1;
+  margin-bottom: 0.35rem;
+  font-family: inherit;
+}
+
+.report-card-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+/* --- Report Single-Row Filter Bar --- */
+.report-filter-bar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.report-filter-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  flex: 1;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.filter-field-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 140px;
+  flex: 1;
+}
+
+.filter-field-col label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.filter-field-col select,
+.filter-field-col input {
+  width: 100%;
+  height: 38px;
+  padding: 0.45rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.filter-field-col select:focus,
+.filter-field-col input:focus {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding-bottom: 1px;
 }
 
 /* --- Dashboard 2-Column Section --- */
@@ -1893,3 +2043,120 @@ textarea {
     font-size: 0.8rem;
   }
 }
+
+/* ================================================
+   PRINT STYLES (@media print)
+   Only show #report-content, hide all LMS interface
+   ================================================ */
+@media print {
+  /* 1. Hide all navigation, sidebars, headers, footers, and system UI */
+  .sidebar,
+  aside.sidebar,
+  .sidebar-overlay,
+  .topbar,
+  header.topbar,
+  .portal-footer,
+  footer,
+  .breadcrumb,
+  .breadcrumb-nav,
+  .page-header-row,
+  .controls-card,
+  .filter-card,
+  .filters-card,
+  .report-filter-bar,
+  .report-stats-grid,
+  .pdf-action-container,
+  .scroll-down-container,
+  .report-actions-bar,
+  .preview-actions-bar,
+  .af2-preview-banner,
+  .modal-overlay,
+  .modal-backdrop,
+  .no-print,
+  .print-hidden,
+  button,
+  .btn,
+  .btn-generate-pdf,
+  .btn-print-report,
+  .btn-view-details {
+    display: none !important;
+  }
+
+  /* 2. Reset html, body, and app layout containers for clean document printing */
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .app-layout,
+  .main-wrapper,
+  .main-content,
+  .page-container,
+  .report-preview-container,
+  .summary-results-card,
+  .af2-preview-wrapper,
+  .table-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  /* 3. Dedicated report container display rules */
+  #report-content,
+  .report-paper-sheet,
+  .af2-paper-sheet,
+  .af2-report-paper {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    page-break-after: avoid;
+  }
+
+  /* Page margins */
+  @page {
+    size: auto;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+
+  /* Table rules for clean print */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
+

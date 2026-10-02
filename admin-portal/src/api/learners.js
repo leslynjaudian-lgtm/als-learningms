@@ -3,8 +3,8 @@ import api from './axios.js';
 /**
  * Get all learners.
  */
-export function getLearners() {
-  return api.get('/learners');
+export function getLearners(params = {}) {
+  return api.get('/learners', { params });
 }
 
 /**
@@ -19,6 +19,13 @@ export function getLearner(id) {
  */
 export function registerLearner(data) {
   return api.post('/learners', data);
+}
+
+/**
+ * Update an existing learner.
+ */
+export function updateLearner(id, data) {
+  return api.put(`/learners/${id}`, data);
 }
 
 /**

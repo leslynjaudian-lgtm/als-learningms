@@ -14,7 +14,7 @@
 
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
-      <router-link to="/">Dashboard</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">Learners</span>
     </nav>
@@ -97,6 +97,7 @@
               <th>LRN</th>
               <th>Level</th>
               <th>Learning Center</th>
+              <th>Assigned Teacher</th>
               <th>Status</th>
               <th class="th-actions">Actions</th>
             </tr>
@@ -106,8 +107,16 @@
               <td>{{ idx + 1 }}</td>
               <td style="font-weight: 600;">{{ learner.name }}</td>
               <td>{{ learner.lrn || '—' }}</td>
-              <td>{{ learner.level }}</td>
+              <td>{{ learner.level === 'ELEMENTARY' ? 'A&E Elementary' : (learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' ? 'A&E Junior' : learner.level) }}</td>
               <td>{{ learner.learningCenter }}</td>
+              <td>
+                <span v-if="learner.assignedTeacher && learner.assignedTeacher !== '—'" style="font-weight: 600; color: #1e40af;">
+                  {{ learner.assignedTeacher }}
+                </span>
+                <span v-else style="color: #94a3b8; font-style: italic;">
+                  Unassigned
+                </span>
+              </td>
               <td>
                 <span class="badge" :class="learner.status === 'Active' ? 'badge-success' : 'badge-muted'">
                   {{ learner.status }}
@@ -148,8 +157,8 @@
             <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
           </svg>
         </div>
-        <h3>No learners yet</h3>
-        <p>Learner records will appear here once they are added to the system.</p>
+        <h3>No learners registered yet.</h3>
+        <p>Only display learners registered by the Admin.</p>
       </div>
     </div>
 
@@ -202,19 +211,33 @@
               </div>
 
               <div class="field-group">
-                <label class="field-label" for="learner-last-name">
-                  Last Name <span class="required">*</span>
+                <label class="field-label" for="learner-middle-name">
+                  Middle Name
                 </label>
                 <input
-                  id="learner-last-name"
-                  v-model="learnerForm.lastName"
+                  id="learner-middle-name"
+                  v-model="learnerForm.middleName"
                   type="text"
                   class="field-input"
-                  placeholder="Enter last name"
-                  required
-                  autocomplete="family-name"
+                  placeholder="Enter middle name"
+                  autocomplete="additional-name"
                 />
               </div>
+            </div>
+
+            <div class="field-group" style="margin-bottom: 0.85rem;">
+              <label class="field-label" for="learner-last-name">
+                Last Name <span class="required">*</span>
+              </label>
+              <input
+                id="learner-last-name"
+                v-model="learnerForm.lastName"
+                type="text"
+                class="field-input"
+                placeholder="Enter last name"
+                required
+                autocomplete="family-name"
+              />
             </div>
 
             <div class="form-grid-2">
@@ -341,6 +364,28 @@
 
             <div class="form-grid-2">
               <div class="field-group">
+                <label class="field-label" for="learner-teacher">
+                  Assigned Teacher
+                </label>
+                <div class="select-wrapper">
+                  <select
+                    id="learner-teacher"
+                    v-model="learnerForm.assignedTeacherId"
+                    class="field-select"
+                  >
+                    <option value="">-- No Assigned Teacher (Unassigned) --</option>
+                    <option
+                      v-for="t in teachers"
+                      :key="t.id"
+                      :value="t.id"
+                    >
+                      {{ t.fullName || t.name }} ({{ t.learningCenter || 'CLC' }})
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-group">
                 <label class="field-label" for="learner-status">Status</label>
                 <div class="select-wrapper">
                   <select
@@ -353,7 +398,9 @@
                   </select>
                 </div>
               </div>
+            </div>
 
+            <div class="form-grid-2">
               <div class="field-group">
                 <label class="field-label" for="learner-date-registered">Date Registered</label>
                 <input
@@ -365,16 +412,51 @@
               </div>
             </div>
 
+            <!-- 3. PORTAL LOGIN CREDENTIALS -->
+            <div class="form-section-header">
+              <span class="section-title">PORTAL LOGIN CREDENTIALS</span>
+              <div class="section-line"></div>
+            </div>
+
             <!-- Login Information Callout Box -->
-            <div class="info-alert-box">
+            <div class="info-alert-box" style="margin-bottom: 1.15rem;">
               <div class="info-alert-icon-wrap">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="info-alert-icon">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
                 </svg>
               </div>
               <div class="info-alert-content">
-                <strong>Login Information:</strong>
-                <p>The learner will log in using their registered full name only. No password is required.</p>
+                <strong>Automatic Full Name Login:</strong>
+                <p>
+                  Learners will login directly using their registered <strong>Full Name</strong> (e.g. <code>{{ learnerFullNamePreview || 'Juan Dela Cruz' }}</code>). No separate username generation needed.
+                </p>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="field-group">
+                <label class="field-label" for="learner-login-name">Login Name (Full Name)</label>
+                <input
+                  id="learner-login-name"
+                  :value="learnerFullNamePreview || '—'"
+                  type="text"
+                  class="field-input"
+                  readonly
+                  style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
+                />
+              </div>
+
+              <div class="field-group">
+                <label class="field-label" for="learner-password">Initial Password (Optional)</label>
+                <input
+                  id="learner-password"
+                  v-model="learnerForm.password"
+                  type="text"
+                  class="field-input"
+                  placeholder="Defaults to Full Name if left blank"
+                  autocomplete="new-password"
+                />
               </div>
             </div>
 
@@ -432,11 +514,15 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">Program Level</span>
-              <span class="detail-value">{{ viewingLearner?.level || '—' }}</span>
+              <span class="detail-value">{{ viewingLearner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (viewingLearner?.level === 'JUNIOR' || viewingLearner?.level === 'LOWER_SECONDARY' ? 'A&E Junior' : viewingLearner?.level) || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Learning Center</span>
               <span class="detail-value">{{ viewingLearner?.learningCenter || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Assigned Teacher</span>
+              <span class="detail-value" style="font-weight: 600; color: #1e40af;">{{ viewingLearner?.assignedTeacher || viewingLearner?.teacher || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Status</span>
@@ -491,7 +577,8 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
-import { getLearners, registerLearner, deleteLearner } from '../api/learners.js';
+import { getLearners, registerLearner, updateLearner, deleteLearner } from '../api/learners.js';
+import { getTeachers } from '../api/teachers.js';
 
 const route = useRoute();
 
@@ -517,18 +604,17 @@ async function confirmDeleteLearner() {
   const name = deletingLearner.value.name || deletingLearner.value.fullName || 'Learner';
   const id = deletingLearner.value.id;
   try {
-    if (typeof id === 'number' && id < 100000000000) {
-      await deleteLearner(id);
-    }
-    learners.value = learners.value.filter((l) => l.id !== id);
-    showToast(`Learner "${name}" deleted.`);
+    await deleteLearner(id);
+    showToast(`Learner "${name}" deleted successfully.`);
     showDeleteModal.value = false;
     deletingLearner.value = null;
+    await loadLearners();
   } catch (err) {
-    learners.value = learners.value.filter((l) => l.id !== id);
-    showToast(`Learner "${name}" deleted.`);
-    showDeleteModal.value = false;
-    deletingLearner.value = null;
+    console.error('Failed to delete learner:', err);
+    showToast(
+      err.response?.data?.error || `Failed to delete learner "${name}".`,
+      'error'
+    );
   } finally {
     deleting.value = false;
   }
@@ -543,6 +629,7 @@ const loading = ref(false);
 
 const learners = ref([]);
 const learningCenters = ref([]);
+const teachers = ref([]);
 
 // Modal & Form State
 const showAddModal = ref(false);
@@ -559,15 +646,29 @@ function getTodayFormatted() {
 const learnerForm = reactive({
   lrn: '',
   firstName: '',
+  middleName: '',
   lastName: '',
   dob: '',
   sex: '',
   contactNumber: '',
   address: '',
   learningCenterId: '',
+  assignedTeacherId: '',
+  username: '',
+  password: '',
   level: '',
   status: 'Active',
   dateRegistered: getTodayFormatted(),
+});
+
+const learnerFullNamePreview = computed(() => {
+  const last = (learnerForm.lastName || '').trim();
+  const first = (learnerForm.firstName || '').trim();
+  const middle = (learnerForm.middleName || '').trim();
+  if (last && first) {
+    return middle ? `${last}, ${first} ${middle}` : `${last}, ${first}`;
+  }
+  return [last, first, middle].filter(Boolean).join(' ') || '';
 });
 
 // Toast notification system
@@ -598,8 +699,11 @@ const filteredLearners = computed(() => {
     const matchesCenter =
       !selectedCenter.value || learner.learningCenter === selectedCenter.value;
 
+    const learnerDisplayLevel =
+      learner.level === 'ELEMENTARY' ? 'A&E Elementary' :
+      learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' ? 'A&E Junior' : learner.level;
     const matchesLevel =
-      !selectedLevel.value || learner.level === selectedLevel.value;
+      !selectedLevel.value || learnerDisplayLevel === selectedLevel.value;
 
     const matchesStatus =
       !selectedStatus.value || learner.status === selectedStatus.value;
@@ -617,21 +721,45 @@ function openEditModal(learner) {
   editingLearner.value = learner;
   formError.value = '';
 
-  const nameParts = (learner.name || learner.fullName || '').split(' ');
-  const firstName = learner.firstName || nameParts[0] || '';
-  const lastName = learner.lastName || nameParts.slice(1).join(' ') || '';
+  let firstName = learner.firstName || '';
+  let middleName = learner.middleName || '';
+  let lastName = learner.lastName || '';
+
+  // Fallback parsing if firstName/lastName not directly present
+  if (!firstName && !lastName) {
+    const raw = learner.name || learner.fullName || '';
+    if (raw.includes(',')) {
+      const [lastPart, rest] = raw.split(',').map((s) => s.trim());
+      lastName = lastPart;
+      const restParts = (rest || '').split(' ').filter(Boolean);
+      firstName = restParts[0] || '';
+      middleName = restParts.slice(1).join(' ');
+    } else {
+      const parts = raw.split(' ').filter(Boolean);
+      firstName = parts[0] || '';
+      lastName = parts.slice(1).join(' ') || '';
+    }
+  }
 
   const matchedCenter = learningCenters.value.find((c) => c.name === learner.learningCenter || c.id === learner.learningCenterId);
 
+  let levelDisplay = learner.level || '';
+  if (levelDisplay === 'ELEMENTARY') levelDisplay = 'A&E Elementary';
+  else if (levelDisplay === 'JUNIOR' || levelDisplay === 'LOWER_SECONDARY') levelDisplay = 'A&E Junior';
+
   learnerForm.lrn = learner.lrn || '';
   learnerForm.firstName = firstName;
+  learnerForm.middleName = middleName;
   learnerForm.lastName = lastName;
   learnerForm.dob = learner.dob || '';
   learnerForm.sex = learner.sex || learner.gender || 'Male';
   learnerForm.contactNumber = learner.contactNumber || '';
   learnerForm.address = learner.address || '';
   learnerForm.learningCenterId = matchedCenter?.id || learningCenters.value[0]?.id || '';
-  learnerForm.level = learner.level || '';
+  learnerForm.assignedTeacherId = learner.assignedTeacherId || '';
+  learnerForm.username = learner.username || '';
+  learnerForm.password = '';
+  learnerForm.level = levelDisplay;
   learnerForm.status = learner.status || 'Active';
   learnerForm.dateRegistered = learner.dateRegistered || getTodayFormatted();
   showAddModal.value = true;
@@ -642,12 +770,16 @@ function openAddModal() {
   formError.value = '';
   learnerForm.lrn = '';
   learnerForm.firstName = '';
+  learnerForm.middleName = '';
   learnerForm.lastName = '';
   learnerForm.dob = '';
   learnerForm.sex = '';
   learnerForm.contactNumber = '';
   learnerForm.address = '';
   learnerForm.learningCenterId = learningCenters.value[0]?.id || '';
+  learnerForm.assignedTeacherId = teachers.value[0]?.id || '';
+  learnerForm.username = '';
+  learnerForm.password = '';
   learnerForm.level = '';
   learnerForm.status = 'Active';
   learnerForm.dateRegistered = getTodayFormatted();
@@ -673,6 +805,18 @@ async function loadCenters() {
   }
 }
 
+async function loadTeachers() {
+  try {
+    const { data } = await getTeachers();
+    teachers.value = Array.isArray(data) ? data : [];
+    if (teachers.value.length > 0 && !learnerForm.assignedTeacherId && !editingLearner.value) {
+      learnerForm.assignedTeacherId = teachers.value[0].id;
+    }
+  } catch (err) {
+    console.error('Failed to load teachers:', err);
+  }
+}
+
 async function loadLearners() {
   loading.value = true;
   try {
@@ -681,7 +825,7 @@ async function loadLearners() {
       learners.value = data;
     }
   } catch {
-    // Graceful fallback if backend is offline
+    // Graceful fallback
   } finally {
     loading.value = false;
   }
@@ -717,90 +861,73 @@ async function handleRegisterLearner() {
   }
 
   submitting.value = true;
-  const fullName = `${learnerForm.firstName.trim()} ${learnerForm.lastName.trim()}`;
-  const centerObj = learningCenters.value.find((c) => c.id === learnerForm.learningCenterId);
+  const first = learnerForm.firstName.trim();
+  const middle = learnerForm.middleName ? learnerForm.middleName.trim() : '';
+  const last = learnerForm.lastName.trim();
+  const fullName = middle ? `${last}, ${first} ${middle}` : `${last}, ${first}`;
+
+  let apiLevel = 'JUNIOR';
+  if (learnerForm.level === 'A&E Elementary' || learnerForm.level === 'ELEMENTARY') {
+    apiLevel = 'ELEMENTARY';
+  } else if (learnerForm.level === 'A&E Junior' || learnerForm.level === 'JUNIOR') {
+    apiLevel = 'JUNIOR';
+  }
+
+  const payload = {
+    lrn: learnerForm.lrn.trim() || undefined,
+    firstName: first,
+    middleName: middle || null,
+    lastName: last,
+    dob: learnerForm.dob,
+    sex: learnerForm.sex,
+    contactNumber: learnerForm.contactNumber.trim(),
+    address: learnerForm.address.trim(),
+    learningCenterId: learnerForm.learningCenterId,
+    assignedTeacherId: learnerForm.assignedTeacherId ? parseInt(learnerForm.assignedTeacherId, 10) : null,
+    username: learnerForm.username ? learnerForm.username.trim() : undefined,
+    password: learnerForm.password ? learnerForm.password.trim() : undefined,
+    level: apiLevel,
+    status: learnerForm.status,
+    dateRegistered: learnerForm.dateRegistered,
+  };
 
   // If editing an existing learner
   if (editingLearner.value) {
     try {
+      const { data } = await updateLearner(editingLearner.value.id, payload);
       const idx = learners.value.findIndex((l) => l.id === editingLearner.value.id);
       if (idx !== -1) {
-        learners.value[idx] = {
-          ...learners.value[idx],
-          name: fullName,
-          fullName: fullName,
-          lrn: learnerForm.lrn.trim(),
-          level: learnerForm.level,
-          learningCenterId: learnerForm.learningCenterId,
-          learningCenter: centerObj ? centerObj.name : learners.value[idx].learningCenter,
-          status: learnerForm.status,
-          dob: learnerForm.dob,
-          sex: learnerForm.sex,
-          contactNumber: learnerForm.contactNumber,
-          address: learnerForm.address,
-          dateRegistered: learnerForm.dateRegistered,
-        };
+        learners.value[idx] = data;
       }
       showToast(`Learner "${fullName}" updated successfully.`);
       showAddModal.value = false;
       editingLearner.value = null;
+    } catch (err) {
+      formError.value = err.response?.data?.error || 'Failed to update learner.';
     } finally {
       submitting.value = false;
     }
     return;
   }
 
-  const payload = {
-    lrn: learnerForm.lrn.trim() || undefined,
-    firstName: learnerForm.firstName.trim(),
-    lastName: learnerForm.lastName.trim(),
-    dob: learnerForm.dob,
-    sex: learnerForm.sex,
-    contactNumber: learnerForm.contactNumber.trim(),
-    address: learnerForm.address.trim(),
-    learningCenterId: learnerForm.learningCenterId,
-    level: learnerForm.level,
-    status: learnerForm.status,
-    dateRegistered: learnerForm.dateRegistered,
-  };
-
   try {
     const { data } = await registerLearner(payload);
-    learners.value.unshift(data);
     showToast(`Learner "${data.name || fullName}" registered successfully.`);
     showAddModal.value = false;
+    await loadLearners();
   } catch (err) {
     if (err.response?.data?.error) {
       formError.value = err.response.data.error;
       return;
     }
-    // If backend is offline or fails, create locally so admin sees immediate result
-    console.warn('Backend call failed or server offline, saving in local state:', err);
-    const localNewLearner = {
-      id: Date.now(),
-      name: fullName,
-      fullName: fullName,
-      lrn: learnerForm.lrn.trim(),
-      level: learnerForm.level,
-      learningCenterId: learnerForm.learningCenterId,
-      learningCenter: centerObj ? centerObj.name : 'Naawan CLC',
-      status: learnerForm.status,
-      dob: learnerForm.dob,
-      sex: learnerForm.sex,
-      contactNumber: learnerForm.contactNumber,
-      address: learnerForm.address,
-      dateRegistered: learnerForm.dateRegistered,
-    };
-    learners.value.unshift(localNewLearner);
-    showToast(`Learner "${fullName}" registered successfully.`);
-    showAddModal.value = false;
+    formError.value = 'Failed to register learner. Please check your network or server.';
   } finally {
     submitting.value = false;
   }
 }
 
 onMounted(async () => {
-  await Promise.all([loadCenters(), loadLearners()]);
+  await Promise.all([loadCenters(), loadTeachers(), loadLearners()]);
   if (route.query.add === 'true' || route.query.add === '1') {
     openAddModal();
   }

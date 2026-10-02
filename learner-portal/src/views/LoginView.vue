@@ -44,8 +44,13 @@
           </div>
         </div>
 
+        <!-- Error Banner -->
+        <div v-if="loginError" class="login-error-banner" style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; font-size: 0.8125rem; padding: 0.6rem 0.85rem; border-radius: 8px; margin-bottom: 1rem; text-align: center;">
+          {{ loginError }}
+        </div>
+
         <button type="submit" class="btn-learner-signin" :disabled="submitting">
-          <span>Sign In &rarr;</span>
+          <span>{{ submitting ? 'Signing In…' : 'Sign In &rarr;' }}</span>
         </button>
 
         <!-- Info Guidance Callout -->
@@ -58,7 +63,7 @@
             </svg>
           </div>
           <div class="info-callout-text">
-            Use your complete name as your login.
+            Use your registered name, username, or LRN to sign in.
           </div>
         </div>
       </form>
@@ -67,26 +72,63 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import api from '../api/axios.js';
 
 const router = useRouter();
 const name = ref('');
 const submitting = ref(false);
+const loginError = ref('');
 
-function handleLogin() {
+onMounted(() => {
+  localStorage.removeItem('als_learner_authenticated');
+  localStorage.removeItem('als_learner_user');
+  localStorage.removeItem('als_learner_token');
+});
+
+async function handleLogin() {
+  const entered = name.value.trim();
+  if (!entered) {
+    loginError.value = 'Please enter your registered name or username.';
+    return;
+  }
+  loginError.value = '';
   submitting.value = true;
   try {
-    const learnerName = name.value.trim() || 'Juan Dela Cruz';
-    localStorage.setItem('als_learner_authenticated', 'true');
-    localStorage.setItem('als_learner_user', JSON.stringify({
-      name: learnerName,
-      role: 'ALS Learner',
-      program: 'A&E - Junior',
-      learningCenter: 'Naawan District',
-      strand: 'Communication Skills',
-    }));
-    router.push('/home');
+    const res = await api.post('/auth/login', {
+      username: entered,
+      role: 'LEARNER',
+    });
+
+    if (res.data?.token) {
+      const u = res.data.user;
+      localStorage.setItem('als_learner_token', res.data.token);
+      localStorage.setItem('als_learner_authenticated', 'true');
+      localStorage.setItem('als_learner_user', JSON.stringify({
+        ...u,
+        role: 'LEARNER',
+        name: u.name,
+        fullName: u.name,
+        program: u.profile?.level || 'A&E Junior',
+        learningCenter: u.profile?.learningCenter || '—',
+        learningCenterId: u.profile?.learningCenterId || null,
+        teacher: u.profile?.teacher || '—',
+        assignedTeacher: u.profile?.teacher || '—',
+        lrn: u.profile?.lrn || '',
+        id: u.profile?.id || u.id,
+        profilePhoto: u.profilePhoto || u.profile?.profilePhoto || null,
+      }));
+      router.push('/home');
+    }
+  } catch (err) {
+    if (err.response?.data?.error) {
+      loginError.value = err.response.data.error;
+    } else if (err.message === 'Network Error' || !err.response) {
+      loginError.value = 'Cannot connect to backend server. Please verify backend is running on http://localhost:3000.';
+    } else {
+      loginError.value = 'Account not found. Please verify your registered name or LRN.';
+    }
   } finally {
     submitting.value = false;
   }

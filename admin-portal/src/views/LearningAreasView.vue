@@ -1,8 +1,20 @@
 <template>
   <div class="page-container">
+    <!-- Toast notifications -->
+    <div class="toast-container" v-if="toasts.length > 0">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast"
+        :class="[`toast-${toast.type}`, { 'toast-exit': toast.exiting }]"
+      >
+        {{ toast.message }}
+      </div>
+    </div>
+
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
-      <router-link to="/">Dashboard</router-link>
+      <router-link to="/dashboard">Dashboard</router-link>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">Learning Areas</span>
     </nav>
@@ -13,6 +25,12 @@
         <h1>Learning Areas</h1>
         <p>Manage ALS learning strands and subject areas.</p>
       </div>
+      <button type="button" class="btn btn-primary" @click="openAddModal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span>Add Learning Area</span>
+      </button>
     </div>
 
     <!-- Table Card -->
@@ -21,26 +39,68 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Code</th>
+              <th style="width: 50px;">No.</th>
+              <th style="width: 110px;">Code</th>
               <th>Learning Strand</th>
               <th>Description</th>
-              <th>Status</th>
-              <th class="th-actions">Actions</th>
+              <th style="width: 110px;">Status</th>
+              <th class="th-actions" style="text-align: right; width: 140px;">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(area, idx) in areas" :key="area.name">
+            <tr v-for="(area, idx) in areas" :key="area.id || area.name">
               <td>{{ idx + 1 }}</td>
-              <td><span class="badge badge-primary">{{ area.code }}</span></td>
-              <td style="font-weight: 600;">{{ area.name }}</td>
-              <td>{{ area.description }}</td>
               <td>
-                <span class="badge badge-success">Active</span>
+                <span class="badge badge-primary">{{ area.code }}</span>
               </td>
-              <td class="td-actions">
-                <div class="cell-actions">
-                  <button class="btn-icon btn-icon-danger" title="Delete Learning Area" @click="openDeleteModal(area)">
+              <td style="font-weight: 600; color: var(--color-text);">
+                {{ area.name }}
+              </td>
+              <td class="col-description">
+                {{ area.description }}
+              </td>
+              <td>
+                <span class="badge" :class="area.status === 'Inactive' ? 'badge-muted' : 'badge-success'">
+                  {{ area.status || 'Active' }}
+                </span>
+              </td>
+              <td class="td-actions" style="text-align: right;">
+                <div class="cell-actions" style="justify-content: flex-end;">
+                  <!-- View Icon -->
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-view"
+                    title="View Learning Area"
+                    aria-label="View Learning Area"
+                    @click="openViewModal(area)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+
+                  <!-- Edit Icon -->
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-edit"
+                    title="Edit Learning Area"
+                    aria-label="Edit Learning Area"
+                    @click="openEditModal(area)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                    </svg>
+                  </button>
+
+                  <!-- Delete Icon -->
+                  <button
+                    type="button"
+                    class="btn-icon btn-icon-danger"
+                    title="Delete Learning Area"
+                    aria-label="Delete Learning Area"
+                    @click="openDeleteModal(area)"
+                  >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -54,14 +114,173 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Empty State -->
+      <div v-if="areas.length === 0" class="empty-state-box">
+        <div class="empty-state-graphic">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </div>
+        <h3>No learning areas registered</h3>
+        <p>Click "Add Learning Area" above to create an ALS learning strand.</p>
+      </div>
+    </div>
+
+    <!-- Modal: Add / Edit Learning Area -->
+    <div v-if="showFormModal" class="modal-overlay" @click.self="closeFormModal">
+      <div class="modal modal-learning-area">
+        <div class="modal-header">
+          <div>
+            <h2>{{ editingArea ? 'Edit Learning Area' : 'Add Learning Area' }}</h2>
+            <p class="modal-subtitle">
+              {{ editingArea ? 'Update learning area information.' : 'Create a new ALS learning strand and subject area.' }}
+            </p>
+          </div>
+          <button type="button" class="modal-close" @click="closeFormModal" title="Close" aria-label="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <form @submit.prevent="saveForm">
+            <!-- Learning Strand Code * -->
+            <div class="form-group">
+              <label class="form-label" for="la-code">
+                Learning Strand Code <span class="required">*</span>
+              </label>
+              <input
+                id="la-code"
+                v-model="form.code"
+                type="text"
+                class="form-input"
+                placeholder="e.g. LS 1"
+                required
+              />
+            </div>
+
+            <!-- Learning Strand Name * -->
+            <div class="form-group">
+              <label class="form-label" for="la-name">
+                Learning Strand Name <span class="required">*</span>
+              </label>
+              <input
+                id="la-name"
+                v-model="form.name"
+                type="text"
+                class="form-input"
+                placeholder="e.g. Communication Skills (English)"
+                required
+              />
+            </div>
+
+            <!-- Description * -->
+            <div class="form-group">
+              <label class="form-label" for="la-desc">
+                Description <span class="required">*</span>
+              </label>
+              <textarea
+                id="la-desc"
+                v-model="form.description"
+                rows="3"
+                class="form-input"
+                placeholder="e.g. Developing English communication skills for daily life and work."
+                required
+              ></textarea>
+            </div>
+
+            <!-- Status -->
+            <div class="form-group">
+              <label class="form-label" for="la-status">
+                Status
+              </label>
+              <select id="la-status" v-model="form.status" class="form-select-full">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            <!-- Modal Footer Buttons -->
+            <div class="modal-footer" style="padding: 1rem 0 0; margin-top: 1rem;">
+              <button type="button" class="btn btn-secondary" @click="closeFormModal">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary">
+                {{ editingArea ? 'Save Changes' : 'Save Learning Area' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: View Learning Area Details -->
+    <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
+      <div class="modal modal-view-area">
+        <div class="modal-header">
+          <div>
+            <h2>Learning Area Details</h2>
+            <p class="modal-subtitle">ALS Learning Strand Information</p>
+          </div>
+          <button type="button" class="modal-close" @click="showViewModal = false" title="Close" aria-label="Close modal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="details-list">
+            <div class="detail-row">
+              <span class="detail-label">Learning Strand Code</span>
+              <span class="detail-value">
+                <span class="badge badge-primary">{{ viewingArea?.code }}</span>
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Learning Strand Name</span>
+              <span class="detail-value font-semibold">{{ viewingArea?.name }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Description</span>
+              <span class="detail-value">{{ viewingArea?.description || '—' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Status</span>
+              <span class="detail-value">
+                <span class="badge" :class="viewingArea?.status === 'Inactive' ? 'badge-muted' : 'badge-success'">
+                  {{ viewingArea?.status || 'Active' }}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding: 1rem 0 0; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary" @click="showViewModal = false">
+              Close
+            </button>
+            <button type="button" class="btn btn-primary" @click="editFromView">
+              Edit Learning Area
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
     <DeleteConfirmModal
       :show="showDeleteModal"
       title="Delete Learning Area"
+      message="Are you sure you want to delete this learning area?"
       :item-name="deletingArea?.name || ''"
       :loading="deleting"
+      confirm-text="Delete"
+      cancel-text="Cancel"
       @confirm="confirmDeleteArea"
       @cancel="closeDeleteModal"
     />
@@ -69,9 +288,199 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 
+// --- Toast Notifications ---
+const toasts = ref([]);
+function showToast(message, type = 'success') {
+  const id = Date.now() + Math.random();
+  const toastObj = { id, message, type, exiting: false };
+  toasts.value.push(toastObj);
+  setTimeout(() => {
+    toastObj.exiting = true;
+    setTimeout(() => {
+      toasts.value = toasts.value.filter((t) => t.id !== id);
+    }, 250);
+  }, 3200);
+}
+
+// --- Initial ALS Strands Data ---
+const STORAGE_KEY = 'als_admin_learning_areas_v1';
+
+const defaultAreas = [
+  {
+    id: 1,
+    code: 'LS 1',
+    name: 'Communication Skills (English)',
+    description: 'Developing English communication skills for daily life and work.',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    code: 'LS 1',
+    name: 'Communication Skills (Filipino)',
+    description: 'Developing Filipino communication skills for daily life and work.',
+    status: 'Active',
+  },
+  {
+    id: 3,
+    code: 'LS 2',
+    name: 'Scientific & Critical Thinking Skills',
+    description: 'Building scientific literacy and critical thinking abilities.',
+    status: 'Active',
+  },
+  {
+    id: 4,
+    code: 'LS 3',
+    name: 'Mathematical & Problem Solving Skills',
+    description: 'Developing mathematical concepts and problem-solving skills.',
+    status: 'Active',
+  },
+  {
+    id: 5,
+    code: 'LS 4',
+    name: 'Life & Career Skills',
+    description: 'Enhancing employability and livelihood capabilities.',
+    status: 'Active',
+  },
+  {
+    id: 6,
+    code: 'LS 5',
+    name: 'Understanding Self & Society',
+    description: 'Understanding Philippine history, government, and civic responsibilities.',
+    status: 'Active',
+  },
+  {
+    id: 7,
+    code: 'LS 6',
+    name: 'Digital Citizenship',
+    description: 'Developing digital literacy and responsible use of technology.',
+    status: 'Active',
+  },
+];
+
+const areas = ref([]);
+
+function loadAreas() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        areas.value = parsed;
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read stored learning areas:', err);
+  }
+  areas.value = [...defaultAreas];
+}
+
+function persistAreas() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(areas.value));
+  } catch (err) {
+    console.warn('Could not persist learning areas:', err);
+  }
+}
+
+onMounted(() => {
+  loadAreas();
+});
+
+// --- Modal State: Add / Edit ---
+const showFormModal = ref(false);
+const editingArea = ref(null);
+
+const form = reactive({
+  code: '',
+  name: '',
+  description: '',
+  status: 'Active',
+});
+
+function openAddModal() {
+  editingArea.value = null;
+  form.code = '';
+  form.name = '';
+  form.description = '';
+  form.status = 'Active';
+  showFormModal.value = true;
+}
+
+function openEditModal(area) {
+  editingArea.value = area;
+  form.code = area.code || '';
+  form.name = area.name || '';
+  form.description = area.description || '';
+  form.status = area.status || 'Active';
+  showFormModal.value = true;
+}
+
+function closeFormModal() {
+  showFormModal.value = false;
+  editingArea.value = null;
+}
+
+function saveForm() {
+  if (!form.code.trim() || !form.name.trim() || !form.description.trim()) {
+    showToast('Please fill out all required fields.', 'error');
+    return;
+  }
+
+  if (editingArea.value) {
+    // Update existing
+    const idx = areas.value.findIndex(
+      (a) => a.id === editingArea.value.id || a.name === editingArea.value.name
+    );
+    if (idx !== -1) {
+      areas.value[idx] = {
+        ...areas.value[idx],
+        code: form.code.trim(),
+        name: form.name.trim(),
+        description: form.description.trim(),
+        status: form.status,
+      };
+      persistAreas();
+      showToast('Learning area updated successfully.');
+    }
+  } else {
+    // Create new
+    const newArea = {
+      id: Date.now(),
+      code: form.code.trim(),
+      name: form.name.trim(),
+      description: form.description.trim(),
+      status: form.status,
+    };
+    areas.value.push(newArea);
+    persistAreas();
+    showToast('Learning area added successfully.');
+  }
+
+  closeFormModal();
+}
+
+// --- Modal State: View Details ---
+const showViewModal = ref(false);
+const viewingArea = ref(null);
+
+function openViewModal(area) {
+  viewingArea.value = area;
+  showViewModal.value = true;
+}
+
+function editFromView() {
+  const target = viewingArea.value;
+  showViewModal.value = false;
+  if (target) {
+    openEditModal(target);
+  }
+}
+
+// --- Modal State: Delete Confirmation ---
 const showDeleteModal = ref(false);
 const deletingArea = ref(null);
 const deleting = ref(false);
@@ -90,47 +499,143 @@ function closeDeleteModal() {
 function confirmDeleteArea() {
   if (!deletingArea.value) return;
   deleting.value = true;
-  areas.value = areas.value.filter((a) => a.name !== deletingArea.value.name);
-  showDeleteModal.value = false;
-  deletingArea.value = null;
-  deleting.value = false;
+
+  const targetId = deletingArea.value.id;
+  const targetName = deletingArea.value.name;
+
+  setTimeout(() => {
+    areas.value = areas.value.filter((a) => {
+      if (targetId && a.id) {
+        return a.id !== targetId;
+      }
+      return a.name !== targetName;
+    });
+
+    persistAreas();
+    deleting.value = false;
+    showDeleteModal.value = false;
+    deletingArea.value = null;
+    showToast('Learning area deleted successfully.');
+  }, 200);
+}
+</script>
+
+<style scoped>
+.modal-subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.2rem;
 }
 
-const areas = ref([
-  {
-    code: 'LS 1',
-    name: 'Communication Skills (English)',
-    description: 'Developing English communication skills for daily life and work.',
-  },
-  {
-    code: 'LS 1',
-    name: 'Communication Skills (Filipino)',
-    description: 'Developing Filipino communication skills for daily life and work.',
-  },
-  {
-    code: 'LS 2',
-    name: 'Scientific & Critical Thinking Skills',
-    description: 'Building scientific literacy and critical thinking abilities.',
-  },
-  {
-    code: 'LS 3',
-    name: 'Mathematical & Problem Solving Skills',
-    description: 'Developing mathematical concepts and problem-solving skills.',
-  },
-  {
-    code: 'LS 4',
-    name: 'Life & Career Skills',
-    description: 'Enhancing employability and livelihood capabilities.',
-  },
-  {
-    code: 'LS 5',
-    name: 'Understanding Self & Society',
-    description: 'Understanding Philippine history, government, and civic responsibilities.',
-  },
-  {
-    code: 'LS 6',
-    name: 'Digital Citizenship',
-    description: 'Developing digital literacy and responsible use of technology.',
-  },
-]);
-</script>
+.modal-learning-area {
+  max-width: 520px;
+  width: 100%;
+}
+
+.modal-view-area {
+  max-width: 500px;
+  width: 100%;
+}
+
+.details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  padding: 0.5rem 0;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.detail-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.detail-label {
+  font-size: 0.775rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.detail-value {
+  font-size: 0.925rem;
+  color: var(--color-text);
+  line-height: 1.45;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.col-description {
+  color: var(--color-text-secondary);
+  max-width: 440px;
+  line-height: 1.45;
+}
+
+/* Toast container */
+.toast-container {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  animation: toastSlideIn 0.25s ease-out;
+  pointer-events: auto;
+}
+
+.toast-success {
+  background: #065f46;
+  color: #ffffff;
+}
+
+.toast-error {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.toast-exit {
+  animation: toastSlideOut 0.25s ease-in forwards;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+</style>

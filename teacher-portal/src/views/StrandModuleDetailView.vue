@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb / Back link -->
     <nav class="breadcrumb">
-      <router-link :to="`/clc/${clcSlug}/strand/${strandSlug}`" class="back-link">
+      <router-link :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}`" class="back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
@@ -124,7 +124,7 @@
           </div>
           <button class="btn btn-primary" @click="showAddActivityModal = true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>+ Add Activity</span>
+            <span>Add Activity</span>
           </button>
         </div>
 
@@ -369,19 +369,19 @@ const poblacionLearners = ref([
   { id: 1, name: 'Ana Mae B. Dela Cruz', lrn: '109823481231', level: 'A&E Elementary' },
   { id: 2, name: 'John Rey L. Abad', lrn: '109823481232', level: 'A&E Junior' },
   { id: 3, name: 'Maria Fe S. Ignacio', lrn: '109823481233', level: 'A&E Elementary' },
-  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'ALS K-12' },
+  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'A&E Junior' },
   { id: 5, name: 'Liza T. Ramon', lrn: '109823481235', level: 'A&E Junior' },
   { id: 6, name: 'Juan Dela Cruz', lrn: '109823481236', level: 'A&E Elementary' },
   { id: 7, name: 'Pedro S. Penduko', lrn: '109823481237', level: 'A&E Junior' },
-  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'ALS K-12' },
+  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'A&E Junior' },
   { id: 9, name: 'Elena G. Morales', lrn: '109823481239', level: 'A&E Elementary' },
   { id: 10, name: 'Christian D. Ramos', lrn: '109823481240', level: 'A&E Junior' },
   { id: 11, name: 'Grace M. Tan', lrn: '109823481241', level: 'A&E Elementary' },
-  { id: 12, name: 'Roberto J. Cruz', lrn: '109823481242', level: 'ALS K-12' },
+  { id: 12, name: 'Roberto J. Cruz', lrn: '109823481242', level: 'A&E Junior' },
   { id: 13, name: 'Sarah Joy Lim', lrn: '109823481243', level: 'A&E Junior' },
   { id: 14, name: 'Danilo E. Flores', lrn: '109823481244', level: 'A&E Elementary' },
   { id: 15, name: 'Jenny V. Valdez', lrn: '109823481245', level: 'A&E Junior' },
-  { id: 16, name: 'Kenneth P. Gomez', lrn: '109823481246', level: 'ALS K-12' },
+  { id: 16, name: 'Kenneth P. Gomez', lrn: '109823481246', level: 'A&E Junior' },
   { id: 17, name: 'Rosemarie D. Ocampo', lrn: '109823481247', level: 'A&E Elementary' },
 ]);
 

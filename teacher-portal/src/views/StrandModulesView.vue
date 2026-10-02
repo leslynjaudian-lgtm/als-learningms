@@ -2,7 +2,7 @@
   <div class="page-container">
     <!-- Breadcrumb / Back link -->
     <nav class="breadcrumb">
-      <router-link :to="`/clc/${clcSlug}`" class="back-link">
+      <router-link :to="`/dashboard/clc/${clcSlug}`" class="back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
@@ -54,13 +54,13 @@
       </div>
 
       <router-link
-        :to="`/clc/${clcSlug}/strand/${strandSlug}/upload`"
+        :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}/upload`"
         class="btn btn-primary"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        <span>+ Upload Module</span>
+        <span>Upload Module</span>
       </router-link>
     </div>
 
@@ -82,7 +82,7 @@
               <td>{{ idx + 1 }}</td>
               <td style="font-weight: 600;">
                 <router-link
-                  :to="`/clc/${clcSlug}/strand/${strandSlug}/module/${mod.id}`"
+                  :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}/module/${mod.id}`"
                   class="table-module-title-link"
                 >
                   {{ mod.title }}
@@ -100,7 +100,7 @@
               <td>
                 <div class="cell-actions" style="justify-content: flex-end;">
                   <router-link
-                    :to="`/clc/${clcSlug}/strand/${strandSlug}/module/${mod.id}`"
+                    :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}/module/${mod.id}`"
                     class="btn-icon"
                     title="View Module"
                   >
@@ -146,7 +146,7 @@
         </div>
         <div class="detail-item">
           <span class="detail-label">Target Levels</span>
-          <span class="detail-value">Basic Literacy, A&amp;E Elementary, A&amp;E Junior High School</span>
+          <span class="detail-value">A&amp;E Elementary, A&amp;E Junior</span>
         </div>
       </div>
     </div>
