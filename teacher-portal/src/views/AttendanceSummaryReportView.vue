@@ -20,20 +20,30 @@
         <button
           type="button"
           class="btn-refresh"
-          @click="loadInitialData"
+          :disabled="isRefreshing"
+          @click="handleRefresh"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            :class="{ 'animate-spin': isRefreshing }"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
-          <span>Refresh</span>
+          <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Filters Section (Single Horizontal Row) -->
+    <!-- Filters Section (2-Row Structured Layout) -->
     <div class="filters-card no-print">
-      <div class="filters-controls-row">
+      <!-- Row 1: Dropdown filters (Learning Center, ALS Level, Learner Name) -->
+      <div class="filters-dropdowns-row">
         <!-- 1. Learning Center Dropdown -->
         <div class="filter-field">
           <label class="filter-label">Learning Center</label>
@@ -47,12 +57,12 @@
           </div>
         </div>
 
-        <!-- 2. Program Level Dropdown -->
+        <!-- 2. ALS Level Dropdown -->
         <div class="filter-field">
-          <label class="filter-label">Program Level</label>
+          <label class="filter-label">ALS Level</label>
           <div class="select-wrapper">
             <select v-model="selectedProgramLevel" class="filter-select">
-              <option value="">All Program Levels</option>
+              <option value="">All ALS Levels</option>
               <option v-for="lvl in levelOptions" :key="lvl" :value="lvl">
                 {{ lvl }}
               </option>
@@ -72,51 +82,61 @@
             </select>
           </div>
         </div>
+      </div>
 
-        <!-- 4. From Date -->
-        <div class="filter-field">
-          <label class="filter-label">From Date</label>
-          <input
-            v-model="fromDate"
-            type="date"
-            class="filter-date-input"
-            aria-label="From Date"
-          />
+      <!-- Row 2: Date Filters side-by-side & Actions -->
+      <div class="filters-bottom-row">
+        <div class="filters-dates-group">
+          <!-- 4. From Date -->
+          <div class="filter-field col-date">
+            <label class="filter-label">From Date</label>
+            <input
+              v-model="fromDate"
+              type="date"
+              class="filter-date-input"
+              aria-label="From Date"
+            />
+          </div>
+
+          <!-- 5. To Date -->
+          <div class="filter-field col-date">
+            <label class="filter-label">To Date</label>
+            <input
+              v-model="toDate"
+              type="date"
+              class="filter-date-input"
+              aria-label="To Date"
+            />
+          </div>
         </div>
 
-        <!-- 5. To Date -->
-        <div class="filter-field">
-          <label class="filter-label">To Date</label>
-          <input
-            v-model="toDate"
-            type="date"
-            class="filter-date-input"
-            aria-label="To Date"
-          />
+        <div class="filter-actions-group">
+          <button
+            type="button"
+            class="btn-reset-filters"
+            @click="resetFilters"
+          >
+            Reset Filters
+          </button>
+          <button
+            type="button"
+            class="btn-generate-report"
+            @click="handleGenerateReport"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span>Generate Report</span>
+          </button>
         </div>
       </div>
 
-      <div class="filter-actions-group">
-        <button
-          type="button"
-          class="btn-reset-filters"
-          @click="resetFilters"
-        >
-          Reset Filters
-        </button>
-        <button
-          type="button"
-          class="btn-generate-report"
-          @click="loadInitialData"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          <span>Generate Report</span>
-        </button>
+      <!-- Date Validation Error -->
+      <div v-if="dateError" class="filter-error-text">
+        {{ dateError }}
       </div>
     </div>
 
@@ -151,7 +171,7 @@
                   </div>
                 </th>
                 <th rowspan="2" class="col-learning-center">Learning Center</th>
-                <th rowspan="2" class="col-program-level">Program Level</th>
+                <th rowspan="2" class="col-program-level">ALS Level</th>
                 <th colspan="2" class="col-attendance-summary">Attendance Summary</th>
                 <th rowspan="2" class="col-attendance-rate">Attendance Rate<br>(%)</th>
                 <th rowspan="2" class="col-actions print-hidden">Actions</th>
@@ -175,7 +195,7 @@
                     <button
                       type="button"
                       class="btn-learner-person-icon no-print"
-                      title="View Learner Information"
+                      title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
@@ -233,7 +253,7 @@
                     <button
                       type="button"
                       class="btn-learner-person-icon no-print"
-                      title="View Learner Information"
+                      title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
@@ -381,7 +401,7 @@
               <span class="detail-value">{{ viewingLearner?.lrn || '—' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Program Level</span>
+              <span class="detail-label">ALS Level</span>
               <span class="detail-value">{{ formatLearnerLevel(viewingLearner?.level || viewingLearner?.programLevel) }}</span>
             </div>
             <div class="detail-item">
@@ -451,6 +471,8 @@ const selectedProgramLevel = ref('');
 const selectedLearnerId = ref('');
 const fromDate = ref('');
 const toDate = ref('');
+const dateError = ref('');
+const isRefreshing = ref(false);
 
 // Modals State
 const selectedLearnerForDetails = ref(null);
@@ -492,7 +514,7 @@ function formatLearnerLevel(levelStr) {
   if (!levelStr) return 'A&E Elementary';
   const norm = String(levelStr).toUpperCase();
   if (norm.includes('ELEM')) return 'A&E Elementary';
-  if (norm.includes('JUNIOR') || norm.includes('JHS') || norm.includes('LOWER_SECONDARY')) return 'A&E Junior';
+  if (norm.includes('JUNIOR') || norm.includes('JHS') || norm.includes('LOWER_SECONDARY')) return 'A&E Junior High';
   return levelStr;
 }
 
@@ -522,7 +544,7 @@ const centerOptions = computed(() => {
   return Array.from(set).sort();
 });
 
-// Program Levels applicable to assigned learners
+// ALS Levels applicable to assigned learners
 const levelOptions = computed(() => {
   const set = new Set();
   assignedLearners.value.forEach((l) => {
@@ -530,7 +552,7 @@ const levelOptions = computed(() => {
   });
   if (set.size === 0) {
     set.add('A&E Elementary');
-    set.add('A&E Junior');
+    set.add('A&E Junior High');
   }
   return Array.from(set).sort();
 });
@@ -720,12 +742,40 @@ const emptyFemaleRowsCount = computed(() => {
   return femaleLearners.value.length === 0 ? 8 : Math.max(0, 3 - femaleLearners.value.length);
 });
 
+function validateDates() {
+  if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
+    dateError.value = 'From Date cannot be later than To Date.';
+    return false;
+  }
+  dateError.value = '';
+  return true;
+}
+
+async function handleRefresh() {
+  isRefreshing.value = true;
+  try {
+    await loadInitialData();
+  } finally {
+    isRefreshing.value = false;
+  }
+}
+
+async function handleGenerateReport() {
+  if (!validateDates()) return;
+  await fetchAttendanceData();
+  const el = document.getElementById('report-content');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function resetFilters() {
   selectedCenter.value = '';
   selectedProgramLevel.value = '';
   selectedLearnerId.value = '';
   fromDate.value = '';
   toDate.value = '';
+  dateError.value = '';
 }
 
 function openDetailsModal(item) {
@@ -873,35 +923,60 @@ function closeLearnerModal() {
   border-color: #94a3b8;
 }
 
-/* Filters Card (Horizontal Row) */
+/* Filters Card (2-Row Structured Layout) */
 .filters-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.25rem 1.15rem;
   margin-bottom: 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filters-dropdowns-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+.filters-bottom-row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  padding-top: 0.25rem;
+  border-top: 1px solid #f1f5f9;
 }
 
-.filters-controls-row {
+.filters-dates-group {
   display: flex;
   align-items: flex-end;
   gap: 0.85rem;
-  flex: 1;
   flex-wrap: wrap;
+}
+
+.col-date {
+  width: 165px;
+  min-width: 150px;
+  flex: none;
+}
+
+.filter-error-text {
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin-top: -0.25rem;
 }
 
 .filter-field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 140px;
-  flex: 1;
 }
 
 .filter-label {
@@ -1141,21 +1216,27 @@ function closeLearnerModal() {
 }
 
 .btn-learner-person-icon {
-  background: transparent;
-  border: none;
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
   cursor: pointer;
-  padding: 2px;
+  padding: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--action-view-color, #4169A8);
   border-radius: 4px;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-learner-person-icon:hover {
-  background: #eff6ff;
-  transform: scale(1.15);
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-learner-person-icon:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
 }
 
 .learner-name-text {
@@ -1215,30 +1296,31 @@ function closeLearnerModal() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: #2563eb;
-  color: #ffffff;
-  border: 1px solid #2563eb;
+  background-color: var(--action-view-bg, #EFF6FF);
+  color: var(--action-view-color, #4169A8);
+  border: 1px solid var(--action-view-border, #DCE7F6);
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap !important;
   cursor: pointer;
   box-sizing: border-box;
-  height: 24px;
+  height: 26px;
   transition: all 0.15s ease;
   user-select: none;
   margin: 0 auto;
 }
 
 .btn-view-details:hover {
-  background-color: #1d4ed8;
-  border-color: #1d4ed8;
+  background-color: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
 }
 
 .btn-view-details:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--action-view-color, #4169A8);
   outline-offset: 1px;
 }
 
@@ -1379,7 +1461,12 @@ function closeLearnerModal() {
   animation: spin 0.8s linear infinite;
 }
 
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 @keyframes spin {
+  from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
@@ -1430,20 +1517,38 @@ function closeLearnerModal() {
   }
 }
 
+@media (max-width: 900px) {
+  .filters-dropdowns-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .filters-card {
+    padding: 1rem;
+  }
+  .filters-dropdowns-row {
+    grid-template-columns: 1fr;
+  }
+  .filters-bottom-row {
     flex-direction: column;
     align-items: stretch;
   }
-  .filters-controls-row {
+  .filters-dates-group {
     flex-direction: column;
-    align-items: stretch;
-  }
-  .filter-field {
     width: 100%;
   }
-  .btn-reset-filters {
+  .col-date {
     width: 100%;
+  }
+  .filter-actions-group {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .btn-reset-filters,
+  .btn-generate-report {
+    flex: 1;
+    justify-content: center;
   }
 }
 </style>

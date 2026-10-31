@@ -162,7 +162,7 @@
                   <button
                     type="button"
                     class="btn-icon btn-icon-view"
-                    title="View Schedule Details"
+                    title="View"
                     aria-label="View Schedule Details"
                     @click="openViewModal(item)"
                   >
@@ -177,7 +177,7 @@
                     v-if="canManageSchedule(item)"
                     type="button"
                     class="btn-icon btn-icon-edit"
-                    title="Edit Schedule"
+                    title="Edit"
                     aria-label="Edit Schedule"
                     @click="openEditModal(item)"
                   >
@@ -191,7 +191,7 @@
                     v-if="canManageSchedule(item)"
                     type="button"
                     class="btn-icon btn-icon-danger"
-                    title="Delete Schedule"
+                    title="Delete"
                     aria-label="Delete Schedule"
                     @click="openDeleteModal(item)"
                   >

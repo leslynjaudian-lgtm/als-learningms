@@ -106,19 +106,19 @@
               </td>
               <td class="td-actions">
                 <div class="cell-actions">
-                  <button class="btn-icon btn-icon-view" title="View Center Details" @click="openViewModal(center)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-view" title="View" aria-label="View Center" @click="openViewModal(center)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-edit" title="Edit Center" @click="openEditModal(center)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-edit" title="Edit" aria-label="Edit Center" @click="openEditModal(center)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-danger" title="Delete Center" @click="openDeleteConfirm(center)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-danger" title="Delete" aria-label="Delete Center" @click="openDeleteConfirm(center)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       <line x1="10" y1="11" x2="10" y2="17"/>
@@ -295,6 +295,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import {
   getLearningCenters,
@@ -302,6 +303,9 @@ import {
   updateLearningCenter,
   deleteLearningCenter,
 } from '../api/learningCenters.js';
+
+const route = useRoute();
+const router = useRouter();
 
 const centers = ref([]);
 const loading = ref(true);
@@ -447,7 +451,17 @@ async function confirmDelete() {
   }
 }
 
-onMounted(fetchCenters);
+onMounted(async () => {
+  await fetchCenters();
+  if (route.query.view) {
+    const targetId = Number(route.query.view);
+    const found = centers.value.find((c) => Number(c.id) === targetId);
+    if (found) {
+      openViewModal(found);
+    }
+    router.replace({ path: route.path, query: {} });
+  }
+});
 </script>
 
 <style scoped>

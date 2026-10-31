@@ -122,19 +122,19 @@
               </td>
               <td class="td-actions">
                 <div class="cell-actions">
-                  <button class="btn-icon btn-icon-view" title="View Teacher Info" @click="openViewModal(teacher)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-view" title="View" aria-label="View Teacher" @click="openViewModal(teacher)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-edit" title="Edit Teacher" @click="openEditModal(teacher)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-edit" title="Edit" aria-label="Edit Teacher" @click="openEditModal(teacher)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-danger" title="Delete Teacher" @click="openDeleteModal(teacher)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-danger" title="Delete" aria-label="Delete Teacher" @click="openDeleteModal(teacher)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       <line x1="10" y1="11" x2="10" y2="17"/>
@@ -255,12 +255,12 @@
               </div>
 
               <div class="field-group">
-                <label class="field-label">Assigned Program Level <span class="required">*</span></label>
+                <label class="field-label">Assigned ALS Level <span class="required">*</span></label>
                 <div class="select-wrapper">
                   <select v-model="teacherForm.programLevel" class="field-select" required>
-                    <option value="Both">Both (A&E Elementary & Junior)</option>
+                    <option value="Both">Both (A&E Elementary & Junior High)</option>
                     <option value="A&E Elementary">A&E Elementary</option>
-                    <option value="A&E Junior">A&E Junior</option>
+                    <option value="A&E Junior High">A&E Junior High</option>
                   </select>
                 </div>
               </div>
@@ -393,7 +393,7 @@
               <span class="detail-value">{{ viewingTeacher?.learningCenter || '—' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Assigned Program Level</span>
+              <span class="detail-label">Assigned ALS Level</span>
               <span class="detail-value">{{ viewingTeacher?.programLevel || viewingTeacher?.specialization || 'Both' }}</span>
             </div>
             <div class="detail-item">
@@ -438,7 +438,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 import {
@@ -760,8 +761,32 @@ async function handleRegisterTeacher() {
   }
 }
 
+const route = useRoute();
+
+function applyTeacherRouteQuery() {
+  if (route.query.search) {
+    searchQuery.value = String(route.query.search);
+  }
+  if (route.query.view) {
+    const targetId = Number(route.query.view);
+    const found = teachers.value.find((t) => Number(t.id) === targetId);
+    if (found) {
+      viewingTeacher.value = found;
+      showViewModal.value = true;
+    }
+  }
+}
+
+watch(
+  () => [route.query.search, route.query.view],
+  () => {
+    applyTeacherRouteQuery();
+  }
+);
+
 onMounted(async () => {
   await Promise.all([loadCenters(), loadTeachers()]);
+  applyTeacherRouteQuery();
 });
 </script>
 

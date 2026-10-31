@@ -72,15 +72,18 @@ function formatAnnouncement(a) {
     audienceRaw: a.audience,
     status: statusLabel,
     statusRaw: a.status,
+    isPinned: Boolean(a.is_pinned),
+    priorityLabel: a.is_pinned ? 'Pinned' : null,
     createdBy: authorName,
     author: authorName,
     creatorRole: a.creator_role || (isTeacher ? 'TEACHER' : 'ADMIN'),
+    source: isTeacher ? 'My Announcement' : 'From Admin',
     authorId: a.author_id,
     teacherId: a.teacher_id,
     teacherName: a.teacher_name || null,
     learningCenterId: a.learning_center_id,
     learningCenter: a.learning_center_name || (a.learning_center_id ? `CLC #${a.learning_center_id}` : null),
-    programLevel: a.program_level || null,
+    programLevel: a.program_level ? normalizeProgramLevel(a.program_level) : null,
     targetLearnerId: a.target_learner_id,
     targetLearnerName: a.target_learner_name || null,
     datePosted: dateFormatted,
@@ -196,18 +199,19 @@ router.get('/', async (req, res, next) => {
               AND (a.learning_center_id IS NULL OR a.learning_center_id = ?)
             )
             OR
-            -- 2. Teacher created for Individual Learner targeting this learner
+            -- 2. Assigned Teacher created for Individual Learner targeting this learner
             (
               a.audience IN ('INDIVIDUAL_LEARNER', 'SPECIFIC_LEARNER')
               AND a.target_learner_id = ?
+              AND (a.teacher_id IS NULL OR a.teacher_id = ?)
             )
         `;
-        params.push(centerDbId || 0, learnerDbId);
+        params.push(centerDbId || 0, learnerDbId, teacherDbId || 0);
 
         if (teacherDbId) {
           sql += `
             OR
-            -- 3. Teacher created for All Learners assigned to this teacher matching learning center and program level
+            -- 3. Teacher created for All Learners assigned to this teacher matching learning center and ALS level
             (
               (a.creator_role = 'TEACHER' OR a.teacher_id IS NOT NULL)
               AND a.audience IN ('ALL_LEARNERS', 'LEARNERS', 'ALL')
@@ -241,6 +245,14 @@ router.get('/', async (req, res, next) => {
     // ----------------------------------------------------
     if (effectivePortal === 'teacher' || effectiveRole === 'TEACHER') {
       const currentTeacher = authUser?.teacherProfile || null;
+      if (authUser?.role === 'TEACHER' && currentTeacher?.id && teacherId) {
+        const parsedQueryTid = parseInt(String(teacherId), 10);
+        if (!isNaN(parsedQueryTid) && parsedQueryTid !== currentTeacher.id) {
+          return res.status(403).json({
+            error: 'Access denied. You cannot view announcements belonging to another teacher.',
+          });
+        }
+      }
       let tid = currentTeacher?.id || (teacherId ? parseInt(teacherId, 10) : null);
       if (!tid && authUser?.id) {
         const foundTeacher = await prisma.teacher.findFirst({ where: { userId: authUser.id } });
@@ -251,7 +263,7 @@ router.get('/', async (req, res, next) => {
       let sql = baseSql + ` WHERE a.status = 'PUBLISHED' `;
       const params = [];
 
-      if (tid || tuid) {
+      if (tid) {
         sql += `
           AND (
             -- 1. Admin announcements intended for All Teachers
@@ -262,11 +274,13 @@ router.get('/', async (req, res, next) => {
             OR
             -- 2. The logged-in teacher's own announcements
             (
-              a.teacher_id = ? OR a.author_id = ?
+              a.teacher_id = ?
+              ${tuid ? 'OR (a.creator_role = \'TEACHER\' AND a.author_id = ?)' : ''}
             )
           )
         `;
-        params.push(tid || 0, tuid || 0);
+        params.push(tid);
+        if (tuid) params.push(tuid);
       } else {
         sql += `
           AND (a.creator_role = 'ADMIN' OR (a.creator_role IS NULL AND (u.role = 'ADMIN' OR a.teacher_id IS NULL)))
@@ -479,13 +493,13 @@ router.post('/', async (req, res, next) => {
         return res.status(400).json({ error: 'Teacher is not assigned to the selected Learning Center.' });
       }
 
-      // 4. Program Level validation
+      // 4. ALS Level validation
       const normProgramLevel = normalizeProgramLevel(programLevel || program_level);
       if (!normProgramLevel || (normProgramLevel !== 'A&E Elementary' && normProgramLevel !== 'A&E Junior High')) {
-        return res.status(400).json({ error: 'Program Level is required (must be A&E Elementary or A&E Junior High).' });
+        return res.status(400).json({ error: 'ALS Level is required (must be A&E Elementary or A&E Junior High).' });
       }
 
-      // Verify teacher is assigned to this Program Level
+      // Verify teacher is assigned to this ALS Level
       const teacherSpec = teacher.specialization || 'Both';
       const teacherSpecLower = teacherSpec.toLowerCase();
       if (teacherSpecLower.includes('both')) {
@@ -551,7 +565,7 @@ router.post('/', async (req, res, next) => {
             return res.status(400).json({ error: `Selected learner (${learner.fullName}) does not belong to the selected Learning Center.` });
           }
 
-          // Condition 5: Learner belongs to selected Program Level
+          // Condition 5: Learner belongs to selected ALS Level
           const learnerLevelStr = (learner.level || '').toUpperCase();
           if (normProgramLevel === 'A&E Elementary' && !learnerLevelStr.includes('ELEM')) {
             return res.status(400).json({ error: `Selected learner (${learner.fullName}) does not belong to A&E Elementary.` });

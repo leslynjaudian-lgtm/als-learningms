@@ -41,12 +41,12 @@
           </div>
         </div>
 
-        <!-- 2. Program Level Dropdown -->
+        <!-- 2. ALS Level Dropdown -->
         <div class="filter-field">
-          <label class="filter-label">Program Level</label>
+          <label class="filter-label">ALS Level</label>
           <div class="select-wrapper">
             <select v-model="filterProgramLevel" class="filter-select">
-              <option value="">All Program Levels</option>
+              <option value="">All ALS Levels</option>
               <option value="A&E Elementary">A&E Elementary</option>
               <option value="A&E Junior High">A&E Junior High</option>
             </select>
@@ -155,7 +155,7 @@
                   <button
                     type="button"
                     class="record-icon-btn btn-view-act"
-                    title="View Record"
+                    title="View"
                     aria-label="View Record"
                     @click="openViewRecordModal(rec)"
                   >
@@ -167,7 +167,7 @@
                   <button
                     type="button"
                     class="record-icon-btn btn-edit-act"
-                    title="Edit Record"
+                    title="Edit"
                     aria-label="Edit Record"
                     @click="openEditRecordModal(rec)"
                   >
@@ -179,7 +179,7 @@
                   <button
                     type="button"
                     class="record-icon-btn btn-delete-act"
-                    title="Delete Record"
+                    title="Delete"
                     aria-label="Delete Record"
                     @click="confirmDeleteRecord(rec)"
                   >
@@ -248,7 +248,7 @@
                 <strong class="summary-value">{{ viewingRecord.moduleTitle }}</strong>
               </div>
               <div>
-                <span class="summary-label">Program Level</span>
+                <span class="summary-label">ALS Level</span>
                 <span class="summary-value">{{ viewingRecord.level || 'A&E Elementary' }}</span>
               </div>
               <div>
@@ -1424,33 +1424,57 @@ async function saveNewRecord() {
 }
 
 .record-icon-btn.btn-view-act {
-  color: #2563eb;
+  background: var(--action-view-bg, #EFF6FF) !important;
+  color: var(--action-view-color, #4169A8) !important;
+  border: 1px solid var(--action-view-border, #DCE7F6) !important;
 }
 
 .record-icon-btn.btn-view-act:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #1d4ed8;
+  background: var(--action-view-hover-bg, #E0EEFE) !important;
+  border-color: var(--action-view-hover-border, #B9D3F4) !important;
+  color: var(--action-view-hover-color, #315488) !important;
+}
+
+.record-icon-btn.btn-view-act:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35)) !important;
 }
 
 .record-icon-btn.btn-edit-act {
-  color: #475569;
+  background: var(--action-edit-bg, #FFF7E8) !important;
+  color: var(--action-edit-color, #946B32) !important;
+  border: 1px solid var(--action-edit-border, #F6E6CE) !important;
 }
 
 .record-icon-btn.btn-edit-act:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background: var(--action-edit-hover-bg, #FDEFCF) !important;
+  border-color: var(--action-edit-hover-border, #EACD9E) !important;
+  color: var(--action-edit-hover-color, #7A5422) !important;
+}
+
+.record-icon-btn.btn-edit-act:focus-visible {
+  outline: 2px solid var(--action-edit-color, #946B32) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-edit-focus-ring, rgba(148, 107, 50, 0.35)) !important;
 }
 
 .record-icon-btn.btn-delete-act {
-  color: #ef4444;
+  background: var(--action-delete-bg, #FFF1F1) !important;
+  color: var(--action-delete-color, #B65B60) !important;
+  border: 1px solid var(--action-delete-border, #F9D6D8) !important;
 }
 
 .record-icon-btn.btn-delete-act:hover {
-  background: #fef2f2;
-  border-color: #ef4444;
-  color: #dc2626;
+  background: var(--action-delete-hover-bg, #FDE4E4) !important;
+  border-color: var(--action-delete-hover-border, #F2B8BA) !important;
+  color: var(--action-delete-hover-color, #994247) !important;
+}
+
+.record-icon-btn.btn-delete-act:focus-visible {
+  outline: 2px solid var(--action-delete-color, #B65B60) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-delete-focus-ring, rgba(182, 91, 96, 0.35)) !important;
 }
 
 .no-records-msg {

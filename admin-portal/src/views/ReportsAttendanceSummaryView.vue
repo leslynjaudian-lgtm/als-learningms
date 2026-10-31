@@ -20,13 +20,15 @@
         <button
           type="button"
           class="btn btn-secondary"
-          @click="loadData"
+          :disabled="isRefreshing"
+          @click="handleRefresh"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <span v-if="isRefreshing" class="btn-spinner" style="border-top-color: #475569; width: 14px; height: 14px; border-width: 2px;"></span>
+          <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
-          <span>Refresh</span>
+          <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
       </div>
     </div>
@@ -84,9 +86,10 @@
       </div>
     </div>
 
-    <!-- Filters in One Horizontal Row -->
-    <div class="report-filter-bar no-print">
-      <div class="report-filter-controls">
+    <!-- Filters Card (Organized into consistent dropdowns and date/action rows) -->
+    <div class="filters-card no-print">
+      <!-- Row 1: 4 Dropdowns with consistent sizing -->
+      <div class="filters-dropdowns-row">
         <!-- 1. Learning Center -->
         <div class="filter-field-col">
           <label>Learning Center</label>
@@ -98,13 +101,13 @@
           </select>
         </div>
 
-        <!-- 2. Program Level -->
+        <!-- 2. ALS Level -->
         <div class="filter-field-col">
-          <label>Program Level</label>
+          <label>ALS Level</label>
           <select v-model="selectedLevel">
-            <option value="">All Program Levels</option>
+            <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior">A&E Junior</option>
+            <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 
@@ -129,43 +132,58 @@
             </option>
           </select>
         </div>
+      </div>
 
-        <!-- 5. From Date -->
-        <div class="filter-field-col">
-          <label>From Date</label>
-          <input
-            v-model="fromDate"
-            type="date"
-          />
+      <!-- Row 2: Date Filters & Action Buttons -->
+      <div class="filters-bottom-row">
+        <div class="filters-dates-group">
+          <!-- 5. From Date -->
+          <div class="filter-field-col col-date">
+            <label>From Date</label>
+            <input
+              v-model="fromDate"
+              type="date"
+              @change="dateError = ''"
+            />
+          </div>
+
+          <!-- 6. To Date -->
+          <div class="filter-field-col col-date">
+            <label>To Date</label>
+            <input
+              v-model="toDate"
+              type="date"
+              @change="dateError = ''"
+            />
+          </div>
         </div>
 
-        <!-- 6. To Date -->
-        <div class="filter-field-col">
-          <label>To Date</label>
-          <input
-            v-model="toDate"
-            type="date"
-          />
+        <div class="filter-actions">
+          <button type="button" class="btn btn-secondary filter-reset-btn" @click="resetFilters">
+            Reset Filters
+          </button>
+          <button
+            type="button"
+            class="btn-generate-report"
+            @click="handleGenerateReport"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span>Generate Report</span>
+          </button>
         </div>
       </div>
 
-      <div class="filter-actions">
-        <button type="button" class="btn btn-secondary" @click="resetFilters">
-          Reset Filters
-        </button>
-        <button
-          type="button"
-          class="btn-generate-report"
-          @click="loadData"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          <span>Generate Report</span>
-        </button>
+      <!-- Date Range Validation Error -->
+      <div v-if="dateError" class="filter-error-text">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ dateError }}</span>
       </div>
     </div>
 
@@ -200,7 +218,7 @@
                   </div>
                 </th>
                 <th rowspan="2" class="col-learning-center">Learning Center</th>
-                <th rowspan="2" class="col-program-level">Program Level</th>
+                <th rowspan="2" class="col-program-level">ALS Level</th>
                 <th colspan="2" class="col-attendance-summary">Attendance Summary</th>
                 <th rowspan="2" class="col-attendance-rate">Attendance Rate<br>(%)</th>
                 <th rowspan="2" class="col-actions print-hidden">Actions</th>
@@ -224,7 +242,7 @@
                     <button
                       type="button"
                       class="btn-learner-person-icon no-print"
-                      title="View Learner Information"
+                      title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
@@ -282,7 +300,7 @@
                     <button
                       type="button"
                       class="btn-learner-person-icon no-print"
-                      title="View Learner Information"
+                      title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
@@ -432,7 +450,7 @@
               <span class="detail-value">{{ viewingLearner?.lrn || '—' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Program Level</span>
+              <span class="detail-label">ALS Level</span>
               <span class="detail-value">{{ formatLearnerLevel(viewingLearner?.level || viewingLearner?.programLevel) }}</span>
             </div>
             <div class="detail-item">
@@ -510,6 +528,8 @@ const selectedTeacher = ref('');
 const selectedLearnerName = ref('');
 const fromDate = ref('');
 const toDate = ref('');
+const isRefreshing = ref(false);
+const dateError = ref('');
 
 // Modals State
 const selectedLearnerForDetails = ref(null);
@@ -569,7 +589,7 @@ function formatLearnerLevel(levelStr) {
   if (!levelStr) return 'A&E Elementary';
   const norm = String(levelStr).toUpperCase();
   if (norm.includes('ELEM')) return 'A&E Elementary';
-  if (norm.includes('JUNIOR') || norm.includes('JHS') || norm.includes('LOWER_SECONDARY')) return 'A&E Junior';
+  if (norm.includes('JUNIOR') || norm.includes('JHS') || norm.includes('LOWER_SECONDARY')) return 'A&E Junior High';
   return levelStr;
 }
 
@@ -613,6 +633,27 @@ function handleCenterChange() {
   if (!isValidTeacher) selectedTeacher.value = '';
 }
 
+async function handleRefresh() {
+  isRefreshing.value = true;
+  try {
+    await loadData();
+  } finally {
+    isRefreshing.value = false;
+  }
+}
+
+function handleGenerateReport() {
+  dateError.value = '';
+  if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
+    dateError.value = 'From date cannot be later than To date.';
+    return;
+  }
+  const el = document.getElementById('report-content');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function resetFilters() {
   selectedCenter.value = '';
   selectedLevel.value = '';
@@ -620,6 +661,7 @@ function resetFilters() {
   selectedLearnerName.value = '';
   fromDate.value = '';
   toDate.value = '';
+  dateError.value = '';
 }
 
 // Filtered raw logs based on user filter selections
@@ -847,8 +889,20 @@ function closeLearnerModal() {
 /* Stats Cards */
 .report-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
+}
+
+@media (max-width: 1200px) {
+  .report-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .report-stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .report-summary-card {
@@ -906,26 +960,78 @@ function closeLearnerModal() {
   color: var(--color-text-muted, #94a3b8);
 }
 
-/* Filters bar in single horizontal row */
-.report-filter-bar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+/* Filters Card Layout */
+.filters-card {
   background: #ffffff;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-lg, 12px);
-  padding: 1rem 1.25rem;
+  padding: 1.15rem 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filters-dropdowns-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 1024px) {
+  .filters-dropdowns-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .filters-dropdowns-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
-.report-filter-controls {
+.filters-dates-group {
   display: flex;
   align-items: flex-end;
   gap: 0.85rem;
-  flex: 1;
   flex-wrap: wrap;
+}
+
+.col-date {
+  width: 155px;
+  flex: 0 0 155px;
+}
+
+@media (max-width: 640px) {
+  .col-date {
+    width: 100%;
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+}
+
+.filter-reset-btn {
+  height: 38px;
+  padding: 0 1.15rem;
+  border-radius: 8px;
+}
+
+.filter-error-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding-top: 0.5rem;
+  border-top: 1px solid #fee2e2;
 }
 
 .filter-field-col {
@@ -933,7 +1039,6 @@ function closeLearnerModal() {
   flex-direction: column;
   gap: 0.35rem;
   min-width: 140px;
-  flex: 1;
 }
 
 .filter-field-col label {
@@ -955,6 +1060,7 @@ function closeLearnerModal() {
   color: #0f172a;
   outline: none;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .filter-field-col select:focus,
@@ -1138,21 +1244,27 @@ function closeLearnerModal() {
 }
 
 .btn-learner-person-icon {
-  background: transparent;
-  border: none;
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
   cursor: pointer;
-  padding: 2px;
+  padding: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--action-view-color, #4169A8);
   border-radius: 4px;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-learner-person-icon:hover {
-  background: #eff6ff;
-  transform: scale(1.15);
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-learner-person-icon:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
 }
 
 .learner-name-text {
@@ -1212,30 +1324,31 @@ function closeLearnerModal() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: #2563eb;
-  color: #ffffff;
-  border: 1px solid #2563eb;
+  background-color: var(--action-view-bg, #EFF6FF);
+  color: var(--action-view-color, #4169A8);
+  border: 1px solid var(--action-view-border, #DCE7F6);
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap !important;
   cursor: pointer;
   box-sizing: border-box;
-  height: 24px;
+  height: 26px;
   transition: all 0.15s ease;
   user-select: none;
   margin: 0 auto;
 }
 
 .btn-view-details:hover {
-  background-color: #1d4ed8;
-  border-color: #1d4ed8;
+  background-color: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
 }
 
 .btn-view-details:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--action-view-color, #4169A8);
   outline-offset: 1px;
 }
 

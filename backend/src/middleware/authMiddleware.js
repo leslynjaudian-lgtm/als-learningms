@@ -105,8 +105,17 @@ export async function optionalAuth(req, res, next) {
       where: { id: decoded.userId },
       include: {
         adminProfile: true,
-        teacherProfile: true,
-        learnerProfile: true,
+        teacherProfile: {
+          include: {
+            learningCenter: true,
+          },
+        },
+        learnerProfile: {
+          include: {
+            learningCenter: true,
+            assignedTeacher: true,
+          },
+        },
       },
     });
     if (user && user.status === 'ACTIVE') {
@@ -114,7 +123,12 @@ export async function optionalAuth(req, res, next) {
         id: user.id,
         userId: user.id,
         username: user.username,
+        email: user.email,
         role: user.role,
+        status: user.status,
+        adminProfile: user.adminProfile,
+        teacherProfile: user.teacherProfile,
+        learnerProfile: user.learnerProfile,
         profileId:
           user.role === 'ADMIN'
             ? user.adminProfile?.id

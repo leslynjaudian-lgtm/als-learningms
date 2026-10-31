@@ -112,11 +112,11 @@
                   <button
                     type="button"
                     class="btn-icon btn-icon-view"
-                    title="View Announcement"
+                    title="View"
                     aria-label="View Announcement"
                     @click="openViewModal(item)"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
@@ -127,11 +127,11 @@
                     v-if="!item.isSystem"
                     type="button"
                     class="btn-icon btn-icon-edit"
-                    title="Edit Announcement"
+                    title="Edit"
                     aria-label="Edit Announcement"
                     @click="openEditModal(item)"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 02 2h14a2 2 0 0 02-2v-7"/>
                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                     </svg>
@@ -142,11 +142,11 @@
                     v-if="!item.isSystem"
                     type="button"
                     class="btn-icon btn-icon-danger"
-                    title="Delete Announcement"
+                    title="Delete"
                     aria-label="Delete Announcement"
                     @click="openDeleteModal(item)"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     </svg>
@@ -226,11 +226,11 @@
               </select>
             </div>
 
-            <!-- Program Level * (Assigned levels only, specific choice required) -->
+            <!-- ALS Level * (Assigned levels only, specific choice required) -->
             <div class="form-group">
-              <label class="form-label">Program Level <span class="required">*</span></label>
+              <label class="form-label">ALS Level <span class="required">*</span></label>
               <select v-model="form.programLevel" class="form-select-full" required @change="onProgramLevelChange">
-                <option value="" disabled>Select Program Level</option>
+                <option value="" disabled>Select ALS Level</option>
                 <option v-for="level in teacherAvailableProgramLevels" :key="level" :value="level">
                   {{ level }}
                 </option>
@@ -340,7 +340,7 @@
 
                   <!-- Empty State inside Dropdown -->
                   <div v-if="filteredLearnersForForm.length === 0" class="dropdown-empty">
-                    No active learners found for selected Learning Center and Program Level.
+                    No active learners found for selected Learning Center and ALS Level.
                   </div>
                   <div v-else-if="searchedLearnersForForm.length === 0" class="dropdown-empty">
                     No learners match "{{ learnerSearchQuery }}".
@@ -409,7 +409,7 @@
             </div>
 
             <div v-if="viewingAnnouncement?.programLevel" class="detail-item">
-              <span class="detail-label">Program Level</span>
+              <span class="detail-label">ALS Level</span>
               <span class="detail-value">{{ viewingAnnouncement?.programLevel }}</span>
             </div>
 
@@ -470,12 +470,15 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherProfile } from '../api/auth.js';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../api/announcements.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 
+const route = useRoute();
+const router = useRouter();
 const { currentTeacher, teacherId, teacherName, assignedCenters } = useTeacherSession();
 
 const announcements = ref([]);
@@ -492,7 +495,7 @@ const defaultCenterName = computed(() => {
   return teacherLearningCenters.value[0]?.name || 'Community Learning Center';
 });
 
-// Program levels assigned to the currently logged-in teacher (never combined option)
+// ALS levels assigned to the currently logged-in teacher (never combined option)
 const teacherAvailableProgramLevels = computed(() => {
   const spec = (currentTeacher.value?.programLevel || currentTeacher.value?.specialization || 'Both').toLowerCase();
   if (spec.includes('both')) {
@@ -731,7 +734,7 @@ function toggleAudienceDropdown() {
   }
 }
 
-// Dynamic learner filtering: ONLY active learners matching current teacher + selected Center + selected Program Level
+// Dynamic learner filtering: ONLY active learners matching current teacher + selected Center + selected ALS Level
 const filteredLearnersForForm = computed(() => {
   if (!form.learningCenterId || !form.programLevel) return [];
 
@@ -744,7 +747,7 @@ const filteredLearnersForForm = computed(() => {
     const matchesCenter = Number(l.learningCenterId) === Number(form.learningCenterId);
     if (!matchesCenter) return false;
 
-    // 3. Must match selected program level
+    // 3. Must match selected ALS level
     const lLevel = (l.level || '').toUpperCase();
     if (form.programLevel === 'A&E Elementary') {
       return lLevel.includes('ELEM');
@@ -879,7 +882,7 @@ function closeModal() {
 function onProgramLevelChange() {
   isAudienceDropdownOpen.value = false;
   learnerSearchQuery.value = '';
-  // Check if selected learners still match the new program level
+  // Check if selected learners still match the new ALS level
   if (!isAllLearnersSelected.value) {
     selectedLearnerIds.value = selectedLearnerIds.value.filter((id) =>
       filteredLearnersForForm.value.some((l) => l.id === id)
@@ -924,11 +927,11 @@ async function saveAnnouncement() {
     return;
   }
   if (!form.programLevel) {
-    alert('Please select a Program Level.');
+    alert('Please select an ALS Level.');
     return;
   }
   if (filteredLearnersForForm.value.length === 0) {
-    alert('No active learners found for the selected Learning Center and Program Level.');
+    alert('No active learners found for the selected Learning Center and ALS Level.');
     return;
   }
 
@@ -1043,6 +1046,17 @@ onMounted(async () => {
   await loadLearners();
   await loadTeacherLearningCenters();
   await loadAnnouncements();
+  if (route.query.action === 'create') {
+    openCreateModal();
+    router.replace({ path: route.path, query: {} });
+  } else if (route.query.view) {
+    const targetId = Number(route.query.view);
+    const found = announcements.value.find((a) => Number(a.id) === targetId);
+    if (found) {
+      openViewModal(found);
+    }
+    router.replace({ path: route.path, query: {} });
+  }
 });
 </script>
 
@@ -1473,15 +1487,15 @@ onMounted(async () => {
 }
 
 .btn-icon {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  min-height: 38px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, #cbd5e1);
   background: #ffffff;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1490,42 +1504,65 @@ onMounted(async () => {
 }
 
 .btn-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 2;
   flex-shrink: 0;
 }
 
 .btn-icon-view {
-  color: #2563eb;
-  border-color: #cbd5e1;
+  background: var(--action-view-bg, #EFF6FF) !important;
+  color: var(--action-view-color, #4169A8) !important;
+  border: 1px solid var(--action-view-border, #DCE7F6) !important;
 }
 
 .btn-icon-view:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #1d4ed8;
+  background: var(--action-view-hover-bg, #E0EEFE) !important;
+  border-color: var(--action-view-hover-border, #B9D3F4) !important;
+  color: var(--action-view-hover-color, #315488) !important;
+}
+
+.btn-icon-view:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35)) !important;
 }
 
 .btn-icon-edit {
-  color: #475569;
-  border-color: #cbd5e1;
+  background: var(--action-edit-bg, #FFF7E8) !important;
+  color: var(--action-edit-color, #946B32) !important;
+  border: 1px solid var(--action-edit-border, #F6E6CE) !important;
 }
 
 .btn-icon-edit:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background: var(--action-edit-hover-bg, #FDEFCF) !important;
+  border-color: var(--action-edit-hover-border, #EACD9E) !important;
+  color: var(--action-edit-hover-color, #7A5422) !important;
+}
+
+.btn-icon-edit:focus-visible {
+  outline: 2px solid var(--action-edit-color, #946B32) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-edit-focus-ring, rgba(148, 107, 50, 0.35)) !important;
 }
 
 .btn-icon-danger {
-  color: #ef4444;
-  border-color: #cbd5e1;
+  background: var(--action-delete-bg, #FFF1F1) !important;
+  color: var(--action-delete-color, #B65B60) !important;
+  border: 1px solid var(--action-delete-border, #F9D6D8) !important;
 }
 
 .btn-icon-danger:hover {
-  background: #fef2f2;
-  border-color: #ef4444;
-  color: #dc2626;
+  background: var(--action-delete-hover-bg, #FDE4E4) !important;
+  border-color: var(--action-delete-hover-border, #F2B8BA) !important;
+  color: var(--action-delete-hover-color, #994247) !important;
+}
+
+.btn-icon-danger:focus-visible {
+  outline: 2px solid var(--action-delete-color, #B65B60) !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 0 3px var(--action-delete-focus-ring, rgba(182, 91, 96, 0.35)) !important;
 }
 
 /* Custom Multi-select Dropdown */

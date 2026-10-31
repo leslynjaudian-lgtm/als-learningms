@@ -104,9 +104,9 @@
               <span class="info-value info-code">{{ learner.lrn || '—' }}</span>
             </div>
 
-            <!-- 3. Program Level -->
+            <!-- 3. ALS Level -->
             <div class="info-field">
-              <span class="info-label">Program Level</span>
+              <span class="info-label">ALS Level</span>
               <span class="info-value">{{ learner.programLevel || learner.level || '—' }}</span>
             </div>
 
@@ -241,7 +241,7 @@ async function loadLearnerData() {
       learner.name = data.fullName || data.name || 'Learner';
       learner.fullName = learner.name;
       learner.lrn = data.lrn || '—';
-      learner.level = data.level === 'ELEMENTARY' ? 'A&E Elementary' : (data.level === 'JUNIOR' || data.level === 'LOWER_SECONDARY' ? 'A&E Junior' : data.level) || 'A&E Elementary';
+      learner.level = data.level === 'ELEMENTARY' ? 'A&E Elementary' : (data.level === 'JUNIOR' || data.level === 'LOWER_SECONDARY' || data.level === 'A&E Junior' || data.level === 'A&E Junior High' ? 'A&E Junior High' : data.level) || 'A&E Elementary';
       learner.programLevel = learner.level;
       learner.learningCenter = data.learningCenter || (data.learningCenterDetails ? data.learningCenterDetails.name : '—');
       learner.status = data.status || 'Active';

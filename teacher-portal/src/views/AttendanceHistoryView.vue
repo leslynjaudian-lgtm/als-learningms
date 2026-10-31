@@ -64,14 +64,14 @@
           </div>
         </div>
 
-        <!-- 2. Program Level Dropdown (A&E Elementary & A&E Junior High School only) -->
+        <!-- 2. ALS Level Dropdown -->
         <div class="filter-field">
-          <label class="filter-label">Program Level</label>
+          <label class="filter-label">ALS Level</label>
           <div class="select-wrapper">
             <select v-model="selectedProgramLevel" class="filter-select">
-              <option value="">All Program Levels</option>
+              <option value="">All ALS Levels</option>
               <option value="A&E Elementary">A&E Elementary</option>
-              <option value="A&E Junior High School">A&E Junior High School</option>
+              <option value="A&E Junior High">A&E Junior High</option>
             </select>
             <span class="select-chevron">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -174,7 +174,7 @@
             <tr>
               <th style="width: 55px; text-align: center;">No.</th>
               <th style="width: 160px;">Date</th>
-              <th style="width: 220px;">Program Level</th>
+              <th style="width: 220px;">ALS Level</th>
               <th>Learning Center</th>
               <th style="width: 120px; text-align: center;">Learners</th>
               <th style="width: 90px; text-align: center;">Action</th>
@@ -212,11 +212,11 @@
                 <button
                   type="button"
                   class="btn-action-icon"
-                  title="View attendance details"
+                  title="View"
                   :aria-label="`View attendance details for ${session.sessionTitle}`"
                   @click="openSessionModal(session)"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
@@ -280,7 +280,7 @@
               <span class="meta-value text-primary">{{ selectedSession.learningCenter }}</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Program Level</span>
+              <span class="meta-label">ALS Level</span>
               <span
                 class="level-badge"
                 :class="selectedSession.programLevel === 'A&E Elementary' ? 'badge-elem' : 'badge-jhs'"
@@ -332,7 +332,7 @@
                   <tr>
                     <th style="width: 50px; text-align: center;">No.</th>
                     <th>Learner Name</th>
-                    <th style="width: 200px;">Program Level</th>
+                    <th style="width: 200px;">ALS Level</th>
                     <th style="width: 130px; text-align: center;">Status</th>
                     <th>Remarks</th>
                   </tr>
@@ -520,9 +520,12 @@ const filteredSessions = computed(() => {
       return false;
     }
 
-    // 2. Program Level Filter (Only A&E Elementary & A&E Junior High School)
-    if (selectedProgramLevel.value && session.programLevel !== selectedProgramLevel.value) {
-      return false;
+    // 2. ALS Level Filter
+    if (selectedProgramLevel.value) {
+      const filterNorm = selectedProgramLevel.value.toLowerCase();
+      const sessNorm = (session.programLevel || '').toLowerCase();
+      const matches = sessNorm === filterNorm || (filterNorm.includes('junior') && sessNorm.includes('junior'));
+      if (!matches) return false;
     }
 
     // 3. Date Range Filter
@@ -936,22 +939,26 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  background: var(--action-view-bg, #EFF6FF);
+  color: var(--action-view-color, #4169A8);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-action-icon:hover {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
-  transform: translateY(-1px);
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-action-icon:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
 }
 
 /* Table Footer Bar */

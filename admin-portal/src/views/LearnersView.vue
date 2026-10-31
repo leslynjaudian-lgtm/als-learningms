@@ -63,7 +63,7 @@
           <select v-model="selectedLevel" class="filter-select">
             <option value="">All</option>
             <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior">A&E Junior</option>
+            <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 
@@ -107,7 +107,7 @@
               <td>{{ idx + 1 }}</td>
               <td style="font-weight: 600;">{{ learner.name }}</td>
               <td>{{ learner.lrn || '—' }}</td>
-              <td>{{ learner.level === 'ELEMENTARY' ? 'A&E Elementary' : (learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' ? 'A&E Junior' : learner.level) }}</td>
+              <td>{{ learner.level === 'ELEMENTARY' ? 'A&E Elementary' : (learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' || learner.level === 'A&E Junior' || learner.level === 'A&E Junior High' ? 'A&E Junior High' : learner.level) }}</td>
               <td>{{ learner.learningCenter }}</td>
               <td>
                 <span v-if="learner.assignedTeacher && learner.assignedTeacher !== '—'" style="font-weight: 600; color: #1e40af;">
@@ -124,19 +124,19 @@
               </td>
               <td class="td-actions">
                 <div class="cell-actions">
-                  <button class="btn-icon btn-icon-view" title="View Learner Info" @click="openViewModal(learner)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-view" title="View" aria-label="View Learner" @click="openViewModal(learner)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-edit" title="Edit Learner" @click="openEditModal(learner)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-edit" title="Edit" aria-label="Edit Learner" @click="openEditModal(learner)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
                     </svg>
                   </button>
-                  <button class="btn-icon btn-icon-danger" title="Delete Learner" @click="openDeleteModal(learner)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <button type="button" class="btn-icon btn-icon-danger" title="Delete" aria-label="Delete Learner" @click="openDeleteModal(learner)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       <line x1="10" y1="11" x2="10" y2="17"/>
@@ -345,7 +345,7 @@
 
               <div class="field-group">
                 <label class="field-label" for="learner-level">
-                  Program Level <span class="required">*</span>
+                  ALS Level <span class="required">*</span>
                 </label>
                 <div class="select-wrapper">
                   <select
@@ -354,9 +354,9 @@
                     class="field-select"
                     required
                   >
-                    <option value="" disabled selected>Select program level</option>
+                    <option value="" disabled selected>Select ALS level</option>
                     <option value="A&E Elementary">A&E Elementary</option>
-                    <option value="A&E Junior">A&E Junior</option>
+                    <option value="A&E Junior High">A&E Junior High</option>
                   </select>
                 </div>
               </div>
@@ -513,8 +513,8 @@
               <span class="detail-value">{{ viewingLearner?.lrn || '—' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Program Level</span>
-              <span class="detail-value">{{ viewingLearner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (viewingLearner?.level === 'JUNIOR' || viewingLearner?.level === 'LOWER_SECONDARY' ? 'A&E Junior' : viewingLearner?.level) || '—' }}</span>
+              <span class="detail-label">ALS Level</span>
+              <span class="detail-value">{{ viewingLearner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (viewingLearner?.level === 'JUNIOR' || viewingLearner?.level === 'LOWER_SECONDARY' || viewingLearner?.level === 'A&E Junior' || viewingLearner?.level === 'A&E Junior High' ? 'A&E Junior High' : viewingLearner?.level) || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Learning Center</span>
@@ -573,7 +573,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
@@ -701,7 +701,7 @@ const filteredLearners = computed(() => {
 
     const learnerDisplayLevel =
       learner.level === 'ELEMENTARY' ? 'A&E Elementary' :
-      learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' ? 'A&E Junior' : learner.level;
+      learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' || learner.level === 'A&E Junior' || learner.level === 'A&E Junior High' ? 'A&E Junior High' : learner.level;
     const matchesLevel =
       !selectedLevel.value || learnerDisplayLevel === selectedLevel.value;
 
@@ -745,7 +745,7 @@ function openEditModal(learner) {
 
   let levelDisplay = learner.level || '';
   if (levelDisplay === 'ELEMENTARY') levelDisplay = 'A&E Elementary';
-  else if (levelDisplay === 'JUNIOR' || levelDisplay === 'LOWER_SECONDARY') levelDisplay = 'A&E Junior';
+  else if (levelDisplay === 'JUNIOR' || levelDisplay === 'LOWER_SECONDARY' || levelDisplay === 'A&E Junior' || levelDisplay === 'A&E Junior High') levelDisplay = 'A&E Junior High';
 
   learnerForm.lrn = learner.lrn || '';
   learnerForm.firstName = firstName;
@@ -856,7 +856,7 @@ async function handleRegisterLearner() {
     return;
   }
   if (!learnerForm.level) {
-    formError.value = 'Please select a program level.';
+    formError.value = 'Please select an ALS level.';
     return;
   }
 
@@ -869,7 +869,7 @@ async function handleRegisterLearner() {
   let apiLevel = 'JUNIOR';
   if (learnerForm.level === 'A&E Elementary' || learnerForm.level === 'ELEMENTARY') {
     apiLevel = 'ELEMENTARY';
-  } else if (learnerForm.level === 'A&E Junior' || learnerForm.level === 'JUNIOR') {
+  } else if (learnerForm.level === 'A&E Junior High' || learnerForm.level === 'A&E Junior' || learnerForm.level === 'JUNIOR') {
     apiLevel = 'JUNIOR';
   }
 
@@ -926,11 +926,32 @@ async function handleRegisterLearner() {
   }
 }
 
+function applyRouteSearchAndView() {
+  if (route.query.search) {
+    searchQuery.value = String(route.query.search);
+  }
+  if (route.query.view) {
+    const targetId = Number(route.query.view);
+    const found = learners.value.find((l) => Number(l.id) === targetId);
+    if (found) {
+      openViewModal(found);
+    }
+  }
+}
+
+watch(
+  () => [route.query.search, route.query.view],
+  () => {
+    applyRouteSearchAndView();
+  }
+);
+
 onMounted(async () => {
   await Promise.all([loadCenters(), loadTeachers(), loadLearners()]);
   if (route.query.add === 'true' || route.query.add === '1') {
     openAddModal();
   }
+  applyRouteSearchAndView();
 });
 </script>
 

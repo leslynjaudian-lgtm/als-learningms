@@ -23,3 +23,5 @@ Thumbs.db
 
 # PWA dev artifacts
 dev-dist/
+backend/uploads/
+teacher-portal/public/uploads/

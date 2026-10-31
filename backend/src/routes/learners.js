@@ -34,9 +34,9 @@ export function formatLearnerName(l) {
 // Helper to format learner record for frontend
 function formatLearner(l) {
   let displayLevel = l.level;
-  if (l.level === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-  else if (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY') displayLevel = 'A&E Junior';
-  else if (l.level === 'A&E Elementary' || l.level === 'A&E Junior') displayLevel = l.level;
+  if (l.level === 'ELEMENTARY' || l.level === 'A&E Elementary') displayLevel = 'A&E Elementary';
+  else if (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' || String(l.level || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
+  else displayLevel = l.level;
 
   let progress = 0;
   if (Array.isArray(l.progressRecords) && l.progressRecords.length > 0) {
@@ -140,10 +140,13 @@ router.get('/', optionalAuth, async (req, res, next) => {
       return res.json([]);
     }
 
-    if (learningCenterId) {
-      const cid = parseInt(learningCenterId, 10);
+    const centerFilter = learningCenterId || req.query.learningCenter || req.query.learningCenterName;
+    if (centerFilter) {
+      const cid = parseInt(centerFilter, 10);
       if (!isNaN(cid)) {
         where.learningCenterId = cid;
+      } else {
+        where.learningCenter = { name: String(centerFilter).trim() };
       }
     }
 
@@ -302,7 +305,7 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Learning center is required' });
     }
     if (!level) {
-      return res.status(400).json({ error: 'Program level is required' });
+      return res.status(400).json({ error: 'ALS level is required' });
     }
 
     // 2. Validate and map Learning Center
@@ -332,7 +335,7 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // 4. Map Program Level to enum (AlsLevel: ELEMENTARY | JUNIOR)
+    // 4. Map ALS Level to enum (AlsLevel: ELEMENTARY | JUNIOR)
     let alsLevel = 'JUNIOR';
     const normLevel = (level || '').toLowerCase();
     if (normLevel.includes('elem')) {
@@ -527,7 +530,7 @@ router.put('/:id', async (req, res, next) => {
     if (level) {
       if (level === 'ELEMENTARY' || level === 'A&E Elementary') {
         updateData.level = 'ELEMENTARY';
-      } else if (level === 'JUNIOR' || level === 'A&E Junior') {
+      } else if (level === 'JUNIOR' || level === 'A&E Junior' || level === 'A&E Junior High' || String(level).toUpperCase().includes('JUN')) {
         updateData.level = 'JUNIOR';
       }
     }

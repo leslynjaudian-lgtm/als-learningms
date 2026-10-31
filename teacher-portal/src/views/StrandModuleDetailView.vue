@@ -151,11 +151,11 @@
                 <td><span class="badge badge-success">{{ act.status }}</span></td>
                 <td>
                   <div class="cell-actions" style="justify-content: flex-end;">
-                    <button class="btn-icon" title="Edit Activity" @click="editActivity(act)">
+                    <button type="button" class="btn-icon btn-icon-edit" title="Edit" aria-label="Edit Activity" @click="editActivity(act)">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 02 2h14a2 2 0 0 02-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
-                    <button class="btn-icon" title="Delete Activity" @click="deleteActivity(act.id, act.title)">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <button type="button" class="btn-icon btn-icon-danger" title="Delete" aria-label="Delete Activity" @click="deleteActivity(act.id, act.title)">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
                   </div>
                 </td>
@@ -367,21 +367,21 @@ const activityForm = reactive({
 // All 17 learners registered under Poblacion CLC (Req #7)
 const poblacionLearners = ref([
   { id: 1, name: 'Ana Mae B. Dela Cruz', lrn: '109823481231', level: 'A&E Elementary' },
-  { id: 2, name: 'John Rey L. Abad', lrn: '109823481232', level: 'A&E Junior' },
+  { id: 2, name: 'John Rey L. Abad', lrn: '109823481232', level: 'A&E Junior High' },
   { id: 3, name: 'Maria Fe S. Ignacio', lrn: '109823481233', level: 'A&E Elementary' },
-  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'A&E Junior' },
-  { id: 5, name: 'Liza T. Ramon', lrn: '109823481235', level: 'A&E Junior' },
+  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'A&E Junior High' },
+  { id: 5, name: 'Liza T. Ramon', lrn: '109823481235', level: 'A&E Junior High' },
   { id: 6, name: 'Juan Dela Cruz', lrn: '109823481236', level: 'A&E Elementary' },
-  { id: 7, name: 'Pedro S. Penduko', lrn: '109823481237', level: 'A&E Junior' },
-  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'A&E Junior' },
+  { id: 7, name: 'Pedro S. Penduko', lrn: '109823481237', level: 'A&E Junior High' },
+  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'A&E Junior High' },
   { id: 9, name: 'Elena G. Morales', lrn: '109823481239', level: 'A&E Elementary' },
-  { id: 10, name: 'Christian D. Ramos', lrn: '109823481240', level: 'A&E Junior' },
+  { id: 10, name: 'Christian D. Ramos', lrn: '109823481240', level: 'A&E Junior High' },
   { id: 11, name: 'Grace M. Tan', lrn: '109823481241', level: 'A&E Elementary' },
-  { id: 12, name: 'Roberto J. Cruz', lrn: '109823481242', level: 'A&E Junior' },
-  { id: 13, name: 'Sarah Joy Lim', lrn: '109823481243', level: 'A&E Junior' },
+  { id: 12, name: 'Roberto J. Cruz', lrn: '109823481242', level: 'A&E Junior High' },
+  { id: 13, name: 'Sarah Joy Lim', lrn: '109823481243', level: 'A&E Junior High' },
   { id: 14, name: 'Danilo E. Flores', lrn: '109823481244', level: 'A&E Elementary' },
-  { id: 15, name: 'Jenny V. Valdez', lrn: '109823481245', level: 'A&E Junior' },
-  { id: 16, name: 'Kenneth P. Gomez', lrn: '109823481246', level: 'A&E Junior' },
+  { id: 15, name: 'Jenny V. Valdez', lrn: '109823481245', level: 'A&E Junior High' },
+  { id: 16, name: 'Kenneth P. Gomez', lrn: '109823481246', level: 'A&E Junior High' },
   { id: 17, name: 'Rosemarie D. Ocampo', lrn: '109823481247', level: 'A&E Elementary' },
 ]);
 

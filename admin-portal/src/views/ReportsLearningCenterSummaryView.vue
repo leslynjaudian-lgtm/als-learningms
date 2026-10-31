@@ -100,7 +100,7 @@
     <!-- Search and Status Filter (One Row) -->
     <div class="report-filter-bar">
       <div class="report-filter-controls">
-        <div class="filter-field-col" style="flex: 2; min-width: 200px;">
+        <div class="filter-field-col filter-field-search">
           <label>Search</label>
           <input
             v-model="searchQuery"
@@ -109,7 +109,7 @@
           />
         </div>
 
-        <div class="filter-field-col">
+        <div class="filter-field-col filter-field-status">
           <label>Status</label>
           <select v-model="statusFilter">
             <option value="">All Statuses</option>
@@ -126,17 +126,17 @@
           class="btn btn-secondary"
           @click="resetFilters"
         >
-          Reset
+          Reset Filters
         </button>
       </div>
     </div>
 
     <!-- Table: Community Learning Centers Breakdown -->
-    <div class="table-card">
-      <div class="table-header-row">
-        <div>
-          <h3>Community Learning Centers Breakdown</h3>
-          <p>Consolidated administrative overview of each center</p>
+    <div class="table-card breakdown-card">
+      <div class="table-header-row breakdown-header">
+        <div class="header-title-wrap">
+          <h3 class="breakdown-title">Community Learning Centers Breakdown</h3>
+          <p class="breakdown-subtitle">Consolidated administrative overview of each center</p>
         </div>
       </div>
 
@@ -153,28 +153,28 @@
 
       <!-- Table -->
       <div v-else class="table-responsive">
-        <table class="data-table">
+        <table class="data-table breakdown-table">
           <thead>
             <tr>
-              <th>No.</th>
-              <th>Learning Center</th>
-              <th>Assigned ALS Teachers</th>
-              <th class="text-center">Total Learners</th>
-              <th class="text-center">A&E Elementary Learners</th>
-              <th class="text-center">A&E Junior High School Learners</th>
-              <th class="text-center">Attendance Rate</th>
-              <th>Status</th>
+              <th class="col-no text-center">No.</th>
+              <th class="col-center text-left">Learning Center</th>
+              <th class="col-teachers text-left">Assigned ALS Teachers</th>
+              <th class="col-learners text-center">Total Learners</th>
+              <th class="col-elem text-center">A&E Elementary</th>
+              <th class="col-jhs text-center">A&E Junior High</th>
+              <th class="col-rate text-center">Attendance Rate</th>
+              <th class="col-status text-center">Status</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(row, idx) in filteredCenterRows" :key="row.id || idx">
-              <td class="cell-num">{{ idx + 1 }}</td>
-              <td>
-                <div class="font-semibold text-main">{{ row.name }}</div>
-                <div class="text-xs text-muted">{{ row.locationAddress || 'Naawan District' }}</div>
+              <td class="col-no text-center cell-num">{{ idx + 1 }}</td>
+              <td class="col-center cell-center-info">
+                <div class="center-name">{{ row.name }}</div>
+                <div class="center-address">{{ row.locationAddress || 'Naawan, Misamis Oriental' }}</div>
               </td>
-              <td>
-                <div v-if="row.assignedTeachers.length > 0">
+              <td class="col-teachers cell-teachers">
+                <div v-if="row.assignedTeachers.length > 0" class="teachers-wrap">
                   <span
                     v-for="(t, tIdx) in row.assignedTeachers"
                     :key="tIdx"
@@ -185,10 +185,10 @@
                 </div>
                 <span v-else class="text-muted text-sm">—</span>
               </td>
-              <td class="text-center font-mono font-bold">{{ row.totalLearners }}</td>
-              <td class="text-center font-mono">{{ row.elementaryLearners }}</td>
-              <td class="text-center font-mono">{{ row.juniorLearners }}</td>
-              <td class="text-center">
+              <td class="col-learners text-center font-mono font-bold">{{ row.totalLearners }}</td>
+              <td class="col-elem text-center font-mono">{{ row.elementaryLearners }}</td>
+              <td class="col-jhs text-center font-mono">{{ row.juniorLearners }}</td>
+              <td class="col-rate text-center">
                 <span
                   v-if="row.attendanceRate !== null"
                   class="badge"
@@ -198,7 +198,7 @@
                 </span>
                 <span v-else class="text-muted text-sm">—</span>
               </td>
-              <td>
+              <td class="col-status text-center">
                 <span
                   class="badge"
                   :class="(row.status || '').toLowerCase() === 'active' ? 'badge-green' : 'badge-amber'"
@@ -208,6 +208,27 @@
               </td>
             </tr>
           </tbody>
+          <tfoot>
+            <tr class="table-total-row">
+              <td class="col-no text-center text-muted">—</td>
+              <td class="col-center font-bold text-main">Total</td>
+              <td class="col-teachers text-muted">—</td>
+              <td class="col-learners text-center font-mono font-bold text-main">{{ totalFilteredLearners }}</td>
+              <td class="col-elem text-center font-mono font-bold text-main">{{ totalElementaryLearners }}</td>
+              <td class="col-jhs text-center font-mono font-bold text-main">{{ totalJuniorLearners }}</td>
+              <td class="col-rate text-center font-mono font-bold">
+                <span
+                  v-if="filteredAvgAttendanceRate !== null"
+                  class="badge"
+                  :class="filteredAvgAttendanceRate >= 80 ? 'badge-green' : filteredAvgAttendanceRate >= 60 ? 'badge-amber' : 'badge-red'"
+                >
+                  {{ filteredAvgAttendanceRate }}%
+                </span>
+                <span v-else class="text-muted text-sm">—</span>
+              </td>
+              <td class="col-status text-center text-muted">—</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
@@ -296,6 +317,20 @@
                 </td>
               </tr>
             </tbody>
+            <tfoot>
+              <tr class="table-total-row">
+                <td style="width: 45px; text-align: center;" class="text-center font-bold text-muted">—</td>
+                <td class="font-bold text-main">Total</td>
+                <td class="text-center text-muted">—</td>
+                <td style="width: 100px; text-align: center;" class="text-center font-mono font-bold">{{ totalFilteredLearners }}</td>
+                <td style="width: 90px; text-align: center;" class="text-center font-mono font-bold">{{ totalElementaryLearners }}</td>
+                <td style="width: 90px; text-align: center;" class="text-center font-mono font-bold">{{ totalJuniorLearners }}</td>
+                <td style="width: 110px; text-align: center;" class="text-center font-bold">
+                  {{ filteredAvgAttendanceRate !== null ? filteredAvgAttendanceRate + '%' : '—' }}
+                </td>
+                <td style="width: 80px; text-align: center;" class="text-center text-muted">—</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
@@ -464,6 +499,26 @@ const districtAvgAttendanceRate = computed(() => {
   }).length;
   return Math.round((present / attendanceLogs.value.length) * 100);
 });
+
+// Computed totals for the Community Learning Centers Breakdown table
+const totalFilteredLearners = computed(() => {
+  return filteredCenterRows.value.reduce((acc, row) => acc + (row.totalLearners || 0), 0);
+});
+
+const totalElementaryLearners = computed(() => {
+  return filteredCenterRows.value.reduce((acc, row) => acc + (row.elementaryLearners || 0), 0);
+});
+
+const totalJuniorLearners = computed(() => {
+  return filteredCenterRows.value.reduce((acc, row) => acc + (row.juniorLearners || 0), 0);
+});
+
+const filteredAvgAttendanceRate = computed(() => {
+  const rowsWithRate = filteredCenterRows.value.filter((r) => r.attendanceRate !== null);
+  if (rowsWithRate.length === 0) return null;
+  const sum = rowsWithRate.reduce((acc, r) => acc + r.attendanceRate, 0);
+  return Math.round(sum / rowsWithRate.length);
+});
 </script>
 
 <style scoped>
@@ -471,6 +526,164 @@ const districtAvgAttendanceRate = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.filter-field-search {
+  flex: 1 1 280px;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.filter-field-status {
+  flex: 0 0 170px;
+  width: 170px;
+}
+
+/* Community Learning Centers Breakdown Section */
+.breakdown-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-xl, 12px);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.breakdown-header {
+  padding: 1.35rem 1.5rem 1.25rem 1.5rem; /* Consistent 24px left and right padding */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border-light, #f1f5f9);
+}
+
+.header-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.breakdown-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-text, #0f172a);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.breakdown-subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 8px 0 0 0; /* Exactly 8px between section title and description */
+}
+
+.breakdown-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.breakdown-table th {
+  padding: 0.75rem 1rem;
+  background-color: #f8fafc;
+  color: var(--color-text-secondary, #475569);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  white-space: nowrap;
+}
+
+.breakdown-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border-light, #f1f5f9);
+  vertical-align: middle;
+}
+
+.breakdown-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Optimized proportional column widths */
+.col-no {
+  width: 50px;
+  min-width: 44px;
+}
+
+.col-center {
+  min-width: 220px;
+  width: 26%;
+}
+
+.col-teachers {
+  min-width: 190px;
+  width: 24%;
+}
+
+.col-learners {
+  width: 115px;
+  min-width: 100px;
+}
+
+.col-elem {
+  width: 125px;
+  min-width: 110px;
+}
+
+.col-jhs {
+  width: 125px;
+  min-width: 110px;
+}
+
+.col-rate {
+  width: 125px;
+  min-width: 110px;
+}
+
+.col-status {
+  width: 100px;
+  min-width: 90px;
+}
+
+/* Center name and address styling */
+.cell-center-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.center-name {
+  font-weight: 600;
+  color: var(--color-text, #0f172a);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.center-address {
+  font-size: 0.775rem;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
+.teachers-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Total row styling */
+.table-total-row {
+  background: #f8fafc;
+  border-top: 2px solid var(--color-border, #cbd5e1);
+}
+
+.table-total-row td {
+  padding: 0.85rem 1rem;
+  border-bottom: none !important;
+  font-weight: 700;
 }
 
 .text-green {
@@ -615,13 +828,17 @@ const districtAvgAttendanceRate = computed(() => {
   justify-content: space-between;
   align-items: flex-start;
   margin-top: 3.5rem;
-  padding: 0 2rem 0.5rem;
+  padding: 0 1.5rem 0.5rem;
+  gap: 2rem;
+  flex-wrap: wrap;
   page-break-inside: avoid;
 }
 
 .sig-block {
   text-align: center;
-  min-width: 240px;
+  min-width: 200px;
+  flex: 1;
+  max-width: 320px;
 }
 
 .sig-underline {
@@ -642,6 +859,41 @@ const districtAvgAttendanceRate = computed(() => {
   font-size: 0.775rem;
   color: #334155;
   font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .breakdown-header {
+    padding: 1rem 1.25rem;
+  }
+
+  .filter-field-search,
+  .filter-field-status {
+    flex: 1 1 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .report-paper-sheet {
+    padding: 1.25rem 1rem;
+  }
+
+  .report-official-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .report-signatures-section {
+    padding: 0;
+    gap: 1.5rem;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .sig-block {
+    width: 100%;
+    max-width: 280px;
+  }
 }
 
 @media print {

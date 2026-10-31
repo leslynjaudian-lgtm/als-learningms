@@ -8,8 +8,8 @@ const router = Router();
 // Helper to format module record
 function formatModule(m, reqUser) {
   let displayLevel = m.targetLevel;
-  if (m.targetLevel === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-  else if (m.targetLevel === 'JUNIOR') displayLevel = 'A&E Junior';
+  if (m.targetLevel === 'ELEMENTARY' || m.targetLevel === 'A&E Elementary') displayLevel = 'A&E Elementary';
+  else if (m.targetLevel === 'JUNIOR' || m.targetLevel === 'A&E Junior' || m.targetLevel === 'A&E Junior High' || String(m.targetLevel || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior';
 
   const assignedLearnerIds = Array.isArray(m.assignments)
     ? m.assignments.map((a) => a.learnerId)
@@ -72,10 +72,50 @@ function formatModule(m, reqUser) {
     }
   }
 
+  let formattedPublishedDate = '';
+  if (m.createdAt) {
+    try {
+      const d = new Date(m.createdAt);
+      formattedPublishedDate = d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      formattedPublishedDate = m.createdAt.toISOString().split('T')[0];
+    }
+  }
+
+  // Learner Progress details if available
+  const progressRecord = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
+  const isCompleted = progressRecord?.status === 'COMPLETED' || progressRecord?.masteryStatus === 'MASTERED';
+  const isInProgress = !isCompleted && (
+    progressRecord?.status === 'IN_PROGRESS' ||
+    progressRecord?.preTestScore != null ||
+    (progressRecord?.completedPages || 0) > 0
+  );
+  let progressPct = 0;
+  if (isCompleted) {
+    progressPct = 100;
+  } else if (progressRecord) {
+    if (progressRecord.totalPages > 0 && progressRecord.completedPages > 0) {
+      progressPct = Math.round((progressRecord.completedPages / progressRecord.totalPages) * 100);
+    } else if (isInProgress) {
+      progressPct = 50;
+    }
+  }
+
+  let extractedModuleNumber = null;
+  const numMatch = (m.code || '').match(/\d+$/) || (m.title || '').match(/Module\s*(\d+)/i) || (m.code || '').match(/(?:MOD|M)[-_]?(\d+)/i);
+  if (numMatch) {
+    extractedModuleNumber = parseInt(numMatch[1] || numMatch[0], 10);
+  }
+
   return {
     id: m.id,
-    code: m.code || `MOD-${m.id}`,
-    moduleCode: m.code || `MOD-${m.id}`,
+    code: m.code || m.learningArea?.code || 'LS1',
+    moduleCode: m.code || m.learningArea?.code || `MOD-${m.id}`,
+    moduleNumber: extractedModuleNumber,
     title: m.title,
     description: m.description || '',
     instructions: m.instructions || m.description || '',
@@ -83,9 +123,10 @@ function formatModule(m, reqUser) {
     dateStarted: m.dateStarted ? m.dateStarted.toISOString().split('T')[0] : null,
     dateEnded: m.dateEnded ? m.dateEnded.toISOString().split('T')[0] : null,
     strand: m.learningArea?.name || 'General Curriculum',
-    strandCode: m.learningArea?.code || '',
+    strandCode: m.learningArea?.code || m.code || 'LS1',
     learningAreaId: m.learningAreaId,
     level: displayLevel,
+    programLevel: displayLevel,
     targetLevel: m.targetLevel,
     teacherId: m.teacherId,
     teacherName: m.teacher?.fullName || 'ALS Facilitator',
@@ -107,8 +148,15 @@ function formatModule(m, reqUser) {
     assessments: formattedAssessments,
     preTest,
     postTest,
+    progress: progressPct,
+    completed: isCompleted,
+    progressStatus: isCompleted ? 'COMPLETED' : (isInProgress ? 'IN_PROGRESS' : 'NOT_STARTED'),
+    preTestScore: progressRecord?.preTestScore != null ? Number(progressRecord.preTestScore) : null,
+    postTestScore: progressRecord?.postTestScore != null ? Number(progressRecord.postTestScore) : null,
+    masteryStatus: progressRecord?.masteryStatus || 'NOT_EVALUATED',
     createdAt: m.createdAt,
-    datePublished: m.createdAt ? m.createdAt.toISOString().split('T')[0] : '',
+    publishedDate: formattedPublishedDate,
+    datePublished: formattedPublishedDate,
     updatedAt: m.updatedAt,
   };
 }
@@ -123,12 +171,41 @@ router.get('/', optionalAuth, async (req, res, next) => {
     const where = {};
 
     // 1. Role Enforcement:
-    // For now, uploaded/created modules from the Teacher Portal must NOT appear in ANY Learner Portal.
-    // The Learner Portal module API returns an empty module list.
-    if ((req.user && req.user.role === 'LEARNER') || portal === 'learner') {
-      return res.json([]);
-    }
- else if (req.user && req.user.role === 'TEACHER') {
+    if (req.user && req.user.role === 'LEARNER') {
+      let learner = req.user.learnerProfile;
+      if (!learner) {
+        learner = await prisma.learner.findUnique({
+          where: { userId: req.user.id },
+          include: { learningCenter: true, assignedTeacher: true },
+        });
+      }
+
+      if (!learner || !learner.learningCenterId) {
+        // Learner has no assigned learning center, so no modules match
+        return res.json([]);
+      }
+
+      // Condition 1: Module status = PUBLISHED
+      where.status = 'PUBLISHED';
+
+      // Condition 2: Module Learning Center matches learner's assigned Learning Center
+      where.learningCenterId = learner.learningCenterId;
+
+      // Condition 3: Module Program Level matches learner's Program Level
+      where.targetLevel = learner.level;
+
+      // Condition 4: Module Assignments (Applicable to all or specifically assigned to this learner)
+      where.AND = [
+        {
+          OR: [
+            { assignments: { none: {} } },
+            { assignments: { some: { learnerId: learner.id } } },
+          ],
+        },
+      ];
+    } else if (portal === 'learner' && !req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    } else if (req.user && req.user.role === 'TEACHER') {
       // Teacher sees ONLY modules created by that teacher
       where.teacherId = req.user.profileId;
     } else if (teacherId) {
@@ -136,16 +213,18 @@ router.get('/', optionalAuth, async (req, res, next) => {
       if (!isNaN(tid)) where.teacherId = tid;
     }
 
-    if (learningCenterId) {
-      const cid = parseInt(learningCenterId, 10);
-      if (!isNaN(cid)) where.learningCenterId = cid;
-    }
+    if (req.user?.role !== 'LEARNER') {
+      if (learningCenterId) {
+        const cid = parseInt(learningCenterId, 10);
+        if (!isNaN(cid)) where.learningCenterId = cid;
+      }
 
-    if (level) {
-      if (level === 'ELEMENTARY' || level === 'A&E Elementary') {
-        where.targetLevel = 'ELEMENTARY';
-      } else if (level === 'JUNIOR' || level === 'A&E Junior') {
-        where.targetLevel = 'JUNIOR';
+      if (level) {
+        if (level === 'ELEMENTARY' || level === 'A&E Elementary') {
+          where.targetLevel = 'ELEMENTARY';
+        } else if (level === 'JUNIOR' || level === 'A&E Junior' || level === 'A&E Junior High' || String(level).toUpperCase().includes('JUN')) {
+          where.targetLevel = 'JUNIOR';
+        }
       }
     }
 
@@ -154,6 +233,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
       if (!isNaN(sid)) where.learningAreaId = sid;
     }
 
+    const learnerProfileId = req.user?.role === 'LEARNER' ? req.user.profileId : null;
+
     const modules = await prisma.module.findMany({
       where,
       include: {
@@ -161,6 +242,9 @@ router.get('/', optionalAuth, async (req, res, next) => {
         teacher: { select: { id: true, fullName: true } },
         learningCenter: { select: { id: true, name: true } },
         assignments: true,
+        learnerProgress: learnerProfileId ? {
+          where: { learnerId: learnerProfileId },
+        } : false,
         _count: {
           select: { pages: true, assessments: true, assignments: true },
         },
@@ -175,6 +259,22 @@ router.get('/', optionalAuth, async (req, res, next) => {
 });
 
 // ---------------------
+// GET /api/modules/strands
+// Get all official learning strands (learning areas)
+// ---------------------
+router.get('/strands', async (req, res, next) => {
+  try {
+    const areas = await prisma.learningArea.findMany({
+      where: { status: 'active' },
+      orderBy: { sortOrder: 'asc' },
+    });
+    res.json(areas);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
 // GET /api/modules/:id
 // Get a single module with pages
 // ---------------------
@@ -182,6 +282,8 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid module ID' });
+
+    const learnerProfileId = req.user?.role === 'LEARNER' ? req.user.profileId : null;
 
     const mod = await prisma.module.findUnique({
       where: { id },
@@ -198,6 +300,9 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
           },
         },
         assignments: true,
+        learnerProgress: learnerProfileId ? {
+          where: { learnerId: learnerProfileId },
+        } : false,
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
     });
@@ -206,12 +311,33 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
       return res.status(404).json({ error: 'Module not found' });
     }
 
-    // Role check: For now, modules are not accessible in the Learner Portal
-    const { portal } = req.query;
-    if ((req.user && req.user.role === 'LEARNER') || portal === 'learner') {
-      return res.status(404).json({ error: 'There are no learning modules available at this time.' });
-    }
+    // Role check: If learner, verify module is published, matches learning center and program level, and assignments
+    if (req.user && req.user.role === 'LEARNER') {
+      let learner = req.user.learnerProfile;
+      if (!learner) {
+        learner = await prisma.learner.findUnique({
+          where: { userId: req.user.id },
+          include: { learningCenter: true, assignedTeacher: true },
+        });
+      }
 
+      const isAssignedOrAll =
+        !mod.assignments ||
+        mod.assignments.length === 0 ||
+        mod.assignments.some((a) => a.learnerId === learner?.id);
+
+      const isAuthorized =
+        learner &&
+        mod.status === 'PUBLISHED' &&
+        learner.learningCenterId &&
+        mod.learningCenterId === learner.learningCenterId &&
+        mod.targetLevel === learner.level &&
+        isAssignedOrAll;
+
+      if (!isAuthorized) {
+        return res.status(403).json({ error: 'You are not authorized to view this learning module.' });
+      }
+    }
 
     res.json(formatModule(mod, req.user));
   } catch (err) {
@@ -327,7 +453,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       if (firstCenter) resolvedCenterId = firstCenter.id;
     }
 
-    // Resolve Program Level
+    // Resolve ALS Level
     let alsLevel = 'JUNIOR';
     const lvl = targetLevel || level;
     if (lvl === 'ELEMENTARY' || lvl === 'A&E Elementary') {
@@ -765,6 +891,166 @@ router.delete('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (re
     });
 
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
+// POST /api/modules/:id/attempt
+// Submit assessment answers (Pre-Test or Post-Test)
+// ---------------------
+router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, res, next) => {
+  try {
+    const moduleId = parseInt(req.params.id, 10);
+    if (isNaN(moduleId)) return res.status(400).json({ error: 'Invalid module ID' });
+
+    const learnerId = req.user.profileId;
+    if (!learnerId) return res.status(400).json({ error: 'Learner profile not found' });
+
+    const { assessmentId, answers } = req.body;
+    const parsedAssessmentId = parseInt(assessmentId, 10);
+    if (isNaN(parsedAssessmentId)) return res.status(400).json({ error: 'Valid assessment ID is required' });
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: parsedAssessmentId },
+      include: {
+        questions: {
+          include: { options: true },
+        },
+      },
+    });
+
+    if (!assessment || assessment.moduleId !== moduleId) {
+      return res.status(404).json({ error: 'Assessment not found for this module' });
+    }
+
+    let totalPoints = 0;
+    let earnedPoints = 0;
+    const answerRecords = [];
+
+    const answerMap = Array.isArray(answers)
+      ? new Map(answers.map((a) => [Number(a.questionId), a.selectedOptionId]))
+      : new Map(Object.entries(answers || {}).map(([k, v]) => [Number(k), v]));
+
+    for (const q of assessment.questions) {
+      totalPoints += q.points || 1;
+      const selectedId = answerMap.get(q.id);
+      const chosenOption = q.options.find((o) => o.id === selectedId);
+      const isCorrect = Boolean(chosenOption?.isCorrect);
+      const scoreAwarded = isCorrect ? (q.points || 1) : 0;
+      earnedPoints += scoreAwarded;
+
+      answerRecords.push({
+        questionId: q.id,
+        selectedOptionId: selectedId ? Number(selectedId) : null,
+        isCorrect,
+        scoreAwarded,
+      });
+    }
+
+    const percentage = totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0;
+    const passingPct = Number(assessment.passingScorePct) || 75;
+    const isPassed = percentage >= passingPct;
+
+    const attempt = await prisma.assessmentAttempt.create({
+      data: {
+        assessmentId: parsedAssessmentId,
+        learnerId,
+        score: earnedPoints,
+        maxScore: totalPoints,
+        percentage,
+        isPassed,
+        status: 'SUBMITTED',
+        startedAt: new Date(),
+        submittedAt: new Date(),
+        answers: {
+          create: answerRecords,
+        },
+      },
+    });
+
+    const progressUpdate = {};
+    if (assessment.type === 'PRE_TEST') {
+      progressUpdate.preTestScore = earnedPoints;
+      progressUpdate.status = 'IN_PROGRESS';
+    } else if (assessment.type === 'POST_TEST') {
+      progressUpdate.postTestScore = earnedPoints;
+      if (isPassed) {
+        progressUpdate.masteryStatus = 'MASTERED';
+        progressUpdate.status = 'COMPLETED';
+        progressUpdate.completedAt = new Date();
+      } else {
+        progressUpdate.masteryStatus = 'NOT_MASTERED';
+        progressUpdate.status = 'IN_PROGRESS';
+      }
+    }
+
+    const updatedProgress = await prisma.learnerProgress.upsert({
+      where: {
+        learnerId_moduleId: {
+          learnerId,
+          moduleId,
+        },
+      },
+      create: {
+        learnerId,
+        moduleId,
+        ...progressUpdate,
+      },
+      update: progressUpdate,
+    });
+
+    res.json({
+      attemptId: attempt.id,
+      score: earnedPoints,
+      maxScore: totalPoints,
+      percentage: Math.round(percentage),
+      isPassed,
+      assessmentType: assessment.type,
+      progress: updatedProgress,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
+// POST /api/modules/:id/progress
+// Update learner progress for a module
+// ---------------------
+router.post('/:id/progress', authenticate, requireRole(['LEARNER']), async (req, res, next) => {
+  try {
+    const moduleId = parseInt(req.params.id, 10);
+    if (isNaN(moduleId)) return res.status(400).json({ error: 'Invalid module ID' });
+
+    const learnerId = req.user.profileId;
+    if (!learnerId) return res.status(400).json({ error: 'Learner profile not found' });
+
+    const { completedPages, totalPages, status } = req.body;
+    const updateData = {};
+    if (completedPages !== undefined) updateData.completedPages = Number(completedPages);
+    if (totalPages !== undefined) updateData.totalPages = Number(totalPages);
+    if (status) updateData.status = status;
+
+    const prog = await prisma.learnerProgress.upsert({
+      where: {
+        learnerId_moduleId: {
+          learnerId,
+          moduleId,
+        },
+      },
+      create: {
+        learnerId,
+        moduleId,
+        status: status || 'IN_PROGRESS',
+        completedPages: completedPages ? Number(completedPages) : 1,
+        totalPages: totalPages ? Number(totalPages) : 4,
+      },
+      update: updateData,
+    });
+
+    res.json(prog);
   } catch (err) {
     next(err);
   }

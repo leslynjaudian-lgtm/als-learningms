@@ -145,10 +145,10 @@ const selectedLearnerId = ref(6);
 
 const learnersList = [
   { id: 1, name: 'Ana Mae B. Dela Cruz', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
-  { id: 2, name: 'John Rey L. Abad', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
+  { id: 2, name: 'John Rey L. Abad', level: 'A&E Junior High', learningCenter: 'Poblacion CLC' },
   { id: 3, name: 'Maria Fe S. Ignacio', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
-  { id: 4, name: 'Carla M. Baylon', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
-  { id: 5, name: 'Liza T. Ramon', level: 'A&E Junior', learningCenter: 'Poblacion CLC' },
+  { id: 4, name: 'Carla M. Baylon', level: 'A&E Junior High', learningCenter: 'Poblacion CLC' },
+  { id: 5, name: 'Liza T. Ramon', level: 'A&E Junior High', learningCenter: 'Poblacion CLC' },
   { id: 6, name: 'Juan Dela Cruz', level: 'A&E Elementary', learningCenter: 'Poblacion CLC' },
 ];
 

@@ -101,8 +101,9 @@
                 <div class="cell-actions" style="justify-content: flex-end;">
                   <router-link
                     :to="`/dashboard/clc/${clcSlug}/strand/${strandSlug}/module/${mod.id}`"
-                    class="btn-icon"
-                    title="View Module"
+                    class="btn-icon btn-icon-view"
+                    title="View"
+                    aria-label="View Module"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>

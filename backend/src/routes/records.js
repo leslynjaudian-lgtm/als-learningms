@@ -240,7 +240,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
       }
     }
 
-    // Filter 2: Program Level
+    // Filter 2: ALS Level
     const targetLevel = programLevel || level;
     if (targetLevel) {
       const normQuery = targetLevel.trim().toLowerCase();

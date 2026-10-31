@@ -173,7 +173,7 @@
         <div v-if="currentStepIndex === 0" class="step-form-pane">
           <div class="pane-header-info">
             <h3>Step 1: Module Information</h3>
-            <p>Define the title, learning strand, target program level, assigned learning center, and active schedule.</p>
+            <p>Define the title, learning strand, target ALS level, assigned learning center, and active schedule.</p>
           </div>
 
           <!-- Step 1 Validation Warning Message -->
@@ -210,12 +210,12 @@
               ></textarea>
             </div>
 
-            <!-- ROW 3 — TWO COLUMNS: Target Program Level * | Learning Strand * -->
+            <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
             <div class="field-item">
-              <label class="field-lbl">Target Program Level <span class="req">*</span></label>
+              <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
               <select v-model="newModule.level" class="field-select-box" required>
                 <option value="A&E Elementary">A&amp;E Elementary</option>
-                <option value="A&E Junior">A&amp;E Junior</option>
+                <option value="A&E Junior High">A&amp;E Junior High</option>
               </select>
             </div>
 
@@ -786,13 +786,13 @@ const currentSelectedCenterName = computed(() => {
   return c ? c.name : 'Selected Center';
 });
 
-// Available learners filtered by selected Target Program Level (and assigned to the logged-in teacher)
+// Available learners filtered by selected Target ALS Level (and assigned to the logged-in teacher)
 const availableLearners = computed(() => {
   if (!newModule.level) return [];
   const targetLevelNorm = newModule.level.toLowerCase().trim();
 
   return teacherLearners.value.filter((l) => {
-    // Target Program Level check (A&E Elementary vs A&E Junior)
+    // Target ALS Level check (A&E Elementary vs A&E Junior High)
     const lLevelNorm = (l.level || '').toLowerCase().trim();
     const isLevelMatch =
       (targetLevelNorm.includes('elem') && lLevelNorm.includes('elem')) ||
@@ -881,7 +881,7 @@ function validateStep1() {
     return false;
   }
   if (!newModule.level) {
-    step1ErrorMessage.value = 'Target Program Level is required.';
+    step1ErrorMessage.value = 'Target ALS Level is required.';
     return false;
   }
   if (!newModule.learningCenterId) {
@@ -947,7 +947,7 @@ async function loadTeacherLearners() {
     teacherLearners.value = (data || []).map((l) => ({
       id: l.id,
       name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
-      level: l.level === 'ELEMENTARY' ? 'A&E Elementary' : (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' ? 'A&E Junior' : l.level) || 'A&E Elementary',
+      level: l.level === 'ELEMENTARY' ? 'A&E Elementary' : (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' ? 'A&E Junior High' : l.level) || 'A&E Elementary',
       learningCenterId: l.learningCenterId,
       learningCenter: l.learningCenter || '',
     }));
@@ -966,7 +966,7 @@ function startModuleCreation() {
     newModule.learningCenterId = assignedCenters.value[0].id;
   }
   if (assignedProgramLevel.value && assignedProgramLevel.value.includes('Junior')) {
-    newModule.level = 'A&E Junior';
+    newModule.level = 'A&E Junior High';
   } else {
     newModule.level = 'A&E Elementary';
   }

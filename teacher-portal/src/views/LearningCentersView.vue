@@ -49,7 +49,7 @@
             <tr>
               <th class="th-center-name">Center Name</th>
               <th class="th-address">Address</th>
-              <th class="th-level">Program Level</th>
+              <th class="th-level">ALS Level</th>
               <th class="th-total">Total Learner</th>
               <th class="th-actions">Actions</th>
             </tr>
@@ -66,7 +66,7 @@
                 <span class="address-text">{{ center.address || '—' }}</span>
               </td>
 
-              <!-- 3. Program Level (Clean Blue Badge/Pill Style) -->
+              <!-- 3. ALS Level (Clean Blue Badge/Pill Style) -->
               <td class="td-level">
                 <span class="level-pill">{{ center.programLevel }}</span>
               </td>
@@ -84,7 +84,7 @@
                     query: { programLevel: center.programLevel }
                   }"
                   class="btn-view-icon"
-                  :title="`View ${center.name} (${center.programLevel})`"
+                  title="View"
                   :aria-label="`View ${center.name} (${center.programLevel})`"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -126,7 +126,7 @@ async function loadLearningCentersData() {
       getLearningCenters(),
     ]);
 
-    // Teacher profile data for assigned program levels
+    // Teacher profile data for assigned ALS levels
     if (profileRes.status === 'fulfilled' && profileRes.value?.data) {
       teacherProfileData.value = profileRes.value.data;
     }
@@ -211,7 +211,7 @@ async function loadLearningCentersData() {
   }
 }
 
-// Resolve assigned program levels for this teacher
+// Resolve assigned ALS levels for this teacher
 function getTeacherAssignedLevels() {
   const rawLevel = (
     teacherProfileData.value?.programLevel ||
@@ -241,7 +241,7 @@ function getTeacherAssignedLevels() {
   return ['A&E Elementary', 'A&E Junior High'];
 }
 
-// Compute table rows with dynamic program level rows and individual learner counts
+// Compute table rows with dynamic ALS level rows and individual learner counts
 const learningCenters = computed(() => {
   const assignedLevels = getTeacherAssignedLevels();
   const rows = [];
@@ -428,7 +428,7 @@ onMounted(() => {
   line-height: 1.45;
 }
 
-/* 3. Program Level (Clean Blue Badge / Pill Style) */
+/* 3. ALS Level (Clean Blue Badge / Pill Style) */
 .td-level {
   white-space: nowrap;
 }
@@ -473,23 +473,29 @@ onMounted(() => {
 }
 
 .btn-view-icon {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  background: var(--action-view-bg, #EFF6FF);
   border-radius: 6px;
-  color: #2563eb;
+  color: var(--action-view-color, #4169A8);
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .btn-view-icon:hover {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #2563eb;
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-view-icon:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
 }
 
 /* Loading & Empty States */

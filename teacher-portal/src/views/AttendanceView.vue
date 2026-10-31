@@ -57,7 +57,7 @@
       <button type="button" class="alert-dismiss-btn" @click="errorMessage = ''">&times;</button>
     </div>
 
-    <!-- Session Information Card (Learning Center, Program Level, Date) -->
+    <!-- Session Information Card (Learning Center, ALS Level, Date) -->
     <div class="session-info-card">
       <div class="card-header-section">
         <div class="card-title-wrap">
@@ -96,10 +96,10 @@
           </div>
         </div>
 
-        <!-- 2. Program Level * (A&E Elementary & A&E Junior High School only) -->
+        <!-- 2. ALS Level * (A&E Elementary & A&E Junior High only) -->
         <div class="form-group">
           <label class="form-label" for="session-level">
-            Program Level <span class="required-star">*</span>
+            ALS Level <span class="required-star">*</span>
           </label>
           <div class="select-wrapper">
             <select
@@ -108,9 +108,9 @@
               class="form-select"
               @change="onSessionFieldChange"
             >
-              <option value="" disabled>Select Program Level</option>
+              <option value="" disabled>Select ALS Level</option>
               <option value="A&E Elementary">A&E Elementary</option>
-              <option value="A&E Junior High School">A&E Junior High School</option>
+              <option value="A&E Junior High">A&E Junior High</option>
             </select>
             <span class="select-chevron">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -147,7 +147,7 @@
         </div>
         <h3 class="prompt-title">Complete Attendance Information</h3>
         <p class="prompt-desc">
-          Please select <strong>Learning Center</strong>, <strong>Program Level</strong>, and <strong>Date</strong> to view assigned learners and record attendance.
+          Please select <strong>Learning Center</strong>, <strong>ALS Level</strong>, and <strong>Date</strong> to view assigned learners and record attendance.
         </p>
       </div>
 
@@ -230,7 +230,7 @@
           </div>
           <h3 class="empty-state-title">No learners found</h3>
           <p class="empty-state-desc">
-            No assigned learners match the selected Learning Center and Program Level.
+            No assigned learners match the selected Learning Center and ALS Level.
           </p>
         </div>
 
@@ -241,7 +241,7 @@
               <tr>
                 <th style="width: 60px; text-align: center;">No.</th>
                 <th>Learner Name</th>
-                <th style="width: 220px;">Program Level</th>
+                <th style="width: 220px;">ALS Level</th>
                 <th style="width: 200px;">Learning Center</th>
                 <th style="width: 250px; text-align: center;">Attendance Status</th>
               </tr>
@@ -341,7 +341,7 @@ import { recordAttendanceBatch } from '../api/attendance.js';
 
 const { currentTeacher, teacherId, assignedCenters } = useTeacherSession();
 
-// Session Information Fields (Only 1. Learning Center, 2. Program Level, 3. Date)
+// Session Information Fields (Only 1. Learning Center, 2. ALS Level, 3. Date)
 const selectedCenter = ref('');
 const selectedProgramLevel = ref('');
 const attendanceDate = ref('');
@@ -363,7 +363,7 @@ const centerOptions = computed(() => {
   return ['Mapulog CLC', 'Poblacion CLC', 'Naawan Central LC'];
 });
 
-// Check whether all required fields (Learning Center, Program Level, Date) are completed
+// Check whether all required fields (Learning Center, ALS Level, Date) are completed
 const isSessionConfigured = computed(() => {
   return (
     Boolean(selectedCenter.value) &&
@@ -372,7 +372,7 @@ const isSessionConfigured = computed(() => {
   );
 });
 
-// Load real assigned learners from API based on teacherId, center, and program level
+// Load real assigned learners from API based on teacherId, center, and ALS level
 async function loadLearners() {
   if (!isSessionConfigured.value) {
     learners.value = [];
@@ -388,12 +388,14 @@ async function loadLearners() {
 
     const { data } = await getAssignedLearners(params);
     if (Array.isArray(data) && data.length > 0) {
-      // Filter by selected learning center and program level
+      // Filter by selected learning center and ALS level
       learners.value = data
         .filter((l) => {
           const lCenter = l.learningCenter || l.learningCenterDetails?.name;
           const matchCenter = !selectedCenter.value || lCenter === selectedCenter.value;
-          const matchLevel = !selectedProgramLevel.value || l.level === selectedProgramLevel.value;
+          const matchLevel = !selectedProgramLevel.value || 
+            l.level === selectedProgramLevel.value ||
+            ((selectedProgramLevel.value || '').toLowerCase().includes('junior') && (l.level || '').toLowerCase().includes('junior'));
           return matchCenter && matchLevel;
         })
         .map((l) => ({
@@ -472,18 +474,18 @@ function markAll(status) {
 
 async function saveAttendance() {
   if (!isSessionConfigured.value) {
-    errorMessage.value = 'Please select Learning Center, Program Level, and Date to record attendance.';
+    errorMessage.value = 'Please select Learning Center, ALS Level, and Date to record attendance.';
     return;
   }
 
   if (filteredLearners.value.length === 0) {
-    errorMessage.value = 'No learners available for the selected Learning Center and Program Level.';
+    errorMessage.value = 'No learners available for the selected Learning Center and ALS Level.';
     return;
   }
 
   errorMessage.value = '';
 
-  // Build the session attendance record based on Date, Learning Center, Program Level
+  // Build the session attendance record based on Date, Learning Center, ALS Level
   const tid = teacherId.value || currentTeacher.value?.id;
   const sessionTitle = `${selectedProgramLevel.value} Attendance Session`;
   const matchedCenter = (assignedCenters.value || []).find((c) => c.name === selectedCenter.value);
@@ -790,7 +792,7 @@ async function saveAttendance() {
   font-weight: bold;
 }
 
-/* 3-Column Horizontal Grid: Learning Center | Program Level | Date */
+/* 3-Column Horizontal Grid: Learning Center | ALS Level | Date */
 .session-form-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

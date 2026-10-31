@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue';
 import DashboardView from '../views/DashboardView.vue';
 import MyModulesView from '../views/MyModulesView.vue';
 import ModuleDetailView from '../views/ModuleDetailView.vue';
+import MockModuleStudyView from '../views/MockModuleStudyView.vue';
 import AssessmentsView from '../views/AssessmentsView.vue';
 import ProgressView from '../views/ProgressView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
@@ -39,6 +40,12 @@ const routes = [
         name: 'MyModules',
         component: MyModulesView,
         meta: { title: 'My Modules', requiresAuth: true },
+      },
+      {
+        path: '/modules/ls2-mock-001',
+        name: 'MockModuleStudy',
+        component: MockModuleStudyView,
+        meta: { title: 'Animals: Love Them and Care for Them', requiresAuth: true },
       },
       {
         path: '/modules/:id',

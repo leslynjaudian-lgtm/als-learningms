@@ -18,7 +18,6 @@
     </div>
 
     <!-- FILTER SECTION (print-hidden) -->
-    <!-- FILTER SECTION (print-hidden) -->
     <div class="report-filter-bar print-hidden">
       <div class="filter-controls-row">
         <!-- 1. Learning Center (flexible width) -->
@@ -32,11 +31,11 @@
           </select>
         </div>
 
-        <!-- 2. Program Level (flexible width) -->
+        <!-- 2. ALS Level (flexible width) -->
         <div class="filter-field-col col-level">
-          <label class="filter-label">Program Level</label>
+          <label class="filter-label">ALS Level</label>
           <select v-model="selectedLevel" class="filter-select">
-            <option value="">All Program Levels</option>
+            <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
             <option value="A&E Junior High School">A&E Junior High School</option>
           </select>
@@ -49,6 +48,7 @@
             v-model="fromDate"
             type="date"
             class="filter-input"
+            @change="dateError = ''"
           />
         </div>
 
@@ -59,6 +59,7 @@
             v-model="toDate"
             type="date"
             class="filter-input"
+            @change="dateError = ''"
           />
         </div>
 
@@ -89,9 +90,17 @@
               <line x1="16" y1="13" x2="8" y2="13"/>
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            <span>Generate Report</span>
+            <span>{{ loading ? 'Generating...' : 'Generate Report' }}</span>
           </button>
         </div>
+      </div>
+
+      <!-- Date Range Validation Message -->
+      <div v-if="dateError" class="filter-error-text">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ dateError }}</span>
       </div>
     </div>
 
@@ -128,7 +137,7 @@
                   <span class="sub-header-label">(Last Name, First Name, Middle Name)</span>
                 </th>
                 <th rowspan="2" class="col-center">Learning Center</th>
-                <th rowspan="2" class="col-level">Program Level</th>
+                <th rowspan="2" class="col-level">ALS Level</th>
                 <th colspan="3" class="col-modules-group">Modules</th>
                 <th rowspan="2" class="col-progress">Progress<br />(%)</th>
                 <th rowspan="2" class="col-actions print-hidden">Actions</th>
@@ -157,7 +166,7 @@
                         type="button"
                         class="person-icon-btn"
                         @click="openLearnerInfoModal(learner)"
-                        title="View Learner Information"
+                        title="View"
                         aria-label="View Learner Information"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -207,7 +216,7 @@
                         type="button"
                         class="person-icon-btn"
                         @click="openLearnerInfoModal(learner)"
-                        title="View Learner Information"
+                        title="View"
                         aria-label="View Learner Information"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -263,10 +272,33 @@
       </div>
     </div>
 
+    <!-- Loading State while Generating -->
+    <div v-else-if="loading" class="initial-prompt-card print-hidden">
+      <div class="prompt-icon-circle">
+        <div class="btn-spinner" style="width: 26px; height: 26px; border-width: 3px; border-color: rgba(37, 99, 235, 0.2); border-top-color: #2563eb;"></div>
+      </div>
+      <h3>Generating Monitoring Report...</h3>
+      <p>Retrieving learner module completion records and compiling mastery statistics.</p>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="errorMessage" class="initial-prompt-card prompt-error-state print-hidden">
+      <div class="prompt-icon-circle error-circle">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h3>Report Generation Error</h3>
+      <p>{{ errorMessage }}</p>
+      <div style="margin-top: 1rem;">
+        <button type="button" class="btn btn-secondary" @click="handleGenerateReport">Try Again</button>
+      </div>
+    </div>
+
     <!-- Empty Initial State (Before Generating) -->
     <div v-else class="initial-prompt-card print-hidden">
       <div class="prompt-icon-circle">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="16" y1="13" x2="8" y2="13"/>
@@ -333,7 +365,7 @@
             <!-- Learner Meta Details -->
             <div class="modal-meta-grid">
               <div><strong>Learning Center:</strong> {{ selectedLearnerDetails.learner?.learningCenter }}</div>
-              <div><strong>Program Level:</strong> {{ selectedLearnerDetails.learner?.level }}</div>
+              <div><strong>ALS Level:</strong> {{ selectedLearnerDetails.learner?.level }}</div>
               <div><strong>Assigned Teacher:</strong> {{ selectedLearnerDetails.learner?.assignedTeacher }}</div>
               <div><strong>Gender:</strong> {{ selectedLearnerDetails.learner?.gender }}</div>
             </div>
@@ -427,7 +459,7 @@
               <span class="detail-value">{{ viewingLearner?.lrn || '—' }}</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Program Level</span>
+              <span class="detail-label">ALS Level</span>
               <span class="detail-value">{{ formatLearnerLevel(viewingLearner?.level || viewingLearner?.programLevel) }}</span>
             </div>
             <div class="detail-item">
@@ -492,6 +524,8 @@ const selectedCenter = ref('');
 const selectedLevel = ref('');
 const fromDate = ref('');
 const toDate = ref('');
+const dateError = ref('');
+const errorMessage = ref('');
 
 // Data State
 const learningCenters = ref([]);
@@ -516,7 +550,7 @@ const viewingLearner = ref(null);
 function formatLearnerLevel(lvl) {
   if (!lvl) return '—';
   if (lvl === 'ELEMENTARY') return 'A&E Elementary';
-  if (lvl === 'JUNIOR' || lvl === 'LOWER_SECONDARY') return 'A&E Junior';
+  if (lvl === 'JUNIOR' || lvl === 'LOWER_SECONDARY' || lvl === 'A&E Junior') return 'A&E Junior High';
   return lvl;
 }
 
@@ -531,6 +565,14 @@ onMounted(async () => {
 
 // Generate Report Action (inside the system preview, DO NOT automatically download)
 async function handleGenerateReport() {
+  dateError.value = '';
+  errorMessage.value = '';
+
+  if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
+    dateError.value = 'From date cannot be later than To date.';
+    return;
+  }
+
   loading.value = true;
   try {
     const params = {};
@@ -546,7 +588,7 @@ async function handleGenerateReport() {
     reportGenerated.value = true;
   } catch (err) {
     console.error('Error generating report:', err);
-    alert('Failed to generate report. Please check server connection.');
+    errorMessage.value = 'Failed to generate report. Please check server connection or reload.';
   } finally {
     loading.value = false;
   }
@@ -558,6 +600,8 @@ function resetFilters() {
   selectedLevel.value = '';
   fromDate.value = '';
   toDate.value = '';
+  dateError.value = '';
+  errorMessage.value = '';
 }
 
 // Scroll down to Generate PDF button
@@ -673,18 +717,31 @@ function closeLearnerModal() {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.25rem 1.5rem;
+  padding: 1.15rem 1.25rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  overflow-x: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .filter-controls-row {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   width: 100%;
+}
+
+.filter-error-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #fee2e2;
 }
 
 .filter-field-col {
@@ -701,19 +758,18 @@ function closeLearnerModal() {
 }
 
 .col-center {
-  flex: 1 1 200px;
-  min-width: 150px;
+  flex: 1.5 1 200px;
+  min-width: 160px;
 }
 
 .col-level {
-  flex: 1 1 180px;
+  flex: 1.2 1 170px;
   min-width: 140px;
 }
 
 .col-date {
-  flex: 0 0 140px;
-  width: 140px;
-  min-width: 130px;
+  flex: 0 0 145px;
+  width: 145px;
 }
 
 .col-reset {
@@ -822,35 +878,72 @@ function closeLearnerModal() {
   background: #ffffff;
   border: 1px dashed #cbd5e1;
   border-radius: 12px;
-  padding: 3.5rem 2rem;
+  padding: 2.25rem 1.5rem;
   text-align: center;
   color: #64748b;
   margin-top: 1rem;
 }
 
 .prompt-icon-circle {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: #eff6ff;
   color: #2563eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1rem auto;
+  margin: 0 auto 0.75rem auto;
+}
+
+.error-circle {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+.prompt-error-state {
+  border-color: #fca5a5 !important;
+  background: #fffafa !important;
 }
 
 .initial-prompt-card h3 {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: #1e293b;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .initial-prompt-card p {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   max-width: 480px;
   margin: 0 auto;
+}
+
+@media (max-width: 960px) {
+  .col-center,
+  .col-level {
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+  .col-date {
+    flex: 1 1 calc(50% - 0.5rem);
+    width: auto;
+  }
+  .col-reset,
+  .col-generate {
+    flex: 1 1 auto;
+  }
+  .filter-reset-btn,
+  .generate-report-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .col-center,
+  .col-level,
+  .col-date {
+    flex: 1 1 100%;
+  }
 }
 
 /* Report Paper Sheet */
@@ -1029,29 +1122,29 @@ function closeLearnerModal() {
 }
 
 .person-icon-btn {
-  background: transparent;
-  border: none;
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
   padding: 3px;
   margin: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #475569;
+  color: var(--action-view-color, #4169A8);
   cursor: pointer;
   border-radius: 4px;
   line-height: 1;
   flex-shrink: 0;
-  transition: color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .person-icon-btn:hover {
-  color: #2563eb;
-  background-color: #eff6ff;
-  transform: scale(1.15);
+  color: var(--action-view-hover-color, #315488);
+  background-color: var(--action-view-hover-bg, #E0EEFE);
+  border-color: var(--action-view-hover-border, #B9D3F4);
 }
 
 .person-icon-btn:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--action-view-color, #4169A8);
   outline-offset: 1px;
 }
 

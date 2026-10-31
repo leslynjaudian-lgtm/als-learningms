@@ -87,7 +87,7 @@
           </div>
 
           <div class="metric-item">
-            <span class="metric-label">Program Level</span>
+            <span class="metric-label">ALS Level</span>
             <span class="metric-value">
               <span class="program-level-tag">{{ centerProgramLevel }}</span>
             </span>
@@ -132,7 +132,7 @@
                 <th style="width: 50px;">#</th>
                 <th>Learner Name</th>
                 <th>LRN</th>
-                <th>Program Level</th>
+                <th>ALS Level</th>
                 <th>Status</th>
                 <th style="text-align: right; width: 100px;">Action</th>
               </tr>
@@ -154,7 +154,7 @@
                   <router-link
                     :to="`/dashboard/learners/${learner.id}`"
                     class="btn-view-icon"
-                    title="View Learner Profile"
+                    title="View"
                     aria-label="View Learner Profile"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -293,7 +293,7 @@ async function loadCenterDetail() {
         return false;
       });
 
-      // Filter by selected Program Level if provided
+      // Filter by selected ALS Level if provided
       if (queryProgramLevel) {
         const isElem = queryProgramLevel.toLowerCase().includes('elem');
         const isJunior = queryProgramLevel.toLowerCase().includes('jun') || queryProgramLevel.toLowerCase().includes('sec');
@@ -318,7 +318,7 @@ async function loadCenterDetail() {
   }
 }
 
-// Compute program level for this center based on selected query or actual learners
+// Compute ALS level for this center based on selected query or actual learners
 const centerProgramLevel = computed(() => {
   const qLevel = (route.query.programLevel || route.query.level || '').trim();
   if (qLevel) {
@@ -662,18 +662,24 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  background: var(--action-view-bg, #EFF6FF);
   border-radius: 6px;
-  color: #2563eb;
+  color: var(--action-view-color, #4169A8);
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .btn-view-icon:hover {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #2563eb;
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-view-icon:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
 }
 
 /* Loading & Empty States */

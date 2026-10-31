@@ -86,8 +86,8 @@ function formatAuthResponse(user) {
   } else if (user.role === 'LEARNER' && user.learnerProfile) {
     name = user.learnerProfile.fullName;
     let displayLevel = user.learnerProfile.level;
-    if (displayLevel === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-    else if (displayLevel === 'JUNIOR') displayLevel = 'A&E Junior';
+    if (displayLevel === 'ELEMENTARY' || displayLevel === 'A&E Elementary') displayLevel = 'A&E Elementary';
+    else if (displayLevel === 'JUNIOR' || displayLevel === 'A&E Junior' || displayLevel === 'A&E Junior High' || String(displayLevel || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
 
     profile = {
       id: user.learnerProfile.id,
@@ -297,18 +297,15 @@ router.post('/login', async (req, res, next) => {
     }
 
     // Verify password if provided or required
-    if (rawPassword && rawPassword.trim()) {
-      const match = await bcrypt.compare(rawPassword.trim(), user.passwordHash);
-      if (isTeacherAttempt) {
-        console.log(`[Teacher Auth] Password valid: ${match}`);
+    if (typeof rawPassword === 'string' && rawPassword.length > 0) {
+      let match = await bcrypt.compare(rawPassword, user.passwordHash);
+      if (!match && rawPassword.trim() !== rawPassword) {
+        match = await bcrypt.compare(rawPassword.trim(), user.passwordHash);
       }
       if (!match) {
         return res.status(401).json({ error: 'Invalid username or password' });
       }
     } else {
-      if (isTeacherAttempt) {
-        console.log(`[Teacher Auth] Password valid: false`);
-      }
       // If no password provided:
       // Only allowed for LEARNER role when logging in by registered full name or LRN
       if (user.role !== 'LEARNER') {
@@ -462,48 +459,132 @@ router.put('/profile', authenticate, handleProfilePhotoUpload, async (req, res, 
   }
 });
 
+// Commonly used or compromised 12+ character passwords to reject
+const COMMON_WEAK_PASSWORDS = new Set([
+  '123456789012',
+  '1234567890123',
+  '12345678901234',
+  'password1234',
+  'password12345',
+  'password123456',
+  'qwerty123456',
+  'qwertyuiop12',
+  'admin1234567',
+  'admin12345678',
+  'welcome12345',
+  'letmein12345',
+  'iloveyou1234',
+  'changeme1234',
+  'alspassword1',
+  'naawandistrict',
+]);
+
+function isCompromisedOrTrivialPassword(pwd, username = '') {
+  const lower = pwd.toLowerCase();
+  if (COMMON_WEAK_PASSWORDS.has(lower)) return true;
+  // Reject passwords made of a single repeated character (e.g., "aaaaaaaaaaaa")
+  if (/^(.)\1+$/.test(pwd)) return true;
+  // Reject simple sequential digits
+  if ('01234567890123456789'.includes(pwd) || '98765432109876543210'.includes(pwd)) return true;
+  if (username && lower === String(username).toLowerCase()) return true;
+  return false;
+}
+
 // ---------------------
 // POST /api/auth/change-password
 // Securely update current authenticated user password
 // ---------------------
 router.post('/change-password', authenticate, async (req, res, next) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password are required' });
+    // 1. Check that all required fields are provided (do NOT trim or modify passwords)
+    if (
+      typeof currentPassword !== 'string' ||
+      currentPassword.length === 0 ||
+      typeof newPassword !== 'string' ||
+      newPassword.length === 0 ||
+      typeof confirmPassword !== 'string' ||
+      confirmPassword.length === 0
+    ) {
+      return res.status(400).json({
+        error: 'All password fields (current password, new password, and confirmation) are required.',
+      });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    // 2. Enforce minimum 12 characters and support long passphrases (up to 128 chars)
+    if (newPassword.length < 12) {
+      return res.status(400).json({
+        error: 'New password must be at least 12 characters long.',
+        field: 'newPassword',
+      });
     }
 
-    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
-      return res.status(400).json({ error: 'New passwords do not match' });
+    if (newPassword.length > 128) {
+      return res.status(400).json({
+        error: 'New password must not exceed 128 characters.',
+        field: 'newPassword',
+      });
     }
 
+    // 3. Confirm that New Password and Confirm New Password match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        error: 'Passwords do not match.',
+        field: 'confirmPassword',
+      });
+    }
+
+    // 4. Identify authenticated user strictly from verified JWT session
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Authenticated user account not found.' });
     }
 
-    const isMatch = await bcrypt.compare(currentPassword.trim(), user.passwordHash);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Incorrect current password. Please try again.' });
+    // 5. Verify Current Password against stored password hash
+    let isCurrentMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isCurrentMatch && currentPassword.trim() !== currentPassword) {
+      isCurrentMatch = await bcrypt.compare(currentPassword.trim(), user.passwordHash);
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(newPassword.trim(), salt);
+    if (!isCurrentMatch) {
+      return res.status(400).json({
+        error: 'Incorrect current password. Please try again.',
+        field: 'currentPassword',
+      });
+    }
+
+    // 6. Prevent reuse of the current password
+    const isSameAsCurrent =
+      newPassword === currentPassword || (await bcrypt.compare(newPassword, user.passwordHash));
+    if (isSameAsCurrent) {
+      return res.status(400).json({
+        error: 'New password cannot be the same as your current password.',
+        field: 'newPassword',
+      });
+    }
+
+    // 7. Reject commonly used or compromised passwords
+    if (isCompromisedOrTrivialPassword(newPassword, user.username)) {
+      return res.status(400).json({
+        error: 'This password is too common or easily guessed. Please use a stronger password or passphrase.',
+        field: 'newPassword',
+      });
+    }
+
+    // 8. Securely hash the new password with bcrypt (never store or log plaintext or hash)
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
 
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash },
     });
 
-    res.json({ message: 'Password updated successfully' });
+    res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     next(err);
   }

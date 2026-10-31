@@ -55,8 +55,8 @@ const router = Router();
 // Helper to format submission record
 function formatSubmission(s) {
   let displayLevel = s.learner?.level;
-  if (s.learner?.level === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-  else if (s.learner?.level === 'JUNIOR') displayLevel = 'A&E Junior';
+  if (s.learner?.level === 'ELEMENTARY' || s.learner?.level === 'A&E Elementary') displayLevel = 'A&E Elementary';
+  else if (s.learner?.level === 'JUNIOR' || s.learner?.level === 'A&E Junior' || s.learner?.level === 'A&E Junior High' || String(s.learner?.level || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
 
   return {
     id: s.id,
@@ -440,7 +440,7 @@ async function handleSubmissionReview(req, res, next) {
         learnerId: sub.learnerId,
         learnerName: sub.learner?.fullName || '',
         lrn: sub.learner?.lrn || '',
-        level: sub.learner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (sub.learner?.level === 'JUNIOR' ? 'A&E Junior' : 'A&E Elementary'),
+        level: sub.learner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (sub.learner?.level === 'JUNIOR' || String(sub.learner?.level || '').toUpperCase().includes('JUN') ? 'A&E Junior High' : 'A&E Elementary'),
         learningCenterId: sub.learner?.learningCenterId || sub.module?.learningCenterId || null,
         teacherId: teacherId || sub.module?.teacherId || null,
         teacherName: teacherName || '',

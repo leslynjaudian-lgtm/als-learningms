@@ -35,52 +35,18 @@
 
     <!-- Filter Section (Above the Report) -->
     <div class="filter-card print-hidden">
-      <!-- Top Row: Learner Name | ALS Level | Learning Center | From | To | Reset Filters -->
-      <div class="filter-top-row">
-        <!-- 1. Learner Name Dropdown -->
-        <div class="filter-field col-learner">
-          <label class="filter-label">Learner Name <span class="req-star">*</span></label>
+      <!-- Top Row: 3 Primary Dropdowns (1. Center, 2. Level, 3. Learner) -->
+      <div class="filter-dropdowns-row">
+        <!-- 1. Learning Center Dropdown -->
+        <div class="filter-field col-center">
+          <label class="filter-label">Learning Center <span class="req-star">*</span></label>
           <div class="select-wrapper">
             <select
-              v-model="selectedLearnerId"
+              v-model="filterCenter"
               class="filter-select"
-              @change="handleLearnerChange"
+              @change="handleCenterChange"
             >
-              <option value="" disabled>Select Learner</option>
-              <option
-                v-for="l in assignedLearnersList"
-                :key="l.id"
-                :value="l.id"
-              >
-                {{ l.name }}
-              </option>
-            </select>
-            <span class="select-chevron">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-          </div>
-        </div>
-
-        <!-- 2. ALS Level Dropdown -->
-        <div class="filter-field col-level">
-          <label class="filter-label">ALS Level</label>
-          <div class="select-wrapper">
-            <select v-model="filterLevel" class="filter-select">
-              <option value="A&E Elementary">A&E Elementary</option>
-              <option value="A&E Junior High School">A&E Junior High School</option>
-            </select>
-            <span class="select-chevron">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-          </div>
-        </div>
-
-        <!-- 3. Learning Center Dropdown -->
-        <div class="filter-field col-center">
-          <label class="filter-label">Learning Center</label>
-          <div class="select-wrapper">
-            <select v-model="filterCenter" class="filter-select">
-              <option value="">All Learning Centers</option>
+              <option value="" disabled>Select Learning Center</option>
               <option
                 v-for="center in centerOptions"
                 :key="center"
@@ -95,30 +61,91 @@
           </div>
         </div>
 
-        <!-- 4. From Date -->
-        <div class="filter-field col-date">
-          <label class="filter-label">From</label>
-          <input
-            v-model="filterDateStarted"
-            type="date"
-            class="filter-date-input"
-            placeholder="MM/DD/YYYY"
-          />
+        <!-- 2. ALS Level Dropdown (Dependent on Learning Center) -->
+        <div class="filter-field col-level">
+          <label class="filter-label">ALS Level <span class="req-star">*</span></label>
+          <div class="select-wrapper">
+            <select
+              v-model="filterLevel"
+              class="filter-select"
+              :disabled="!filterCenter"
+              @change="handleLevelChange"
+            >
+              <option value="" disabled>
+                {{ !filterCenter ? 'Select Center first' : (availableLevels.length === 0 ? 'No levels available' : 'Select ALS Level') }}
+              </option>
+              <option
+                v-for="lvl in availableLevels"
+                :key="lvl"
+                :value="lvl"
+              >
+                {{ lvl }}
+              </option>
+            </select>
+            <span class="select-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
         </div>
 
-        <!-- 5. To Date -->
-        <div class="filter-field col-date">
-          <label class="filter-label">To</label>
-          <input
-            v-model="filterDateFinished"
-            type="date"
-            class="filter-date-input"
-            placeholder="MM/DD/YYYY"
-          />
+        <!-- 3. Learner Name Dropdown (Dependent on Center & Level) -->
+        <div class="filter-field col-learner">
+          <label class="filter-label">Learner Name <span class="req-star">*</span></label>
+          <div class="select-wrapper">
+            <select
+              v-model="selectedLearnerId"
+              class="filter-select"
+              :disabled="!filterCenter || !filterLevel"
+              @change="handleLearnerChange"
+            >
+              <option value="" disabled>
+                {{ !filterCenter || !filterLevel ? 'Select Center & Level first' : (availableLearners.length === 0 ? 'No learners available' : 'Select Learner') }}
+              </option>
+              <option
+                v-for="l in availableLearners"
+                :key="l.id"
+                :value="l.id"
+              >
+                {{ l.name }}
+              </option>
+            </select>
+            <span class="select-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Date Fields & Action Buttons -->
+      <div class="filter-bottom-row">
+        <div class="filter-dates-group">
+          <!-- 4. From Date -->
+          <div class="filter-field col-date">
+            <label class="filter-label">From</label>
+            <input
+              v-model="filterDateStarted"
+              type="date"
+              class="filter-date-input"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''; validationError = ''"
+            />
+          </div>
+
+          <!-- 5. To Date -->
+          <div class="filter-field col-date">
+            <label class="filter-label">To</label>
+            <input
+              v-model="filterDateFinished"
+              type="date"
+              class="filter-date-input"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''; validationError = ''"
+            />
+          </div>
         </div>
 
-        <!-- 6. Reset Filters (Beside To field in top row) -->
-        <div class="filter-field col-reset">
+        <div class="filter-actions-group">
+          <!-- Reset Filters Button -->
           <button
             type="button"
             class="btn-reset-filter"
@@ -127,24 +154,30 @@
           >
             Reset Filters
           </button>
+
+          <!-- Generate Report Button -->
+          <button
+            type="button"
+            class="btn-generate-report"
+            @click="generateReport"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span>Generate Report</span>
+          </button>
         </div>
       </div>
 
-      <!-- Bottom Row: Generate Report Button aligned to the right side -->
-      <div class="filter-bottom-row">
-        <button
-          type="button"
-          class="btn-generate-report"
-          @click="generateReport"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-          </svg>
-          <span>Generate Report</span>
-        </button>
+      <!-- Validation & Date Range Error Messages -->
+      <div v-if="validationError || dateError" class="filter-error-text">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ validationError || dateError }}</span>
       </div>
     </div>
 
@@ -622,12 +655,15 @@ const generatingPdf = ref(false);
 const assignedLearnersList = ref([]);
 const loadingLearners = ref(false);
 
-// Filter Form State
+// Filter Form State (Strictly Dependent)
+const filterCenter = ref('');
+const filterLevel = ref('');
 const selectedLearnerId = ref('');
-const filterLevel = ref('A&E Elementary');
-const filterCenter = ref('Mapulog CLC');
 const filterDateStarted = ref('');
 const filterDateFinished = ref('');
+const validationError = ref('');
+const dateError = ref('');
+const hasGeneratedReport = ref(false);
 
 // Filtered report data container
 const reportData = reactive({
@@ -640,16 +676,62 @@ const reportData = reactive({
   records: [],
 });
 
-// Distinct learning centers
+// Distinct learning centers assigned to current logged-in teacher
 const centerOptions = computed(() => {
   const set = new Set();
-  for (const c of assignedCenters.value) {
-    if (c.name) set.add(c.name);
+  if (Array.isArray(assignedCenters.value)) {
+    for (const c of assignedCenters.value) {
+      if (c && c.name && c.name !== '—') set.add(c.name.trim());
+    }
+  }
+  if (currentTeacher.value?.learningCenter && currentTeacher.value.learningCenter !== '—') {
+    set.add(currentTeacher.value.learningCenter.trim());
   }
   for (const l of assignedLearnersList.value) {
-    if (l.learningCenter) set.add(l.learningCenter);
+    if (l.learningCenter && l.learningCenter !== '—') {
+      set.add(l.learningCenter.trim());
+    }
   }
-  return Array.from(set);
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+});
+
+// Available ALS Levels for the selected Learning Center and Teacher
+const availableLevels = computed(() => {
+  if (!filterCenter.value) return [];
+  const set = new Set();
+  const learnersInCenter = assignedLearnersList.value.filter(
+    (l) => l.learningCenter === filterCenter.value
+  );
+  learnersInCenter.forEach((l) => {
+    if (l.level) set.add(normalizeLevel(l.level));
+  });
+
+  // If no learners exist yet in that center, fallback to teacher's assigned program level / specialization
+  if (set.size === 0) {
+    const spec = (currentTeacher.value?.specialization || currentTeacher.value?.programLevel || '').toLowerCase();
+    if (spec.includes('elem')) {
+      set.add('A&E Elementary');
+    } else if (spec.includes('junior') || spec.includes('jhs') || spec.includes('sec')) {
+      set.add('A&E Junior High School');
+    } else {
+      set.add('A&E Elementary');
+      set.add('A&E Junior High School');
+    }
+  }
+
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+});
+
+// Available Learners assigned to teacher who match BOTH selected Center and Level
+const availableLearners = computed(() => {
+  if (!filterCenter.value || !filterLevel.value) return [];
+  return assignedLearnersList.value
+    .filter((l) => {
+      const centerMatch = l.learningCenter === filterCenter.value;
+      const levelMatch = normalizeLevel(l.level) === normalizeLevel(filterLevel.value);
+      return centerMatch && levelMatch;
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 });
 
 // Load assigned learners for current logged-in teacher
@@ -669,6 +751,9 @@ async function loadLearners() {
         lrn: l.lrn || '',
         level: normalizeLevel(l.level),
         learningCenter: l.learningCenter || l.learningCenterDetails?.name || '—',
+        learningCenterId: l.learningCenterId,
+        assignedTeacherId: l.assignedTeacherId,
+        assignedTeacher: l.assignedTeacher,
       }));
     } else {
       assignedLearnersList.value = [];
@@ -678,12 +763,6 @@ async function loadLearners() {
     assignedLearnersList.value = [];
   } finally {
     loadingLearners.value = false;
-
-    if (!selectedLearnerId.value) {
-      if (assignedLearnersList.value.length > 0) {
-        selectLearner(assignedLearnersList.value[0]);
-      }
-    }
   }
 }
 
@@ -695,61 +774,97 @@ function normalizeLevel(lvl) {
   return 'A&E Elementary';
 }
 
-function selectLearner(learner) {
-  selectedLearnerId.value = learner.id;
-  filterLevel.value = learner.level || 'A&E Elementary';
-  filterCenter.value = learner.learningCenter || 'Mapulog CLC';
+// Dependent Dropdown Change Handlers
+function handleCenterChange() {
+  filterLevel.value = '';
+  selectedLearnerId.value = '';
+  validationError.value = '';
+  dateError.value = '';
+}
 
-  // Seed default demo records for Juan Dela Cruz if none exist yet
-  seedDefaultRecordsIfEmpty(learner);
-
-  // Sync to report
-  generateReport();
+function handleLevelChange() {
+  selectedLearnerId.value = '';
+  validationError.value = '';
+  dateError.value = '';
 }
 
 function handleLearnerChange() {
-  const found = assignedLearnersList.value.find((l) => String(l.id) === String(selectedLearnerId.value));
-  if (found) {
-    selectLearner(found);
-  }
+  validationError.value = '';
 }
 
-// Generate / Refresh formal report
+function resetFilters() {
+  filterCenter.value = '';
+  filterLevel.value = '';
+  selectedLearnerId.value = '';
+  filterDateStarted.value = '';
+  filterDateFinished.value = '';
+  validationError.value = '';
+  dateError.value = '';
+  hasGeneratedReport.value = false;
+
+  reportData.learnerId = null;
+  reportData.learnerName = '';
+  reportData.lrn = '';
+  reportData.level = '';
+  reportData.learningCenter = '';
+  reportData.teacherName = teacherName.value && teacherName.value !== 'ALS Teacher' ? teacherName.value : (currentTeacher.value?.fullName || '');
+  reportData.records = [];
+}
+
+// Generate / Refresh formal report with strict validation
 function generateReport() {
-  const found = assignedLearnersList.value.find((l) => String(l.id) === String(selectedLearnerId.value)) || {
-    id: selectedLearnerId.value || 1,
-    name: 'Juan Dela Cruz',
-    lrn: '123456789012',
-    level: filterLevel.value,
-    learningCenter: filterCenter.value || 'Mapulog CLC',
-  };
+  validationError.value = '';
+  dateError.value = '';
+
+  if (!filterCenter.value) {
+    validationError.value = 'Please select a Learning Center.';
+    return;
+  }
+  if (!filterLevel.value) {
+    validationError.value = 'Please select an ALS Level.';
+    return;
+  }
+  if (!selectedLearnerId.value) {
+    validationError.value = 'Please select a Learner Name.';
+    return;
+  }
+  if (filterDateStarted.value && filterDateFinished.value && filterDateStarted.value > filterDateFinished.value) {
+    dateError.value = 'From date cannot be later than To date.';
+    return;
+  }
+
+  const found = assignedLearnersList.value.find((l) => String(l.id) === String(selectedLearnerId.value));
+  if (!found) {
+    validationError.value = 'Selected learner was not found in your assigned learners.';
+    return;
+  }
 
   reportData.learnerId = found.id;
   reportData.learnerName = found.name;
-  reportData.lrn = found.lrn;
+  reportData.lrn = found.lrn || '';
   reportData.level = filterLevel.value || found.level || 'A&E Elementary';
-  reportData.learningCenter = filterCenter.value || found.learningCenter || 'Mapulog CLC';
-  reportData.teacherName = teacherName.value && teacherName.value !== 'ALS Teacher' ? teacherName.value : 'Titualth Abella';
+  reportData.learningCenter = filterCenter.value || found.learningCenter || '';
+  reportData.teacherName = teacherName.value && teacherName.value !== 'ALS Teacher' ? teacherName.value : (currentTeacher.value?.fullName || found.assignedTeacher || '');
+
+  // Seed default demo records for Juan Dela Cruz if none exist yet
+  seedDefaultRecordsIfEmpty(found);
 
   // Fetch AF2 records matching learner and active filters
   const recs = getRecordsForLearner({
     learnerId: found.id,
     learnerName: found.name,
-    level: filterLevel.value,
-    learningCenter: filterCenter.value,
+    level: reportData.level,
+    learningCenter: reportData.learningCenter,
     dateStarted: filterDateStarted.value,
     dateFinished: filterDateFinished.value,
   });
 
   reportData.records = recs;
-}
+  hasGeneratedReport.value = true;
 
-function resetFilters() {
-  filterDateStarted.value = '';
-  filterDateFinished.value = '';
-  if (assignedLearnersList.value.length > 0) {
-    const juan = assignedLearnersList.value.find((l) => l.name.toLowerCase().includes('juan dela cruz'));
-    selectLearner(juan || assignedLearnersList.value[0]);
+  const el = document.getElementById('report-content');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 
@@ -825,10 +940,18 @@ function formatStrandFromModule(title) {
 
 // Print & PDF actions
 function handlePrintReport() {
+  if (!reportData.learnerId) {
+    validationError.value = 'Please select a learner and generate the report before printing.';
+    return;
+  }
   window.print();
 }
 
 async function handleGeneratePdf() {
+  if (!reportData.learnerId) {
+    validationError.value = 'Please select a learner and generate the report before exporting to PDF.';
+    return;
+  }
   const element = reportContentRef.value || document.getElementById('report-content');
   if (!element) return;
 
@@ -865,6 +988,10 @@ const newRecordForm = reactive({
 });
 
 function openAddRecordModal() {
+  if (!reportData.learnerId) {
+    validationError.value = 'Please select a Learning Center, ALS Level, and Learner Name, and click Generate Report first.';
+    return;
+  }
   newRecordForm.moduleTitle = '';
   newRecordForm.strandName = 'LS1 Communication Skills (English)';
   newRecordForm.dateStarted = new Date().toISOString().split('T')[0];
@@ -1018,47 +1145,67 @@ watch(
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.75rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
-.filter-top-row {
+.filter-dropdowns-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1.35fr;
+  gap: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .filter-dropdowns-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filter-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.filter-dates-group {
   display: flex;
   align-items: flex-end;
   gap: 0.85rem;
-  width: 100%;
-}
-
-.col-learner {
-  flex: 1.8 1 200px;
-  min-width: 160px;
-}
-
-.col-level {
-  flex: 1.3 1 170px;
-  min-width: 140px;
-}
-
-.col-center {
-  flex: 1.4 1 180px;
-  min-width: 140px;
+  flex-wrap: wrap;
 }
 
 .col-date {
-  flex: 0 0 140px;
-  width: 140px;
-  min-width: 130px;
+  width: 155px;
+  flex: 0 0 155px;
 }
 
-.col-reset {
-  flex: 0 0 auto;
+@media (max-width: 600px) {
+  .col-date {
+    width: 100%;
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+}
+
+.filter-actions-group {
   display: flex;
   align-items: flex-end;
+  gap: 0.75rem;
 }
 
-@media (max-width: 1100px) {
-  .filter-top-row {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
+.filter-error-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding-top: 0.5rem;
+  border-top: 1px solid #fee2e2;
 }
 
 .filter-field {
@@ -1105,6 +1252,18 @@ watch(
   border-color: #2563eb;
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.filter-select:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.filter-select:disabled ~ .select-chevron {
+  color: #cbd5e1;
 }
 
 .select-chevron {
@@ -1240,9 +1399,10 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 2rem;
+  gap: 1.5rem;
   margin-bottom: 0.55rem;
   font-size: 0.8125rem;
+  flex-wrap: wrap;
 }
 
 .info-col {
@@ -1252,11 +1412,11 @@ watch(
 }
 
 .info-col-left {
-  flex: 1.35;
+  flex: 1.35 1 280px;
 }
 
 .info-col-right {
-  flex: 1;
+  flex: 1 1 240px;
 }
 
 .info-label {
@@ -1431,14 +1591,32 @@ watch(
   align-items: flex-start;
   margin-top: 2rem;
   margin-bottom: 0.75rem;
-  padding: 0 4rem;
+  padding: 0 2rem;
+  gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .signature-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 340px;
+  width: 300px;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .af2-report-paper {
+    padding: 1.25rem 1rem;
+  }
+  .af2-signatures-section {
+    padding: 0;
+    flex-direction: column;
+    align-items: center;
+  }
+  .signature-block {
+    width: 100%;
+    max-width: 280px;
+  }
 }
 
 .sig-name-slot {

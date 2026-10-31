@@ -6,7 +6,7 @@ import { formatLearnerName } from './learners.js';
 const router = Router();
 
 /**
- * Format ALS program level for official DepEd reports
+ * Format ALS level for official DepEd reports
  */
 function formatProgramLevel(level) {
   if (!level) return 'A&E Elementary';
@@ -61,9 +61,9 @@ router.get('/module-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), 
       }
     }
 
-    // Filter by Program Level
+    // Filter by ALS Level
     const targetLevel = programLevel || level;
-    if (targetLevel && targetLevel !== 'All' && targetLevel !== 'All Program Levels') {
+    if (targetLevel && targetLevel !== 'All' && targetLevel !== 'All Program Levels' && targetLevel !== 'All ALS Levels') {
       const norm = targetLevel.toUpperCase();
       if (norm.includes('ELEM')) {
         learnerWhere.level = 'ELEMENTARY';

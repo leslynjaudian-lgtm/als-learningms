@@ -173,7 +173,7 @@
             </div>
 
             <div class="info-box-item">
-              <span class="info-label">Target Program Level</span>
+              <span class="info-label">Target ALS Level</span>
               <span class="info-value">{{ moduleData.level }}</span>
             </div>
 
@@ -475,7 +475,7 @@
                 <tr>
                   <th class="th-learner-name">Learner Name</th>
                   <th class="th-lrn">LRN</th>
-                  <th class="th-level">Program Level</th>
+                  <th class="th-level">ALS Level</th>
                   <th class="th-activity">Activity</th>
                   <th class="th-date">Submitted Date</th>
                   <th class="th-status">Status</th>
@@ -519,6 +519,8 @@
                     <button
                       type="button"
                       class="btn-review-sub"
+                      title="View"
+                      aria-label="Review Output"
                       @click="openReviewModal(sub)"
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -844,12 +846,12 @@
                 ></textarea>
               </div>
 
-              <!-- ROW 3 — TWO COLUMNS: Target Program Level * | Learning Strand * -->
+              <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
               <div class="field-item">
-                <label class="field-lbl">Target Program Level <span class="req">*</span></label>
+                <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
                 <select v-model="editForm.level" class="field-select-box" required>
                   <option value="A&E Elementary">A&amp;E Elementary</option>
-                  <option value="A&E Junior">A&amp;E Junior</option>
+                  <option value="A&E Junior High">A&amp;E Junior High</option>
                 </select>
               </div>
 
@@ -1206,7 +1208,7 @@ async function loadEditPrerequisites() {
       teacherLearners.value = learnersRes.value.data.map((l) => ({
         id: l.id,
         name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
-        level: l.level === 'ELEMENTARY' ? 'A&E Elementary' : (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' ? 'A&E Junior' : l.level) || 'A&E Elementary',
+        level: l.level === 'ELEMENTARY' ? 'A&E Elementary' : (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' ? 'A&E Junior High' : l.level) || 'A&E Elementary',
         learningCenterId: l.learningCenterId,
         learningCenter: l.learningCenter || '',
       }));
@@ -1227,7 +1229,7 @@ function openEditModal() {
 
   let normLevel = moduleData.value.level || 'A&E Elementary';
   if (normLevel.toLowerCase().includes('elem')) normLevel = 'A&E Elementary';
-  else if (normLevel.toLowerCase().includes('jun') || normLevel.toLowerCase().includes('sec')) normLevel = 'A&E Junior';
+  else if (normLevel.toLowerCase().includes('jun') || normLevel.toLowerCase().includes('sec')) normLevel = 'A&E Junior High';
 
   editForm.title = moduleData.value.title || '';
   editForm.instructions = moduleData.value.instructions || moduleData.value.description || '';
@@ -1265,7 +1267,7 @@ async function saveEditModule() {
     return;
   }
   if (!editForm.level) {
-    editErrorMessage.value = 'Target Program Level is required.';
+    editErrorMessage.value = 'Target ALS Level is required.';
     return;
   }
   if (!editForm.learningCenterId) {
@@ -1896,27 +1898,39 @@ watch(
 }
 
 .btn-module-edit {
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
+  background: var(--action-edit-bg, #FFF7E8);
+  border: 1px solid var(--action-edit-border, #F6E6CE);
+  color: var(--action-edit-color, #946B32);
 }
 
 .btn-module-edit:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #1d4ed8;
+  background: var(--action-edit-hover-bg, #FDEFCF);
+  border-color: var(--action-edit-hover-border, #EACD9E);
+  color: var(--action-edit-hover-color, #7A5422);
+}
+
+.btn-module-edit:focus-visible {
+  outline: 2px solid var(--action-edit-color, #946B32);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-edit-focus-ring, rgba(148, 107, 50, 0.35));
 }
 
 .btn-module-delete {
-  background: #ffffff;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--action-delete-bg, #FFF1F1);
+  border: 1px solid var(--action-delete-border, #F9D6D8);
+  color: var(--action-delete-color, #B65B60);
 }
 
 .btn-module-delete:hover {
-  background: #fef2f2;
-  border-color: #dc2626;
-  color: #b91c1c;
+  background: var(--action-delete-hover-bg, #FDE4E4);
+  border-color: var(--action-delete-hover-border, #F2B8BA);
+  color: var(--action-delete-hover-color, #994247);
+}
+
+.btn-module-delete:focus-visible {
+  outline: 2px solid var(--action-delete-color, #B65B60);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-delete-focus-ring, rgba(182, 91, 96, 0.35));
 }
 
 .badge-cluster {
@@ -2720,9 +2734,9 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  color: var(--action-view-color, #4169A8);
   font-size: 0.8rem;
   font-weight: 600;
   padding: 0.45rem 0.85rem;
@@ -2732,9 +2746,15 @@ watch(
 }
 
 .btn-review-sub:hover {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #2563eb;
+  background: var(--action-view-hover-bg, #E0EEFE);
+  color: var(--action-view-hover-color, #315488);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.btn-review-sub:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
 }
 
 /* Submissions Empty Card */

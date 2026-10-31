@@ -109,11 +109,11 @@
           </select>
         </div>
 
-        <!-- 3. Program Level -->
+        <!-- 3. ALS Level -->
         <div class="filter-field-col">
-          <label>Program Level</label>
+          <label>ALS Level</label>
           <select v-model="selectedLevel">
-            <option value="">All Program Levels</option>
+            <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
             <option value="A&E Junior High School">A&E Junior High School</option>
           </select>

@@ -135,7 +135,7 @@
             <line x1="9" y1="1" x2="9" y2="4"/>
             <line x1="15" y1="1" x2="15" y2="4"/>
           </svg>
-          <span>Program Level</span>
+          <span>ALS Level</span>
         </div>
         <div style="font-size: 0.875rem; font-weight: 700; color: #0f172a;">
           {{ user.program || '—' }}

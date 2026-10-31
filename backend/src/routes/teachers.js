@@ -82,7 +82,7 @@ router.post('/login', async (req, res, next) => {
       req.body.identifier ||
       ''
     ).trim();
-    const rawPassword = (req.body.password || req.body.passWord || '').trim();
+    const rawPassword = req.body.password || req.body.passWord || '';
 
     if (!rawId || !rawPassword) {
       return res.status(400).json({ error: 'Teacher ID/username and password are required' });
@@ -122,7 +122,10 @@ router.post('/login', async (req, res, next) => {
       return res.status(403).json({ error: 'Your teacher account is inactive. Please contact the ALS administrator.' });
     }
 
-    const isMatch = await bcrypt.compare(rawPassword, user.passwordHash);
+    let isMatch = await bcrypt.compare(rawPassword, user.passwordHash);
+    if (!isMatch && rawPassword.trim() !== rawPassword) {
+      isMatch = await bcrypt.compare(rawPassword.trim(), user.passwordHash);
+    }
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid teacher ID/username or password' });
     }
@@ -332,8 +335,8 @@ router.get('/:id', async (req, res, next) => {
 // Helper to format learner record
 function formatLearner(l) {
   let displayLevel = l.level;
-  if (l.level === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-  else if (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY') displayLevel = 'A&E Junior';
+  if (l.level === 'ELEMENTARY' || l.level === 'A&E Elementary') displayLevel = 'A&E Elementary';
+  else if (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' || String(l.level || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
 
   return {
     id: l.id,

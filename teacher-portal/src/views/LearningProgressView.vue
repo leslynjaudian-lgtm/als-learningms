@@ -119,7 +119,7 @@
           <select v-model="selectedLevel" class="filter-select">
             <option value="">All Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior">A&E Junior</option>
+            <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 
@@ -245,13 +245,13 @@ const selectedCategory = ref('');
 
 const learners = ref([
   { id: 1, name: 'Ana Mae B. Dela Cruz', lrn: '109823481231', level: 'A&E Elementary', learningCenter: 'Poblacion CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 94, f2fAvg: 90, attendanceRate: 96, category: 'On Track', categoryLabel: 'Completed / On Track' },
-  { id: 2, name: 'John Rey L. Abad', lrn: '109823481232', level: 'A&E Junior', learningCenter: 'Poblacion CLC', modulesCompleted: 3, totalModules: 4, onlineAvg: 88, f2fAvg: 85, attendanceRate: 92, category: 'In Progress', categoryLabel: 'In Progress' },
+  { id: 2, name: 'John Rey L. Abad', lrn: '109823481232', level: 'A&E Junior High', learningCenter: 'Poblacion CLC', modulesCompleted: 3, totalModules: 4, onlineAvg: 88, f2fAvg: 85, attendanceRate: 92, category: 'In Progress', categoryLabel: 'In Progress' },
   { id: 3, name: 'Maria Fe S. Ignacio', lrn: '109823481233', level: 'A&E Elementary', learningCenter: 'Naawan Central LC', modulesCompleted: 1, totalModules: 4, onlineAvg: 70, f2fAvg: 68, attendanceRate: 80, category: 'Struggling', categoryLabel: 'Needs Attention' },
-  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'A&E Junior', learningCenter: 'Poblacion CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 92, f2fAvg: 88, attendanceRate: 94, category: 'On Track', categoryLabel: 'Completed / On Track' },
-  { id: 5, name: 'Liza T. Ramon', lrn: '109823481235', level: 'A&E Junior', learningCenter: 'Naawan Central LC', modulesCompleted: 3, totalModules: 4, onlineAvg: 85, f2fAvg: 82, attendanceRate: 90, category: 'In Progress', categoryLabel: 'In Progress' },
+  { id: 4, name: 'Carla M. Baylon', lrn: '109823481234', level: 'A&E Junior High', learningCenter: 'Poblacion CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 92, f2fAvg: 88, attendanceRate: 94, category: 'On Track', categoryLabel: 'Completed / On Track' },
+  { id: 5, name: 'Liza T. Ramon', lrn: '109823481235', level: 'A&E Junior High', learningCenter: 'Naawan Central LC', modulesCompleted: 3, totalModules: 4, onlineAvg: 85, f2fAvg: 82, attendanceRate: 90, category: 'In Progress', categoryLabel: 'In Progress' },
   { id: 6, name: 'Juan Dela Cruz', lrn: '109823481236', level: 'A&E Elementary', learningCenter: 'Poblacion CLC', modulesCompleted: 3, totalModules: 4, onlineAvg: 90, f2fAvg: 80, attendanceRate: 92, category: 'In Progress', categoryLabel: 'In Progress' },
-  { id: 7, name: 'Pedro S. Penduko', lrn: '109823481237', level: 'A&E Junior', learningCenter: 'Poblacion CLC', modulesCompleted: 1, totalModules: 4, onlineAvg: 65, f2fAvg: 60, attendanceRate: 75, category: 'Struggling', categoryLabel: 'Needs Attention' },
-  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'A&E Junior', learningCenter: 'Mat-i CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 95, f2fAvg: 92, attendanceRate: 98, category: 'On Track', categoryLabel: 'Completed / On Track' },
+  { id: 7, name: 'Pedro S. Penduko', lrn: '109823481237', level: 'A&E Junior High', learningCenter: 'Poblacion CLC', modulesCompleted: 1, totalModules: 4, onlineAvg: 65, f2fAvg: 60, attendanceRate: 75, category: 'Struggling', categoryLabel: 'Needs Attention' },
+  { id: 8, name: 'Mark Anthony Perez', lrn: '109823481238', level: 'A&E Junior High', learningCenter: 'Mat-i CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 95, f2fAvg: 92, attendanceRate: 98, category: 'On Track', categoryLabel: 'Completed / On Track' },
 ]);
 
 const onTrackCount = computed(() => learners.value.filter((l) => l.category === 'On Track').length);

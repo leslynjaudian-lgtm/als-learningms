@@ -38,6 +38,26 @@ const routes = [
     redirect: '/dashboard/modules',
   },
   {
+    path: '/reports',
+    redirect: '/dashboard/reports/af2',
+  },
+  {
+    path: '/reports/af2',
+    redirect: '/dashboard/reports/af2',
+  },
+  {
+    path: '/reports/module-progress',
+    redirect: '/dashboard/reports/module-progress',
+  },
+  {
+    path: '/reports/attendance-summary',
+    redirect: '/dashboard/reports/attendance-summary',
+  },
+  {
+    path: '/reports/attendance',
+    redirect: '/dashboard/reports/attendance-summary',
+  },
+  {
     path: '/dashboard',
     component: DefaultLayout,
     meta: { requiresAuth: true },
@@ -143,6 +163,7 @@ const routes = [
       },
       {
         path: 'reports/af2',
+        alias: ['reports/af2-report', 'reports/af2-summary'],
         name: 'AlsAf2Report',
         component: AlsAf2ReportView,
         meta: { title: 'ALS Assessment Form 2 Report', requiresAuth: true },
@@ -184,6 +205,10 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    return { top: 0 };
+  },
 });
 
 router.beforeEach((to) => {

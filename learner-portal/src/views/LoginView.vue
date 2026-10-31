@@ -110,7 +110,7 @@ async function handleLogin() {
         role: 'LEARNER',
         name: u.name,
         fullName: u.name,
-        program: u.profile?.level || 'A&E Junior',
+        program: u.profile?.level || 'A&E Junior High',
         learningCenter: u.profile?.learningCenter || '—',
         learningCenterId: u.profile?.learningCenterId || null,
         teacher: u.profile?.teacher || '—',

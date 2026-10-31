@@ -147,6 +147,8 @@
                 <button
                   type="button"
                   class="btn-action-view"
+                  title="View"
+                  aria-label="View Submission"
                   @click="openSubmissionModal(item)"
                 >
                   View
@@ -857,9 +859,9 @@ function alertFileOpen() {
 }
 
 .btn-action-view {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #2563eb;
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  color: var(--action-view-color, #4169A8);
   padding: 0.35rem 0.85rem;
   border-radius: 6px;
   font-size: 0.82rem;
@@ -869,8 +871,15 @@ function alertFileOpen() {
 }
 
 .btn-action-view:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
+  background: var(--action-view-hover-bg, #E0EEFE);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+  color: var(--action-view-hover-color, #315488);
+}
+
+.btn-action-view:focus-visible {
+  outline: 2px solid var(--action-view-color, #4169A8);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
 }
 
 .no-submissions-msg {

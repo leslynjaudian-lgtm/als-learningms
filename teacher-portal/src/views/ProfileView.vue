@@ -22,7 +22,7 @@
           type="button"
           class="tab-btn"
           :class="{ active: activeSection === 'profile' }"
-          @click="activeSection = 'profile'"
+          @click="switchSection('profile')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: -2px;">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -33,7 +33,7 @@
           type="button"
           class="tab-btn"
           :class="{ active: activeSection === 'account' }"
-          @click="activeSection = 'account'"
+          @click="switchSection('account')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: -2px;">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -123,7 +123,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Assigned Program Level</label>
+              <label class="form-label">Assigned ALS Level</label>
               <input :value="assignedProgramLevel" type="text" class="form-input" readonly style="background: #f8fafc; color: var(--color-text-secondary);" />
             </div>
 
@@ -149,7 +149,7 @@
 
     <!-- Section 2: Account Settings -->
     <div v-show="activeSection === 'account'" class="settings-section">
-      <div class="settings-card" style="max-width: 640px;">
+      <div class="settings-card account-settings-card">
         <div class="card-header-clean">
           <h2 class="card-title">Account Settings</h2>
           <p class="card-subtitle">Keep your account secure by updating your credentials.</p>
@@ -157,97 +157,69 @@
 
         <div class="subsection-divider">
           <h3 class="subsection-title">Change Password</h3>
-          <p class="subsection-desc">Ensure your new password contains at least 6 characters.</p>
         </div>
 
-        <form @submit.prevent="updatePassword">
+        <div v-if="passwordSuccessMessage" class="password-alert password-alert-success" role="status">
+          {{ passwordSuccessMessage }}
+        </div>
+        <div v-if="passwordErrors.general" class="password-alert password-alert-error" role="alert">
+          {{ passwordErrors.general }}
+        </div>
+
+        <form class="account-password-form" novalidate @submit.prevent="updatePassword">
           <!-- Current Password -->
-          <div class="form-group">
-            <label class="form-label">Current Password <span class="required">*</span></label>
-            <div class="password-input-wrap">
-              <input
-                v-model="passwordForm.currentPassword"
-                :type="showCurrentPassword ? 'text' : 'password'"
-                class="form-input"
-                placeholder="Enter current password"
-                required
-              />
-              <button
-                type="button"
-                class="password-toggle-btn"
-                @click="showCurrentPassword = !showCurrentPassword"
-                :title="showCurrentPassword ? 'Hide password' : 'Show password'"
-              >
-                <svg v-if="!showCurrentPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <PasswordInputField
+            ref="currentPwdRef"
+            v-model="passwordForm.currentPassword"
+            input-id="teacher-current-password"
+            label="Current Password"
+            placeholder="Enter current password"
+            autocomplete="current-password"
+            :required="true"
+            :error="displayedCurrentPasswordError"
+            :reset-key="activeSection"
+            @input="onCurrentPasswordInput"
+            @blur="passwordTouched.currentPassword = true"
+          />
 
           <!-- New Password -->
-          <div class="form-group">
-            <label class="form-label">New Password <span class="required">*</span></label>
-            <div class="password-input-wrap">
-              <input
-                v-model="passwordForm.newPassword"
-                :type="showNewPassword ? 'text' : 'password'"
-                class="form-input"
-                placeholder="Enter new password"
-                required
-              />
-              <button
-                type="button"
-                class="password-toggle-btn"
-                @click="showNewPassword = !showNewPassword"
-                :title="showNewPassword ? 'Hide password' : 'Show password'"
-              >
-                <svg v-if="!showNewPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <PasswordInputField
+            ref="newPwdRef"
+            v-model="passwordForm.newPassword"
+            input-id="teacher-new-password"
+            label="New Password"
+            placeholder="Enter new password"
+            autocomplete="new-password"
+            :maxlength="128"
+            :required="true"
+            helper-text="Use at least 12 characters for a stronger password."
+            :error="displayedNewPasswordError"
+            :is-valid="isNewPasswordValid"
+            :reset-key="activeSection"
+            @input="onNewPasswordInput"
+            @blur="passwordTouched.newPassword = true"
+          />
 
           <!-- Confirm New Password -->
-          <div class="form-group">
-            <label class="form-label">Confirm New Password <span class="required">*</span></label>
-            <div class="password-input-wrap">
-              <input
-                v-model="passwordForm.confirmPassword"
-                :type="showConfirmPassword ? 'text' : 'password'"
-                class="form-input"
-                placeholder="Confirm new password"
-                required
-              />
-              <button
-                type="button"
-                class="password-toggle-btn"
-                @click="showConfirmPassword = !showConfirmPassword"
-                :title="showConfirmPassword ? 'Hide password' : 'Show password'"
-              >
-                <svg v-if="!showConfirmPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <PasswordInputField
+            ref="confirmPwdRef"
+            v-model="passwordForm.confirmPassword"
+            input-id="teacher-confirm-password"
+            label="Confirm New Password"
+            placeholder="Confirm new password"
+            autocomplete="new-password"
+            :maxlength="128"
+            :required="true"
+            :error="displayedConfirmPasswordError"
+            :is-valid="isConfirmPasswordValid"
+            :reset-key="activeSection"
+            @input="onConfirmPasswordInput"
+            @blur="passwordTouched.confirmPassword = true"
+          />
 
-          <div class="form-actions-row" style="margin-top: 1.5rem;">
-            <button type="submit" class="btn btn-primary" :disabled="savingPassword">
-              <svg v-if="savingPassword" class="spinner-inline" viewBox="0 0 24 24"></svg>
+          <div class="form-actions-row">
+            <button type="submit" class="btn btn-primary btn-update-password" :disabled="savingPassword">
+              <span v-if="savingPassword" class="spinner-inline" aria-hidden="true"></span>
               <span>{{ savingPassword ? 'Updating...' : 'Update Password' }}</span>
             </button>
           </div>
@@ -261,6 +233,7 @@
 import { reactive, ref, computed, watch, onMounted } from 'vue';
 import api from '../api/axios.js';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
+import PasswordInputField from '../components/PasswordInputField.vue';
 
 const {
   currentTeacher,
@@ -274,6 +247,24 @@ const {
 } = useTeacherSession();
 
 const activeSection = ref('profile');
+
+function resetAllPasswordVisibility() {
+  currentPwdRef.value?.resetVisibility();
+  newPwdRef.value?.resetVisibility();
+  confirmPwdRef.value?.resetVisibility();
+}
+
+function switchSection(section) {
+  resetAllPasswordVisibility();
+  activeSection.value = section;
+  if (typeof window !== 'undefined' && window.scrollY > 0) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+watch(activeSection, () => {
+  resetAllPasswordVisibility();
+});
 
 const fileInputRef = ref(null);
 const savingProfile = ref(false);
@@ -289,28 +280,209 @@ function showFeedback(msg, type = 'success') {
 }
 
 // --- Account Settings (Change Password) State ---
+const currentPwdRef = ref(null);
+const newPwdRef = ref(null);
+const confirmPwdRef = ref(null);
+
 const passwordForm = reactive({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
 });
 
-const showCurrentPassword = ref(false);
-const showNewPassword = ref(false);
-const showConfirmPassword = ref(false);
+const passwordTouched = reactive({
+  currentPassword: false,
+  newPassword: false,
+  confirmPassword: false,
+});
+
+const passwordErrors = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+  general: '',
+});
+
+const passwordSuccessMessage = ref('');
 const savingPassword = ref(false);
 
+const COMMON_WEAK_PASSWORDS = new Set([
+  '123456789012',
+  '1234567890123',
+  '12345678901234',
+  'password1234',
+  'password12345',
+  'password123456',
+  'qwerty123456',
+  'qwertyuiop12',
+  'admin1234567',
+  'admin12345678',
+  'welcome12345',
+  'letmein12345',
+  'iloveyou1234',
+  'changeme1234',
+  'alspassword1',
+  'naawandistrict',
+]);
+
+function isCommonOrTrivialPassword(pwd) {
+  const lower = pwd.toLowerCase();
+  if (COMMON_WEAK_PASSWORDS.has(lower)) return true;
+  if (/^(.)\1+$/.test(pwd)) return true;
+  if ('01234567890123456789'.includes(pwd) || '98765432109876543210'.includes(pwd)) return true;
+  return false;
+}
+
+const liveNewPasswordError = computed(() => {
+  const pwd = passwordForm.newPassword;
+  if (!pwd) {
+    return passwordTouched.newPassword ? 'Please enter a new password.' : '';
+  }
+  if (pwd.length < 12) {
+    return 'New password must be at least 12 characters long.';
+  }
+  if (pwd.length > 128) {
+    return 'New password must not exceed 128 characters.';
+  }
+  if (isCommonOrTrivialPassword(pwd)) {
+    return 'This password is too common or easily guessed. Please use a stronger password or passphrase.';
+  }
+  return '';
+});
+
+const liveConfirmPasswordError = computed(() => {
+  const confirm = passwordForm.confirmPassword;
+  if (!confirm) {
+    return passwordTouched.confirmPassword ? 'Please confirm your new password.' : '';
+  }
+  if (passwordForm.newPassword !== confirm) {
+    return 'Passwords do not match.';
+  }
+  return '';
+});
+
+const displayedCurrentPasswordError = computed(() => {
+  if (passwordErrors.currentPassword) return passwordErrors.currentPassword;
+  if (passwordTouched.currentPassword && !passwordForm.currentPassword) {
+    return 'Please enter your current password.';
+  }
+  return '';
+});
+
+const displayedNewPasswordError = computed(() => {
+  return passwordErrors.newPassword || liveNewPasswordError.value;
+});
+
+const displayedConfirmPasswordError = computed(() => {
+  return passwordErrors.confirmPassword || liveConfirmPasswordError.value;
+});
+
+const isNewPasswordValid = computed(() => {
+  return (
+    passwordForm.newPassword.length >= 12 &&
+    !displayedNewPasswordError.value
+  );
+});
+
+const isConfirmPasswordValid = computed(() => {
+  return (
+    passwordForm.confirmPassword.length > 0 &&
+    passwordForm.confirmPassword === passwordForm.newPassword &&
+    isNewPasswordValid.value &&
+    !displayedConfirmPasswordError.value
+  );
+});
+
+function onCurrentPasswordInput() {
+  passwordErrors.currentPassword = '';
+  passwordErrors.general = '';
+  passwordSuccessMessage.value = '';
+}
+
+function onNewPasswordInput() {
+  passwordErrors.newPassword = '';
+  passwordErrors.general = '';
+  passwordSuccessMessage.value = '';
+}
+
+function onConfirmPasswordInput() {
+  passwordErrors.confirmPassword = '';
+  passwordErrors.general = '';
+  passwordSuccessMessage.value = '';
+}
+
+function resetPasswordErrors() {
+  passwordErrors.currentPassword = '';
+  passwordErrors.newPassword = '';
+  passwordErrors.confirmPassword = '';
+  passwordErrors.general = '';
+  passwordTouched.currentPassword = false;
+  passwordTouched.newPassword = false;
+  passwordTouched.confirmPassword = false;
+}
+
 async function updatePassword() {
+  if (savingPassword.value) return;
+
+  passwordErrors.currentPassword = '';
+  passwordErrors.newPassword = '';
+  passwordErrors.confirmPassword = '';
+  passwordErrors.general = '';
+  passwordSuccessMessage.value = '';
+
+  passwordTouched.currentPassword = true;
+  passwordTouched.newPassword = true;
+  passwordTouched.confirmPassword = true;
+
+  let hasValidationError = false;
+
   if (!passwordForm.currentPassword) {
-    showFeedback('Please enter your current password.', 'error');
-    return;
+    passwordErrors.currentPassword = 'Please enter your current password.';
+    hasValidationError = true;
   }
-  if (!passwordForm.newPassword || passwordForm.newPassword.length < 6) {
-    showFeedback('New password must be at least 6 characters long.', 'error');
-    return;
+
+  if (!passwordForm.newPassword) {
+    passwordErrors.newPassword = 'Please enter a new password.';
+    hasValidationError = true;
+  } else if (passwordForm.newPassword.length < 12) {
+    passwordErrors.newPassword = 'New password must be at least 12 characters long.';
+    hasValidationError = true;
+  } else if (passwordForm.newPassword.length > 128) {
+    passwordErrors.newPassword = 'New password must not exceed 128 characters.';
+    hasValidationError = true;
+  } else if (
+    passwordForm.currentPassword &&
+    passwordForm.newPassword === passwordForm.currentPassword
+  ) {
+    passwordErrors.newPassword = 'New password cannot be the same as your current password.';
+    hasValidationError = true;
+  } else if (isCommonOrTrivialPassword(passwordForm.newPassword)) {
+    passwordErrors.newPassword =
+      'This password is too common or easily guessed. Please use a stronger password or passphrase.';
+    hasValidationError = true;
   }
-  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    showFeedback('New passwords do not match. Please re-check.', 'error');
+
+  if (!passwordForm.confirmPassword) {
+    passwordErrors.confirmPassword = 'Please confirm your new password.';
+    hasValidationError = true;
+  } else if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    passwordErrors.confirmPassword = 'Passwords do not match.';
+    hasValidationError = true;
+  }
+
+  if (hasValidationError) {
+    if (passwordErrors.currentPassword) {
+      currentPwdRef.value?.focus();
+    } else if (passwordErrors.newPassword) {
+      newPwdRef.value?.focus();
+    } else if (passwordErrors.confirmPassword) {
+      confirmPwdRef.value?.focus();
+    }
+    const firstMsg =
+      passwordErrors.currentPassword ||
+      passwordErrors.newPassword ||
+      passwordErrors.confirmPassword;
+    if (firstMsg) showFeedback(firstMsg, 'error');
     return;
   }
 
@@ -321,15 +493,35 @@ async function updatePassword() {
       newPassword: passwordForm.newPassword,
       confirmPassword: passwordForm.confirmPassword,
     });
+
     passwordForm.currentPassword = '';
     passwordForm.newPassword = '';
     passwordForm.confirmPassword = '';
+    resetAllPasswordVisibility();
+    resetPasswordErrors();
+
+    passwordSuccessMessage.value = 'Password updated successfully.';
     showFeedback('Password updated successfully.');
   } catch (err) {
-    showFeedback(
-      err.response?.data?.error || 'Unable to update password. Please check your current password.',
-      'error'
-    );
+    const backendError =
+      err.response?.data?.error ||
+      'Unable to update password due to a network or server error. Please try again.';
+    const backendField = err.response?.data?.field;
+
+    if (backendField === 'currentPassword' || /current password/i.test(backendError)) {
+      passwordErrors.currentPassword = backendError;
+      currentPwdRef.value?.focus();
+    } else if (backendField === 'newPassword') {
+      passwordErrors.newPassword = backendError;
+      newPwdRef.value?.focus();
+    } else if (backendField === 'confirmPassword' || /match/i.test(backendError)) {
+      passwordErrors.confirmPassword = backendError;
+      confirmPwdRef.value?.focus();
+    } else {
+      passwordErrors.general = backendError;
+    }
+
+    showFeedback(backendError, 'error');
   } finally {
     savingPassword.value = false;
   }
@@ -477,12 +669,51 @@ async function updateProfile() {
 }
 
 onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+  resetAllPasswordVisibility();
   syncProfile();
   refreshProfile();
 });
 </script>
 
 <style scoped>
+.settings-page {
+  width: 100%;
+  max-width: 100%;
+  padding-top: 0.25rem;
+  position: relative;
+  z-index: 1;
+  scroll-margin-top: calc(var(--header-height, 64px) + 1rem);
+}
+
+.settings-page .breadcrumb {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.settings-page .page-header-row {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-top: 0.15rem;
+}
+
+.settings-page .page-title-group h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text, #0f172a);
+  line-height: 1.25;
+  margin: 0;
+}
+
+.settings-page .page-title-group p {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #475569);
+  margin: 0.25rem 0 0;
+  line-height: 1.45;
+}
+
 .big-avatar-circle {
   position: relative;
   overflow: hidden;
@@ -658,44 +889,82 @@ onMounted(() => {
   margin-top: 0.15rem;
 }
 
-/* Password Inputs */
-.password-input-wrap {
-  position: relative;
+/* Password Inputs & Account Settings Form */
+.account-settings-card {
+  max-width: 640px;
+  width: 100%;
+}
+
+.password-alert {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+}
+
+.password-alert-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.password-alert-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.form-actions-row {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border-light, #f1f5f9);
 }
 
-.password-input-wrap .form-input {
-  padding-right: 2.5rem;
-}
-
-.password-toggle-btn {
-  position: absolute;
-  right: 0.65rem;
-  background: none;
-  border: none;
-  color: var(--color-text-muted, #94a3b8);
-  cursor: pointer;
-  display: flex;
+.btn-update-password {
+  min-height: 40px;
+  padding: 0.6rem 1.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
-  border-radius: 4px;
+  gap: 0.45rem;
 }
 
-.password-toggle-btn:hover {
-  color: var(--color-text, #0f172a);
+.btn-update-password:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .settings-card {
+    padding: 1.25rem 1.15rem;
+  }
+
+  .form-actions-row {
+    justify-content: stretch;
+  }
+
+  .btn-update-password {
+    width: 100%;
+  }
 }
 
 .spinner-inline {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-radius: 50%;
   border-top-color: #ffffff;
   animation: spin 0.6s linear infinite;
   display: inline-block;
-  margin-right: 0.35rem;
+  flex-shrink: 0;
 }
 
 @keyframes spin {

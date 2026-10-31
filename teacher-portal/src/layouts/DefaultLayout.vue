@@ -195,7 +195,7 @@
               @click="sidebarOpen = false"
             >
               <span class="sublink-dot"></span>
-              <span class="sublink-label">ALS Assessment Form 2</span>
+              <span class="sublink-label">ALS Assessment Form 2 Report</span>
             </router-link>
 
             <router-link
@@ -231,7 +231,6 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              <path d="M2 8c0-2.2 1.8-4 4-4"/>
             </svg>
           </span>
           <span class="nav-label">Announcements</span>
@@ -276,6 +275,7 @@
               <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
+          <GlobalSearchBar />
         </div>
 
         <div class="topbar-right">
@@ -347,6 +347,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import SignoutConfirmationModal from '../components/SignoutConfirmationModal.vue';
+import GlobalSearchBar from '../components/GlobalSearchBar.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -379,8 +380,8 @@ function toggleAttendance() {
   isAttendanceOpen.value = !isAttendanceOpen.value;
 }
 
-// Reports dropdown state
-const isReportsOpen = ref(false);
+// Reports dropdown state - open by default so report links are visible under the Reports sidebar menu
+const isReportsOpen = ref(true);
 
 const isAf2Active = computed(() => {
   return route.path.startsWith('/dashboard/reports/af2');

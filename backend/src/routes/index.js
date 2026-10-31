@@ -12,6 +12,7 @@ import dashboardRoutes from './dashboard.js';
 import scheduleRoutes from './schedules.js';
 import recordRoutes from './records.js';
 import reportRoutes from './reports.js';
+import searchRoutes from './search.js';
 
 const router = Router();
 
@@ -42,5 +43,6 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/records', recordRoutes);
 router.use('/reports', reportRoutes);
+router.use('/search', searchRoutes);
 
 export default router;
