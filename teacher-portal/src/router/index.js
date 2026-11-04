@@ -78,7 +78,7 @@ const routes = [
       },
       {
         path: 'learning-centers/:id',
-        alias: ['clc/:clcId'],
+        alias: ['clc/:id'],
         name: 'LearningCenterDetail',
         component: LearningCenterDetailView,
         meta: { title: 'Learning Center Details', requiresAuth: true },
@@ -94,16 +94,80 @@ const routes = [
       },
       {
         path: 'learners/:id',
-        alias: ['learner-profile'],
+        alias: ['learner-profile/:id'],
         name: 'LearnerProfile',
         component: LearnerProfileView,
         meta: { title: 'Learner Profile', requiresAuth: true },
       },
       {
+        path: 'learner-profile',
+        redirect: (to) => {
+          if (to.query?.id) return `/dashboard/learners/${to.query.id}`;
+          return '/dashboard/learners';
+        },
+      },
+      {
         path: 'modules',
         name: 'Modules',
+        redirect: () => {
+          try {
+            const raw = localStorage.getItem('als_teacher_user');
+            if (raw) {
+              const teacher = JSON.parse(raw);
+              const spec = String(teacher.programLevel || teacher.specialization || 'Both').toLowerCase();
+              if (spec.includes('junior') || spec.includes('jhs') || spec.includes('sec')) {
+                if (!spec.includes('elem') && !spec.includes('both')) {
+                  return '/dashboard/modules/junior-high';
+                }
+              }
+            }
+          } catch (e) {}
+          return '/dashboard/modules/elementary';
+        },
+      },
+      {
+        path: 'modules/elementary',
+        name: 'ModulesElementary',
         component: ModulesView,
-        meta: { title: 'Modules', requiresAuth: true },
+        props: { defaultLevelSlug: 'elementary', defaultLevel: 'A&E Elementary' },
+        meta: { title: 'Modules - A&E Elementary', requiresAuth: true },
+        beforeEnter: (to, from, next) => {
+          try {
+            const raw = localStorage.getItem('als_teacher_user');
+            if (raw) {
+              const teacher = JSON.parse(raw);
+              const spec = String(teacher.programLevel || teacher.specialization || 'Both').toLowerCase();
+              const hasElem = spec.includes('elem') || spec.includes('both');
+              const hasJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+              if (!hasElem && hasJhs) {
+                return next('/dashboard/modules/junior-high');
+              }
+            }
+          } catch (e) {}
+          next();
+        },
+      },
+      {
+        path: 'modules/junior-high',
+        name: 'ModulesJuniorHigh',
+        component: ModulesView,
+        props: { defaultLevelSlug: 'junior-high', defaultLevel: 'A&E Junior High' },
+        meta: { title: 'Modules - A&E Junior High', requiresAuth: true },
+        beforeEnter: (to, from, next) => {
+          try {
+            const raw = localStorage.getItem('als_teacher_user');
+            if (raw) {
+              const teacher = JSON.parse(raw);
+              const spec = String(teacher.programLevel || teacher.specialization || 'Both').toLowerCase();
+              const hasElem = spec.includes('elem') || spec.includes('both');
+              const hasJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+              if (!hasJhs && hasElem) {
+                return next('/dashboard/modules/elementary');
+              }
+            }
+          } catch (e) {}
+          next();
+        },
       },
       {
         path: 'modules/:id',

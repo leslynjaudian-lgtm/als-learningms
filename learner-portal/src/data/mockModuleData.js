@@ -290,7 +290,7 @@ export function getMockProgressStorageKey() {
 // Initial default state
 export function getDefaultMockProgress() {
   return {
-    currentStep: 1, // 1: Pre-Test, 2: Module, 3: Post-Test, 4: Activity Submission
+    currentStep: 0, // 0: Overview, 1: Pre-Test, 2: Module, 3: Post-Test, 4: Activity Submission
     highestUnlockedStep: 1,
     preTestAnswers: {},
     preTestCompleted: false,

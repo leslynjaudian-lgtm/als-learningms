@@ -4,7 +4,7 @@
     <div class="page-header-row">
       <div class="page-title-group">
         <h1>Modules</h1>
-        <p>View and manage your learning modules.</p>
+        <p>View and manage learning modules for <strong>{{ activeLevel }}</strong>.</p>
       </div>
 
       <div class="header-action-group">
@@ -59,8 +59,8 @@
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
         </div>
-        <h3 class="empty-title">No Learning Modules Published Yet</h3>
-        <p class="empty-desc">You haven't uploaded or created any modules yet. Click "+ Upload Module" to create your first learning package.</p>
+        <h3 class="empty-title">No modules available for {{ activeLevel }} yet.</h3>
+        <p class="empty-desc">You haven't uploaded or created any modules for {{ activeLevel }} yet. Click "+ Upload Module" to create your first learning package.</p>
         <button type="button" class="btn btn-primary" style="margin-top: 1.25rem;" @click="startModuleCreation">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -73,7 +73,7 @@
       <!-- Learning Feed List -->
       <div v-else class="modules-feed-wrapper">
         <div class="feed-header-info">
-          <span class="feed-count-text">Showing <strong>{{ modules.length }}</strong> published {{ modules.length === 1 ? 'module' : 'modules' }}</span>
+          <span class="feed-count-text">Showing <strong>{{ modules.length }}</strong> published {{ modules.length === 1 ? 'module' : 'modules' }} ({{ activeLevel }})</span>
         </div>
 
         <div class="learning-feed-list">
@@ -213,10 +213,16 @@
             <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
             <div class="field-item">
               <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
-              <select v-model="newModule.level" class="field-select-box" required>
-                <option value="A&E Elementary">A&amp;E Elementary</option>
-                <option value="A&E Junior High">A&amp;E Junior High</option>
-              </select>
+              <div class="locked-level-box">
+                <input
+                  type="text"
+                  :value="activeLevel"
+                  class="field-input-box is-locked"
+                  readonly
+                  disabled
+                />
+                <span class="locked-level-badge">Locked to {{ activeLevel }}</span>
+              </div>
             </div>
 
             <div class="field-item">
@@ -691,13 +697,59 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getModules, createModule, uploadModuleFile } from '../api/modules.js';
 import { getAssignedLearners } from '../api/learners.js';
 
+const props = defineProps({
+  defaultLevelSlug: {
+    type: String,
+    default: '',
+  },
+  defaultLevel: {
+    type: String,
+    default: '',
+  },
+});
+
+const route = useRoute();
 const router = useRouter();
 const { teacherName, teacherId, currentTeacher, assignedCenters, assignedProgramLevel } = useTeacherSession();
+
+// Resolve the stable database AlsLevel enum ('ELEMENTARY' or 'JUNIOR') directly from the active route
+const activeTargetLevel = computed(() => {
+  const path = (route.path || '').toLowerCase();
+  const query = (route.query?.level || route.query?.targetLevel || '').toLowerCase();
+  const param = (route.params?.levelSlug || '').toLowerCase();
+
+  if (
+    path.includes('junior') ||
+    path.includes('jhs') ||
+    query.includes('junior') ||
+    query.includes('jhs') ||
+    param.includes('junior')
+  ) {
+    return 'JUNIOR';
+  }
+  if (path.includes('elem') || query.includes('elem') || param.includes('elem')) {
+    return 'ELEMENTARY';
+  }
+
+  // Fallback to teacher assignment
+  const spec = (assignedProgramLevel.value || '').toLowerCase();
+  if (spec.includes('junior') || spec.includes('jhs')) {
+    if (!spec.includes('elem') && !spec.includes('both')) {
+      return 'JUNIOR';
+    }
+  }
+  return 'ELEMENTARY';
+});
+
+// Official display label for the active ALS Level
+const activeLevel = computed(() => {
+  return activeTargetLevel.value === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
+});
 
 function openModuleDetails(moduleId) {
   if (!moduleId) return;
@@ -788,16 +840,18 @@ const currentSelectedCenterName = computed(() => {
 
 // Available learners filtered by selected Target ALS Level (and assigned to the logged-in teacher)
 const availableLearners = computed(() => {
-  if (!newModule.level) return [];
-  const targetLevelNorm = newModule.level.toLowerCase().trim();
+  const targetEnum = activeTargetLevel.value; // 'ELEMENTARY' or 'JUNIOR'
 
   return teacherLearners.value.filter((l) => {
-    // Target ALS Level check (A&E Elementary vs A&E Junior High)
+    if (l.targetLevel) {
+      return l.targetLevel === targetEnum;
+    }
     const lLevelNorm = (l.level || '').toLowerCase().trim();
-    const isLevelMatch =
-      (targetLevelNorm.includes('elem') && lLevelNorm.includes('elem')) ||
-      ((targetLevelNorm.includes('jun') || targetLevelNorm.includes('sec')) && (lLevelNorm.includes('jun') || lLevelNorm.includes('sec')));
-    return isLevelMatch;
+    if (targetEnum === 'ELEMENTARY') {
+      return lLevelNorm.includes('elem');
+    } else {
+      return lLevelNorm.includes('jun') || lLevelNorm.includes('sec');
+    }
   });
 });
 
@@ -919,14 +973,25 @@ function validateStep1() {
   return true;
 }
 
-// Fetch modules from database for the currently logged-in teacher
+// Fetch modules from database for the currently logged-in teacher and selected ALS Level
 async function loadModules() {
   loading.value = true;
   try {
     const tid = teacherId.value;
-    const res = await getModules(tid ? { teacherId: tid } : {});
+    const params = {
+      level: activeLevel.value,
+    };
+    if (tid) params.teacherId = tid;
+    const res = await getModules(params);
     if (Array.isArray(res.data)) {
-      modules.value = res.data;
+      modules.value = res.data.filter((m) => {
+        const lvl = String(m.level || m.targetLevel || m.programLevel || '').toLowerCase();
+        if (activeTargetLevel.value === 'ELEMENTARY') {
+          return lvl.includes('elem');
+        } else {
+          return lvl.includes('jun') || lvl.includes('sec');
+        }
+      });
     } else {
       modules.value = [];
     }
@@ -965,11 +1030,8 @@ function startModuleCreation() {
   } else if (assignedCenters.value && assignedCenters.value.length > 0) {
     newModule.learningCenterId = assignedCenters.value[0].id;
   }
-  if (assignedProgramLevel.value && assignedProgramLevel.value.includes('Junior')) {
-    newModule.level = 'A&E Junior High';
-  } else {
-    newModule.level = 'A&E Elementary';
-  }
+  // Automatically lock to the currently active ALS Level
+  newModule.level = activeLevel.value;
   isCreatingModule.value = true;
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
@@ -1085,7 +1147,7 @@ function removeSelectedFile() {
 function resetWizard() {
   newModule.title = '';
   newModule.strand = 'Communication Skills (English)';
-  newModule.level = 'A&E Elementary';
+  newModule.level = activeLevel.value;
   newModule.learningCenterId = '';
   newModule.code = 'LS1';
   newModule.dateStarted = '';
@@ -1204,7 +1266,19 @@ watch(teacherId, (newId) => {
   }
 });
 
+watch(
+  () => activeLevel.value,
+  (newVal) => {
+    if (newVal) {
+      newModule.level = newVal;
+      loadModules();
+      loadTeacherLearners();
+    }
+  }
+);
+
 onMounted(() => {
+  newModule.level = activeLevel.value;
   loadModules();
   loadTeacherLearners();
 });
@@ -1605,6 +1679,27 @@ onMounted(() => {
 .field-textarea-box:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.field-input-box.is-locked,
+.field-select-box.is-locked {
+  background-color: #f8fafc;
+  color: #334155;
+  cursor: not-allowed;
+  font-weight: 600;
+  border-color: #cbd5e1;
+}
+
+.locked-level-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.locked-level-badge {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-style: italic;
 }
 
 .form-error-banner {

@@ -1,22 +1,11 @@
 <template>
   <div class="page-container attendance-summary-view">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb no-print">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Attendance Summary</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row no-print">
-      <div class="page-title-group">
-        <h1>Attendance Summary</h1>
-        <p>Monitor attendance records across Community Learning Centers.</p>
-      </div>
-
-      <div class="header-actions-group">
+    <!-- Standardized Page Header & Breadcrumb (no-print) -->
+    <ReportsPageHeader
+      title="Attendance Summary"
+      description="Monitor attendance records across Community Learning Centers."
+    >
+      <template #actions>
         <button
           type="button"
           class="btn btn-secondary"
@@ -30,8 +19,8 @@
           </svg>
           <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </ReportsPageHeader>
 
     <!-- Summary Stats Cards (Single Horizontal Row) -->
     <div class="report-stats-grid no-print">
@@ -43,7 +32,7 @@
           </svg>
         </div>
         <span class="report-card-label">Total Learners</span>
-        <span class="report-card-value">{{ learnerAggregates.length }}</span>
+        <span class="report-card-value">{{ dashboardTotalLearners }}</span>
         <span class="report-card-desc">Learners in current filter scope</span>
       </div>
 
@@ -55,7 +44,7 @@
           </svg>
         </div>
         <span class="report-card-label">Total Attendance Sessions</span>
-        <span class="report-card-value">{{ totalDistinctSessions }}</span>
+        <span class="report-card-value">{{ dashboardTotalSessions }}</span>
         <span class="report-card-desc">Recorded attendance sessions</span>
       </div>
 
@@ -67,7 +56,7 @@
           </svg>
         </div>
         <span class="report-card-label">Attendance Rate</span>
-        <span class="report-card-value text-green">{{ overallAttendanceRate }}%</span>
+        <span class="report-card-value text-green">{{ dashboardAttendanceRate }}%</span>
         <span class="report-card-desc">
           {{ selectedCenter ? `Based on ${selectedCenter} records` : 'District-wide attendance percentage' }}
         </span>
@@ -81,7 +70,7 @@
           </svg>
         </div>
         <span class="report-card-label">Total Present Records</span>
-        <span class="report-card-value text-blue">{{ totalPresentCount }}</span>
+        <span class="report-card-value text-blue">{{ dashboardTotalPresent }}</span>
         <span class="report-card-desc">Total marked present</span>
       </div>
     </div>
@@ -165,15 +154,17 @@
           <button
             type="button"
             class="btn-generate-report"
+            :disabled="loadingReport"
             @click="handleGenerateReport"
           >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <span v-if="loadingReport" class="btn-spinner" style="border-top-color: #ffffff; width: 14px; height: 14px; border-width: 2px;"></span>
+            <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
               <line x1="16" y1="13" x2="8" y2="13"/>
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            <span>Generate Report</span>
+            <span>{{ loadingReport ? 'Generating...' : 'Generate Report' }}</span>
           </button>
         </div>
       </div>
@@ -190,6 +181,25 @@
     <!-- Official Generated Report Output / Dedicated Print & PDF Section -->
     <div class="report-output-wrapper">
       <div id="report-content" ref="reportContentRef" class="report-paper-sheet attendance-report-sheet">
+        <!-- Status Pill Banner (Standardized with AF2) -->
+        <div class="report-status-banner no-print">
+          <div v-if="!reportGenerated" class="status-pill status-blank">
+            <span class="status-badge-dot"></span>
+            <span class="status-badge-text">Blank Template Preview</span>
+            <span class="status-badge-hint">— Select filters above and click Generate Report</span>
+          </div>
+          <div v-else-if="learnerAggregates.length === 0" class="status-pill status-empty">
+            <span class="status-badge-dot warning"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— No records found for the selected filters</span>
+          </div>
+          <div v-else class="status-pill status-ready">
+            <span class="status-badge-dot success"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— {{ learnerAggregates.length }} learner(s) loaded</span>
+          </div>
+        </div>
+
         <!-- Official Header with Logos -->
         <header class="report-official-header">
           <div class="header-logo left-logo-box">
@@ -228,7 +238,56 @@
                 <th class="col-absent">Absent</th>
               </tr>
             </thead>
-            <tbody>
+
+            <!-- BLANK TEMPLATE PREVIEW BODY (Before Generate Report) -->
+            <tbody v-if="!reportGenerated">
+              <!-- Male Section Header -->
+              <tr class="section-divider-row">
+                <td colspan="8" class="section-divider-cell">Male</td>
+              </tr>
+              <!-- Blank rows for Male -->
+              <tr v-for="n in 5" :key="'blank-male-' + n" class="empty-line-row">
+                <td class="cell-no">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-level">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-rate">&nbsp;</td>
+                <td class="cell-actions print-hidden">&nbsp;</td>
+              </tr>
+
+              <!-- Female Section Header -->
+              <tr class="section-divider-row">
+                <td colspan="8" class="section-divider-cell">Female</td>
+              </tr>
+              <!-- Blank rows for Female -->
+              <tr v-for="n in 5" :key="'blank-female-' + n" class="empty-line-row">
+                <td class="cell-no">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-level">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-rate">&nbsp;</td>
+                <td class="cell-actions print-hidden">&nbsp;</td>
+              </tr>
+            </tbody>
+
+            <!-- GENERATED REPORT BODY (After Generate Report) -->
+            <tbody v-else>
+              <!-- Empty State If Generated But 0 Records Found -->
+              <tr v-if="learnerAggregates.length === 0" class="empty-notice-row print-hidden">
+                <td colspan="8" class="cell-center empty-notice-cell">
+                  <div class="empty-notice-content">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>No attendance records found for the selected filters.</span>
+                  </div>
+                </td>
+              </tr>
+
               <!-- Male Section Header -->
               <tr class="section-divider-row">
                 <td colspan="8" class="section-divider-cell">Male</td>
@@ -347,6 +406,24 @@
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- PRINT ACTION BUTTON (Below report table, no-print) -->
+      <div id="pdf-action-section" class="pdf-action-container no-print print-hidden">
+        <button
+          type="button"
+          class="btn-print-report"
+          :disabled="!reportGenerated || learnerAggregates.length === 0"
+          :title="!reportGenerated ? 'Please click Generate Report first' : (learnerAggregates.length === 0 ? 'No records to print' : 'Print this report')"
+          @click="printReportDirectly"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          <span>Print Report</span>
+        </button>
       </div>
     </div>
 
@@ -500,7 +577,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { useAdminSession } from '../composables/useAdminSession.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';
@@ -509,6 +587,9 @@ import { getAttendanceRecords } from '../api/reports.js';
 
 const { adminName } = useAdminSession();
 const reportContentRef = ref(null);
+
+const reportGenerated = ref(false);
+const loadingReport = ref(false);
 
 const pdfFilename = computed(() => {
   const dateStr = new Date().toISOString().split('T')[0];
@@ -519,6 +600,7 @@ const pdfFilename = computed(() => {
 const learningCenters = ref([]);
 const teachers = ref([]);
 const learners = ref([]);
+const dashboardAttendanceLogs = ref([]);
 const rawAttendanceLogs = ref([]);
 
 // Filters
@@ -546,12 +628,72 @@ async function loadData() {
       getAttendanceRecords().catch(() => []),
     ]);
 
-    learningCenters.value = Array.isArray(centersRes.data) ? centersRes.data : [];
-    teachers.value = Array.isArray(teachersRes.data) ? teachersRes.data : [];
-    learners.value = Array.isArray(learnersRes.data) ? learnersRes.data : [];
-    rawAttendanceLogs.value = Array.isArray(attData) ? attData : [];
+    learningCenters.value = Array.isArray(centersRes.data) ? centersRes.data : (Array.isArray(centersRes) ? centersRes : []);
+    teachers.value = Array.isArray(teachersRes.data) ? teachersRes.data : (Array.isArray(teachersRes) ? teachersRes : []);
+    learners.value = Array.isArray(learnersRes.data) ? learnersRes.data : (Array.isArray(learnersRes) ? learnersRes : []);
+    dashboardAttendanceLogs.value = Array.isArray(attData) ? attData : [];
   } catch (err) {
-    console.error('Error loading attendance summary:', err);
+    console.error('Error loading attendance summary dashboard data:', err);
+  }
+}
+
+// -------------------------------------------------------------------------
+// Dashboard Statistics (Always active & calculated, independent of report)
+// -------------------------------------------------------------------------
+const dashboardFilteredLogs = computed(() => {
+  if (!selectedCenter.value) return dashboardAttendanceLogs.value;
+  return dashboardAttendanceLogs.value.filter(
+    (l) => (l.learningCenter || '').toLowerCase().trim() === selectedCenter.value.toLowerCase().trim()
+  );
+});
+
+const dashboardTotalLearners = computed(() => {
+  if (selectedCenter.value) {
+    return learners.value.filter((l) => (l.learningCenter || '').toLowerCase().trim() === selectedCenter.value.toLowerCase().trim()).length;
+  }
+  return learners.value.length;
+});
+
+const dashboardTotalSessions = computed(() => {
+  const set = new Set(dashboardFilteredLogs.value.map((l) => l.sessionDate || l.date).filter(Boolean));
+  return set.size;
+});
+
+const dashboardTotalPresent = computed(() => {
+  return dashboardFilteredLogs.value.filter((l) => {
+    const st = (l.status || '').toUpperCase();
+    return st === 'PRESENT' || st === 'LATE';
+  }).length;
+});
+
+const dashboardAttendanceRate = computed(() => {
+  const total = dashboardFilteredLogs.value.length;
+  if (total === 0) return 0;
+  return Math.round((dashboardTotalPresent.value / total) * 100);
+});
+
+// -------------------------------------------------------------------------
+// Report Template Generation (Populates only when Generate Report clicked)
+// -------------------------------------------------------------------------
+async function fetchAttendanceData() {
+  loadingReport.value = true;
+  try {
+    const params = {};
+    if (selectedCenter.value) params.learningCenter = selectedCenter.value;
+    if (selectedLevel.value) params.level = selectedLevel.value;
+    if (selectedTeacher.value) params.teacher = selectedTeacher.value;
+    if (fromDate.value) params.fromDate = fromDate.value;
+    if (toDate.value) params.toDate = toDate.value;
+
+    const attData = await getAttendanceRecords(params).catch(() => []);
+    rawAttendanceLogs.value = Array.isArray(attData) && attData.length > 0 ? attData : dashboardAttendanceLogs.value;
+    reportGenerated.value = true;
+  } catch (err) {
+    console.error('Error loading attendance report logs:', err);
+    rawAttendanceLogs.value = [];
+    reportGenerated.value = true;
+  } finally {
+    loadingReport.value = false;
   }
 }
 
@@ -637,22 +779,40 @@ async function handleRefresh() {
   isRefreshing.value = true;
   try {
     await loadData();
+    if (reportGenerated.value) {
+      await fetchAttendanceData();
+    }
   } finally {
     isRefreshing.value = false;
   }
 }
 
-function handleGenerateReport() {
+async function handleGenerateReport() {
   dateError.value = '';
   if (fromDate.value && toDate.value && fromDate.value > toDate.value) {
     dateError.value = 'From date cannot be later than To date.';
     return;
   }
+  await fetchAttendanceData();
   const el = document.getElementById('report-content');
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+
+function invalidateReport() {
+  if (reportGenerated.value) {
+    reportGenerated.value = false;
+    rawAttendanceLogs.value = [];
+  }
+}
+
+watch(
+  [selectedCenter, selectedLevel, selectedTeacher, selectedLearnerName, fromDate, toDate],
+  () => {
+    invalidateReport();
+  }
+);
 
 function resetFilters() {
   selectedCenter.value = '';
@@ -662,10 +822,13 @@ function resetFilters() {
   fromDate.value = '';
   toDate.value = '';
   dateError.value = '';
+  reportGenerated.value = false;
+  rawAttendanceLogs.value = [];
 }
 
 // Filtered raw logs based on user filter selections
 const filteredLogs = computed(() => {
+  if (!reportGenerated.value) return [];
   return rawAttendanceLogs.value.filter((log) => {
     if (selectedCenter.value) {
       const c = (log.learningCenter || '').toLowerCase().trim();
@@ -703,6 +866,7 @@ const filteredLogs = computed(() => {
 
 // Consolidate learners in district with their attendance stats
 const learnerAggregates = computed(() => {
+  if (!reportGenerated.value) return [];
   const candidateLearners = filteredLearnersList.value;
 
   const rows = candidateLearners.map((learner) => {
@@ -787,30 +951,13 @@ const femaleLearners = computed(() => {
 
 // Empty grid lines matching official DepEd format
 const emptyMaleRowsCount = computed(() => {
-  return maleLearners.value.length === 0 ? 8 : Math.max(0, 3 - maleLearners.value.length);
+  if (!reportGenerated.value || learnerAggregates.value.length === 0) return 0;
+  return maleLearners.value.length === 0 ? 5 : Math.max(0, 3 - maleLearners.value.length);
 });
 
 const emptyFemaleRowsCount = computed(() => {
-  return femaleLearners.value.length === 0 ? 8 : Math.max(0, 3 - femaleLearners.value.length);
-});
-
-const totalDistinctSessions = computed(() => {
-  const set = new Set(filteredLogs.value.map((l) => l.sessionDate || l.date).filter(Boolean));
-  return set.size;
-});
-
-const totalPresentCount = computed(() => {
-  return filteredLogs.value.filter((l) => {
-    const st = (l.status || '').toUpperCase();
-    return st === 'PRESENT' || st === 'LATE';
-  }).length;
-});
-
-const overallAttendanceRate = computed(() => {
-  const total = learnerAggregates.value.reduce((acc, r) => acc + r.totalSessions, 0);
-  const present = learnerAggregates.value.reduce((acc, r) => acc + r.presentCount, 0);
-  if (total === 0) return 0;
-  return Math.round((present / total) * 100);
+  if (!reportGenerated.value || learnerAggregates.value.length === 0) return 0;
+  return femaleLearners.value.length === 0 ? 5 : Math.max(0, 3 - femaleLearners.value.length);
 });
 
 function openDetailsModal(item) {
@@ -864,6 +1011,18 @@ async function openLearnerInfoModal(learner) {
 function closeLearnerModal() {
   showLearnerModal.value = false;
   viewingLearner.value = null;
+}
+
+function printReportDirectly() {
+  if (!reportGenerated.value) {
+    alert('Please click "Generate Report" before printing.');
+    return;
+  }
+  if (learnerAggregates.value.length === 0) {
+    alert('No attendance records to print for the selected filters.');
+    return;
+  }
+  window.print();
 }
 </script>
 
@@ -1491,6 +1650,123 @@ function closeLearnerModal() {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Print Action Button (Below report table) */
+.pdf-action-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0 2rem 0;
+}
+
+.btn-print-report {
+  height: 48px;
+  padding: 0 1.75rem;
+  background-color: #ffffff;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-print-report:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-print-report:active {
+  background-color: #e2e8f0;
+  transform: translateY(1px);
+}
+
+.btn-print-report:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
+/* Status Banner & Pills (Standardized with AF2) */
+.report-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.status-pill.status-blank {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.status-pill.status-empty {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.status-pill.status-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-badge-dot.warning,
+.status-badge-dot.empty {
+  background: #f59e0b;
+}
+
+.status-badge-dot.success {
+  background: #10b981;
+}
+
+.status-badge-hint {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: normal;
+}
+
+.empty-notice-cell {
+  background: #fffbeb !important;
+  color: #b45309;
+  padding: 1.25rem 1rem !important;
+  text-align: center;
+}
+
+.empty-notice-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
 }
 
 /* Print Rules: ONLY report content is printed */

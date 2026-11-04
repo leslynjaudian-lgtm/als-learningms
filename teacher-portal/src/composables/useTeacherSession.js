@@ -47,6 +47,43 @@ export function useTeacherSession() {
     return currentTeacher.value?.programLevel || currentTeacher.value?.specialization || 'Both';
   });
 
+  // Dynamically format assigned ALS levels for Modules dropdown & navigation
+  const assignedLevels = computed(() => {
+    const raw = String(assignedProgramLevel.value || 'Both').toLowerCase().trim();
+    const hasElem = raw.includes('elem') || raw.includes('both');
+    const hasJhs = raw.includes('junior') || raw.includes('jhs') || raw.includes('sec') || raw.includes('both');
+    const levels = [];
+
+    if (hasElem) {
+      levels.push({
+        label: 'A&E Elementary',
+        slug: 'elementary',
+        levelKey: 'ELEMENTARY',
+        name: 'A&E Elementary',
+        path: '/dashboard/modules/elementary',
+      });
+    }
+
+    if (hasJhs) {
+      levels.push({
+        label: 'A&E Junior High',
+        slug: 'junior-high',
+        levelKey: 'JUNIOR',
+        name: 'A&E Junior High',
+        path: '/dashboard/modules/junior-high',
+      });
+    }
+
+    if (levels.length === 0) {
+      return [
+        { label: 'A&E Elementary', slug: 'elementary', levelKey: 'ELEMENTARY', name: 'A&E Elementary', path: '/dashboard/modules/elementary' },
+        { label: 'A&E Junior High', slug: 'junior-high', levelKey: 'JUNIOR', name: 'A&E Junior High', path: '/dashboard/modules/junior-high' },
+      ];
+    }
+
+    return levels;
+  });
+
   // Dynamically format assigned learning centers list for sidebar & navigation
   const assignedCenters = computed(() => {
     if (!currentTeacher.value) return [];
@@ -161,6 +198,7 @@ export function useTeacherSession() {
     teacherPhoto,
     teacherId,
     assignedProgramLevel,
+    assignedLevels,
     assignedCenters,
     setSession,
     clearSession,

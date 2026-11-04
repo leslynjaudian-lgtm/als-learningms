@@ -43,9 +43,7 @@ const routes = [
       },
       {
         path: '/modules/ls2-mock-001',
-        name: 'MockModuleStudy',
-        component: MockModuleStudyView,
-        meta: { title: 'Animals: Love Them and Care for Them', requiresAuth: true },
+        redirect: '/modules',
       },
       {
         path: '/modules/:id',

@@ -7,9 +7,17 @@ const router = Router();
 
 // Helper to format module record
 function formatModule(m, reqUser) {
-  let displayLevel = m.targetLevel;
-  if (m.targetLevel === 'ELEMENTARY' || m.targetLevel === 'A&E Elementary') displayLevel = 'A&E Elementary';
-  else if (m.targetLevel === 'JUNIOR' || m.targetLevel === 'A&E Junior' || m.targetLevel === 'A&E Junior High' || String(m.targetLevel || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior';
+  let displayLevel = m.targetLevel === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
+  if (m.targetLevel === 'ELEMENTARY' || m.targetLevel === 'A&E Elementary') {
+    displayLevel = 'A&E Elementary';
+  } else if (
+    m.targetLevel === 'JUNIOR' ||
+    m.targetLevel === 'A&E Junior' ||
+    m.targetLevel === 'A&E Junior High' ||
+    String(m.targetLevel || '').toUpperCase().includes('JUN')
+  ) {
+    displayLevel = 'A&E Junior High';
+  }
 
   const assignedLearnerIds = Array.isArray(m.assignments)
     ? m.assignments.map((a) => a.learnerId)
@@ -27,6 +35,7 @@ function formatModule(m, reqUser) {
         type: ass.type,
         description: ass.description || '',
         questionsCount: Array.isArray(ass.questions) ? ass.questions.length : 0,
+        attempts: ass.attempts || [],
         questions: Array.isArray(ass.questions)
           ? ass.questions.map((q) => {
               const opts = Array.isArray(q.options)
@@ -167,8 +176,20 @@ function formatModule(m, reqUser) {
 // ---------------------
 router.get('/', optionalAuth, async (req, res, next) => {
   try {
-    const { teacherId, learningCenterId, level, strandId, portal } = req.query;
+    const { teacherId, learningCenterId, level, targetLevel, target_level, strandId, portal } = req.query;
     const where = {};
+
+    // Normalize requested ALS level directly to Prisma's AlsLevel enum ('ELEMENTARY' or 'JUNIOR')
+    const rawLevel = targetLevel || target_level || level;
+    let normalizedTargetLevel = null;
+    if (rawLevel) {
+      const upper = String(rawLevel).toUpperCase().trim();
+      if (upper === 'ELEMENTARY' || upper.includes('ELEM')) {
+        normalizedTargetLevel = 'ELEMENTARY';
+      } else if (upper === 'JUNIOR' || upper.includes('JUN') || upper.includes('JHS') || upper.includes('SEC')) {
+        normalizedTargetLevel = 'JUNIOR';
+      }
+    }
 
     // 1. Role Enforcement:
     if (req.user && req.user.role === 'LEARNER') {
@@ -203,14 +224,40 @@ router.get('/', optionalAuth, async (req, res, next) => {
           ],
         },
       ];
+      where.code = { not: 'LS2-MOCK-001' };
     } else if (portal === 'learner' && !req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     } else if (req.user && req.user.role === 'TEACHER') {
       // Teacher sees ONLY modules created by that teacher
       where.teacherId = req.user.profileId;
+
+      // Backend authorization: Validate requested level against teacher's assigned levels
+      const teacherSpec = String(req.user.teacherProfile?.specialization || 'Both').toLowerCase();
+      const allowsElem = teacherSpec.includes('elem') || teacherSpec.includes('both');
+      const allowsJhs = teacherSpec.includes('junior') || teacherSpec.includes('jhs') || teacherSpec.includes('sec') || teacherSpec.includes('both');
+
+      if (normalizedTargetLevel === 'ELEMENTARY' && !allowsElem) {
+        return res.status(403).json({ error: 'You are not authorized to view A&E Elementary modules.' });
+      }
+      if (normalizedTargetLevel === 'JUNIOR' && !allowsJhs) {
+        return res.status(403).json({ error: 'You are not authorized to view A&E Junior High modules.' });
+      }
+
+      if (normalizedTargetLevel) {
+        where.targetLevel = normalizedTargetLevel;
+      } else {
+        if (allowsElem && !allowsJhs) {
+          where.targetLevel = 'ELEMENTARY';
+        } else if (allowsJhs && !allowsElem) {
+          where.targetLevel = 'JUNIOR';
+        }
+      }
     } else if (teacherId) {
       const tid = parseInt(teacherId, 10);
       if (!isNaN(tid)) where.teacherId = tid;
+      if (normalizedTargetLevel) {
+        where.targetLevel = normalizedTargetLevel;
+      }
     }
 
     if (req.user?.role !== 'LEARNER') {
@@ -219,12 +266,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
         if (!isNaN(cid)) where.learningCenterId = cid;
       }
 
-      if (level) {
-        if (level === 'ELEMENTARY' || level === 'A&E Elementary') {
-          where.targetLevel = 'ELEMENTARY';
-        } else if (level === 'JUNIOR' || level === 'A&E Junior' || level === 'A&E Junior High' || String(level).toUpperCase().includes('JUN')) {
-          where.targetLevel = 'JUNIOR';
-        }
+      if (normalizedTargetLevel) {
+        where.targetLevel = normalizedTargetLevel;
       }
     }
 
@@ -297,6 +340,13 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
             questions: {
               include: { options: true },
             },
+            attempts: learnerProfileId ? {
+              where: { learnerId: learnerProfileId },
+              include: {
+                answers: true,
+              },
+              orderBy: { submittedAt: 'desc' },
+            } : false,
           },
         },
         assignments: true,
@@ -458,6 +508,20 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
     const lvl = targetLevel || level;
     if (lvl === 'ELEMENTARY' || lvl === 'A&E Elementary') {
       alsLevel = 'ELEMENTARY';
+    }
+
+    // Backend authorization: Validate target ALS Level against teacher's assigned levels
+    if (req.user && req.user.role === 'TEACHER') {
+      const teacherSpec = String(req.user.teacherProfile?.specialization || 'Both').toLowerCase();
+      const allowsElem = teacherSpec.includes('elem') || teacherSpec.includes('both');
+      const allowsJhs = teacherSpec.includes('junior') || teacherSpec.includes('jhs') || teacherSpec.includes('sec') || teacherSpec.includes('both');
+
+      if (alsLevel === 'ELEMENTARY' && !allowsElem) {
+        return res.status(403).json({ error: 'You are not authorized to create or upload modules for A&E Elementary.' });
+      }
+      if (alsLevel === 'JUNIOR' && !allowsJhs) {
+        return res.status(403).json({ error: 'You are not authorized to create or upload modules for A&E Junior High.' });
+      }
     }
 
     // Create the Module record
@@ -777,6 +841,21 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
       updateData.targetLevel = targetLevel;
     }
 
+    // Backend authorization: Validate target ALS Level against teacher's assigned levels
+    if (req.user && req.user.role === 'TEACHER') {
+      const teacherSpec = String(req.user.teacherProfile?.specialization || 'Both').toLowerCase();
+      const allowsElem = teacherSpec.includes('elem') || teacherSpec.includes('both');
+      const allowsJhs = teacherSpec.includes('junior') || teacherSpec.includes('jhs') || teacherSpec.includes('sec') || teacherSpec.includes('both');
+
+      const targetLevelCheck = updateData.targetLevel || existingMod.targetLevel;
+      if (targetLevelCheck === 'ELEMENTARY' && !allowsElem) {
+        return res.status(403).json({ error: 'You are not authorized for A&E Elementary modules.' });
+      }
+      if (targetLevelCheck === 'JUNIOR' && !allowsJhs) {
+        return res.status(403).json({ error: 'You are not authorized for A&E Junior High modules.' });
+      }
+    }
+
     // Map learning center
     if (learningCenterId !== undefined) {
       const parsedCenterId = parseInt(learningCenterId, 10);
@@ -923,6 +1002,33 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
 
     if (!assessment || assessment.moduleId !== moduleId) {
       return res.status(404).json({ error: 'Assessment not found for this module' });
+    }
+
+    // Pre-test is a diagnostic assessment: once submitted, prevent retakes
+    if (assessment.type === 'PRE_TEST') {
+      const existingAttempt = await prisma.assessmentAttempt.findFirst({
+        where: {
+          assessmentId: parsedAssessmentId,
+          learnerId,
+          status: 'SUBMITTED',
+        },
+        include: {
+          answers: true,
+        },
+        orderBy: { submittedAt: 'desc' },
+      });
+
+      if (existingAttempt) {
+        return res.status(400).json({
+          error: 'Pre-Test Completed. You have already submitted your answers. You can review your results, but you cannot answer again.',
+          code: 'PRE_TEST_ALREADY_COMPLETED',
+          alreadyCompleted: true,
+          attemptId: existingAttempt.id,
+          score: Number(existingAttempt.score),
+          maxScore: Number(existingAttempt.maxScore),
+          percentage: Math.round(Number(existingAttempt.percentage)),
+        });
+      }
     }
 
     let totalPoints = 0;

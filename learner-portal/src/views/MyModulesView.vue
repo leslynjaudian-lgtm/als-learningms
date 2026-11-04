@@ -55,7 +55,7 @@
     </div>
 
     <!-- Global Empty State: No modules available at all -->
-    <div v-else-if="allModulesWithMock.length === 0" class="learner-card empty-card-box">
+    <div v-else-if="allModules.length === 0" class="learner-card empty-card-box">
       <div class="empty-icon-circle">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -114,9 +114,6 @@
               <span class="pill-status-badge" :class="getStatusClass(mod)">
                 {{ getProgressStatusLabel(mod) }}
               </span>
-              <span v-if="mod.isMock" class="pill-demo-badge">
-                Demo
-              </span>
             </div>
           </div>
         </div>
@@ -135,12 +132,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import api from '../api/axios';
-import {
-  MOCK_MODULE,
-  loadMockProgress,
-  getMockModuleStatus,
-  getMockModulePercentage
-} from '../data/mockModuleData';
 
 // 8 Learning Strand Categories
 const LEARNING_STRANDS = [
@@ -244,46 +235,15 @@ const loading = ref(false);
 // Always display all 8 categories
 const availableStrands = computed(() => LEARNING_STRANDS);
 
-// Dynamic mock module representation
-const mockModuleItem = computed(() => {
-  const p = loadMockProgress();
-  const status = getMockModuleStatus(p);
-  const pct = getMockModulePercentage(p);
-
-  let learnerLevel = 'Junior High School';
-  try {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const u = JSON.parse(userStr);
-      if (u?.level) learnerLevel = u.level;
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  return {
-    ...MOCK_MODULE,
-    status,
-    progress: pct,
-    completed: status === 'Completed',
-    level: learnerLevel,
-    isMock: true
-  };
-});
-
-// All modules combined with mock module
-const allModulesWithMock = computed(() => {
-  const list = [...rawModules.value];
-  const exists = list.some((m) => m.id === MOCK_MODULE.id || m.code === MOCK_MODULE.code);
-  if (!exists) {
-    // Ensure mock module is present
-    list.unshift(mockModuleItem.value);
-  }
-  return list;
+// All published and assigned teacher modules (excluding any demo/mock entries)
+const allModules = computed(() => {
+  return rawModules.value.filter(
+    (m) => m && m.code !== 'LS2-MOCK-001' && m.id !== 'ls2-mock-001'
+  );
 });
 
 // Total count
-const allCount = computed(() => allModulesWithMock.value.length);
+const allCount = computed(() => allModules.value.length);
 
 // Full name of selected strand
 const currentStrandFullName = computed(() => {
@@ -294,11 +254,6 @@ const currentStrandFullName = computed(() => {
 // Strand matching function
 function matchesStrand(mod, strandKey) {
   if (strandKey === 'all') return true;
-
-  // Mock module specifically belongs to LS2
-  if (mod.isMock || mod.id === MOCK_MODULE.id || mod.code === 'LS2-MOCK-001') {
-    return strandKey === 'LS2-SCI';
-  }
 
   const targetStrand = LEARNING_STRANDS.find((s) => s.key === strandKey);
   if (!targetStrand) return false;
@@ -332,17 +287,17 @@ function matchesStrand(mod, strandKey) {
 // Module count for strand badge
 function getModuleCount(strandKey) {
   if (strandKey === 'all') {
-    return allModulesWithMock.value.length;
+    return allModules.value.length;
   }
-  return allModulesWithMock.value.filter((m) => matchesStrand(m, strandKey)).length;
+  return allModules.value.filter((m) => matchesStrand(m, strandKey)).length;
 }
 
 // Filtered modules list
 const filteredModules = computed(() => {
   if (currentStrand.value === 'all') {
-    return allModulesWithMock.value;
+    return allModules.value;
   }
-  return allModulesWithMock.value.filter((m) => matchesStrand(m, currentStrand.value));
+  return allModules.value.filter((m) => matchesStrand(m, currentStrand.value));
 });
 
 function selectStrand(key) {
@@ -351,10 +306,6 @@ function selectStrand(key) {
 
 // Progress status label: Not Started, In Progress, Completed
 function getProgressStatusLabel(mod) {
-  if (mod.isMock) {
-    const p = loadMockProgress();
-    return getMockModuleStatus(p);
-  }
   if (mod.completed || mod.progressStatus === 'COMPLETED' || (mod.progress || 0) >= 100) {
     return 'Completed';
   }

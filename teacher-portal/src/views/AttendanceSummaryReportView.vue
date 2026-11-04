@@ -1,22 +1,11 @@
 <template>
   <div class="page-container attendance-summary-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb-nav no-print">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports" class="breadcrumb-link-muted">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Attendance Summary</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row no-print">
-      <div class="page-title-group">
-        <h1 class="page-title">Attendance Summary</h1>
-        <p class="page-subtitle">View consolidated attendance history of your assigned learners.</p>
-      </div>
-
-      <div class="header-actions-group">
+    <!-- Standardized Page Header & Breadcrumb (no-print) -->
+    <ReportsPageHeader
+      title="Attendance Summary"
+      description="View consolidated attendance history of your assigned learners."
+    >
+      <template #actions>
         <button
           type="button"
           class="btn-refresh"
@@ -37,8 +26,8 @@
           </svg>
           <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </ReportsPageHeader>
 
     <!-- Filters Section (2-Row Structured Layout) -->
     <div class="filters-card no-print">
@@ -142,7 +131,32 @@
 
     <!-- Official Generated Report Output / Dedicated Print & PDF Section -->
     <div class="report-output-wrapper">
+      <!-- Loading State: generating report -->
+      <div v-if="loadingReport" class="loading-box print-hidden">
+        <div class="btn-spinner" style="width: 22px; height: 22px; border-width: 2.5px; border-color: rgba(37, 99, 235, 0.2); border-top-color: #2563eb;"></div>
+        <p>Retrieving learner attendance records...</p>
+      </div>
+
       <div id="report-content" ref="reportContentRef" class="report-paper-sheet attendance-report-sheet">
+        <!-- Status Banner: Distinguish Blank Template vs Generated Report -->
+        <div class="report-status-banner print-hidden">
+          <div v-if="!reportGenerated" class="status-pill status-blank">
+            <span class="status-badge-dot"></span>
+            <span class="status-badge-text">Blank Template Preview</span>
+            <span class="status-badge-hint">— Select filters above and click Generate Report</span>
+          </div>
+          <div v-else-if="summaryRows.length === 0" class="status-pill status-empty">
+            <span class="status-badge-dot empty"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— No records found for the selected filters</span>
+          </div>
+          <div v-else class="status-pill status-ready">
+            <span class="status-badge-dot success"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— {{ summaryRows.length }} record(s) loaded</span>
+          </div>
+        </div>
+
         <!-- Official Header with Logos -->
         <header class="report-official-header">
           <div class="header-logo left-logo-box">
@@ -181,7 +195,56 @@
                 <th class="col-absent">Absent</th>
               </tr>
             </thead>
-            <tbody>
+
+            <!-- BLANK TEMPLATE PREVIEW BODY (Before Generate Report) -->
+            <tbody v-if="!reportGenerated">
+              <!-- Male Section Header -->
+              <tr class="section-divider-row">
+                <td colspan="8" class="section-divider-cell">Male</td>
+              </tr>
+              <!-- Blank rows for Male -->
+              <tr v-for="n in 5" :key="'blank-male-' + n" class="empty-line-row">
+                <td class="cell-no">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-level">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-rate">&nbsp;</td>
+                <td class="cell-actions print-hidden">&nbsp;</td>
+              </tr>
+
+              <!-- Female Section Header -->
+              <tr class="section-divider-row">
+                <td colspan="8" class="section-divider-cell">Female</td>
+              </tr>
+              <!-- Blank rows for Female -->
+              <tr v-for="n in 5" :key="'blank-female-' + n" class="empty-line-row">
+                <td class="cell-no">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-level">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-stat">&nbsp;</td>
+                <td class="cell-rate">&nbsp;</td>
+                <td class="cell-actions print-hidden">&nbsp;</td>
+              </tr>
+            </tbody>
+
+            <!-- GENERATED REPORT BODY (After Generate Report) -->
+            <tbody v-else>
+              <!-- Empty State If Generated But 0 Records Found -->
+              <tr v-if="summaryRows.length === 0" class="empty-notice-row print-hidden">
+                <td colspan="8" class="cell-center empty-notice-cell">
+                  <div class="empty-notice-content">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>No attendance records found for the selected filters.</span>
+                  </div>
+                </td>
+              </tr>
+
               <!-- Male Section Header -->
               <tr class="section-divider-row">
                 <td colspan="8" class="section-divider-cell">Male</td>
@@ -301,6 +364,24 @@
           </table>
         </div>
       </div>
+
+      <!-- PRINT ACTION BUTTON (Below report table, no-print) -->
+      <div id="pdf-action-section" class="pdf-action-container no-print print-hidden">
+        <button
+          type="button"
+          class="btn-print-report"
+          :disabled="!reportGenerated || summaryRows.length === 0"
+          :title="!reportGenerated ? 'Please click Generate Report first' : (summaryRows.length === 0 ? 'No records to print' : 'Print this report')"
+          @click="printReportDirectly"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          <span>Print Report</span>
+        </button>
+      </div>
     </div>
 
     <!-- View Details Modal (Session-by-session history for learner) -->
@@ -410,7 +491,7 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">Assigned Teacher</span>
-              <span class="detail-value" style="font-weight: 600; color: #1e40af;">{{ viewingLearner?.assignedTeacher || viewingLearner?.teacher || viewingLearner?.teacherName || currentTeacher?.fullName || '—' }}</span>
+              <span class="detail-value" style="font-weight: 600; color: #1e40af;">{{ viewingLearner?.assignedTeacher || viewingLearner?.teacher || viewingLearner?.teacherName || currentTeacher?.fullName || teacherName || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Status</span>
@@ -451,13 +532,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners, getLearner } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/attendance.js';
 
-const { currentTeacher, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherName, teacherId, assignedCenters } = useTeacherSession();
 const reportContentRef = ref(null);
+
+const reportGenerated = ref(false);
+const loadingReport = ref(false);
 
 const pdfFilename = computed(() => {
   const dateStr = new Date().toISOString().split('T')[0];
@@ -674,7 +759,7 @@ async function fetchAttendanceData() {
 }
 
 async function loadInitialData() {
-  await Promise.all([loadAssignedLearners(), fetchAttendanceData()]);
+  await loadAssignedLearners();
 }
 
 onMounted(() => {
@@ -683,6 +768,8 @@ onMounted(() => {
 
 // Compute table summary rows strictly for assigned learners
 const summaryRows = computed(() => {
+  if (!reportGenerated.value) return [];
+
   const learnersToDisplay = assignedLearners.value.filter((l) => {
     const lCenter = l.learningCenter;
     if (selectedCenter.value && lCenter !== selectedCenter.value) return false;
@@ -735,11 +822,13 @@ const femaleLearners = computed(() => {
 
 // Empty grid lines matching official DepEd format
 const emptyMaleRowsCount = computed(() => {
-  return maleLearners.value.length === 0 ? 8 : Math.max(0, 3 - maleLearners.value.length);
+  if (!reportGenerated.value || summaryRows.value.length === 0) return 0;
+  return maleLearners.value.length === 0 ? 5 : Math.max(0, 3 - maleLearners.value.length);
 });
 
 const emptyFemaleRowsCount = computed(() => {
-  return femaleLearners.value.length === 0 ? 8 : Math.max(0, 3 - femaleLearners.value.length);
+  if (!reportGenerated.value || summaryRows.value.length === 0) return 0;
+  return femaleLearners.value.length === 0 ? 5 : Math.max(0, 3 - femaleLearners.value.length);
 });
 
 function validateDates() {
@@ -762,12 +851,30 @@ async function handleRefresh() {
 
 async function handleGenerateReport() {
   if (!validateDates()) return;
-  await fetchAttendanceData();
+  loadingReport.value = true;
+  try {
+    await fetchAttendanceData();
+    reportGenerated.value = true;
+  } finally {
+    loadingReport.value = false;
+  }
   const el = document.getElementById('report-content');
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+
+// Invalidate generated report whenever any filter changes
+function invalidateReport() {
+  if (reportGenerated.value) {
+    reportGenerated.value = false;
+    attendanceRecords.value = [];
+  }
+}
+
+watch([selectedCenter, selectedProgramLevel, selectedLearnerId, fromDate, toDate], () => {
+  invalidateReport();
+});
 
 function resetFilters() {
   selectedCenter.value = '';
@@ -776,6 +883,8 @@ function resetFilters() {
   fromDate.value = '';
   toDate.value = '';
   dateError.value = '';
+  reportGenerated.value = false;
+  attendanceRecords.value = [];
 }
 
 function openDetailsModal(item) {
@@ -792,7 +901,7 @@ async function openLearnerInfoModal(learner) {
     fullName: formatLearnerFullName(learner),
     level: learner.level || learner.programLevel,
     learningCenter: learner.learningCenter,
-    assignedTeacher: learner.assignedTeacher || learner.teacherName || currentTeacher.value?.fullName || '—',
+    assignedTeacher: learner.assignedTeacher || learner.teacherName || currentTeacher.value?.fullName || teacherName.value || '—',
     sex: learner.sex || learner.gender,
     gender: learner.gender || learner.sex,
     status: learner.status || 'Active',
@@ -829,6 +938,18 @@ async function openLearnerInfoModal(learner) {
 function closeLearnerModal() {
   showLearnerModal.value = false;
   viewingLearner.value = null;
+}
+
+function printReportDirectly() {
+  if (!reportGenerated.value) {
+    alert('Please click "Generate Report" before printing.');
+    return;
+  }
+  if (summaryRows.value.length === 0) {
+    alert('No attendance records to print for the selected filters.');
+    return;
+  }
+  window.print();
 }
 </script>
 
@@ -1476,6 +1597,135 @@ function closeLearnerModal() {
 
 .text-amber {
   color: #b45309 !important;
+}
+
+/* Blank Template & Preview Status Pill Styling */
+.report-status-banner {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.status-pill.status-blank {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.status-pill.status-empty {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.status-pill.status-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-badge-dot.empty {
+  background: #f59e0b;
+}
+
+.status-badge-dot.success {
+  background: #10b981;
+}
+
+.status-badge-hint {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: normal;
+}
+
+.empty-notice-cell {
+  background: #fffbeb !important;
+  color: #b45309;
+  padding: 1.25rem 1rem !important;
+  text-align: center;
+}
+
+.empty-notice-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.loading-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #475569;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Print Action Button (Below report table) */
+.pdf-action-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0 2rem 0;
+}
+
+.btn-print-report {
+  height: 48px;
+  padding: 0 1.75rem;
+  background-color: #ffffff;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-print-report:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-print-report:active:not(:disabled) {
+  background-color: #e2e8f0;
+  transform: translateY(1px);
+}
+
+.btn-print-report:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
 }
 
 /* Print Rules: ONLY report content is printed */

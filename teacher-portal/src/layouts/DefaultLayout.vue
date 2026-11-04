@@ -29,8 +29,8 @@
         <router-link
           to="/dashboard"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'dashboard' }"
+          @click="handleNavClick('dashboard')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -44,8 +44,8 @@
         <router-link
           to="/dashboard/learners"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/learners') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'learners' }"
+          @click="handleNavClick('learners')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -59,8 +59,8 @@
         <router-link
           to="/dashboard/learning-centers"
           class="nav-link"
-          :class="{ active: isLearningCentersActive }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'learning-centers' }"
+          @click="handleNavClick('learning-centers')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -70,28 +70,54 @@
           <span class="nav-label">Learning Centers</span>
         </router-link>
 
-        <!-- 4. Modules -->
-        <router-link
-          to="/dashboard/modules"
-          class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/modules') }"
-          @click="sidebarOpen = false"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-          </span>
-          <span class="nav-label">Modules</span>
-        </router-link>
+        <!-- 4. Modules (Dropdown: A&E Elementary & A&E Junior High based on assigned levels) -->
+        <div class="nav-dropdown-item">
+          <button
+            type="button"
+            class="nav-link nav-dropdown-btn"
+            :class="{ active: activeMenu === 'modules', expanded: expandedMenu === 'modules' }"
+            @click="handleParentClick('modules')"
+            aria-haspopup="true"
+            :aria-expanded="expandedMenu === 'modules'"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </span>
+            <span class="nav-label">Modules</span>
+            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'modules' }">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </button>
+
+          <!-- Modules Submenu -->
+          <transition name="dropdown">
+            <div v-show="expandedMenu === 'modules'" class="nav-submenu">
+              <router-link
+                v-for="lvl in assignedLevels"
+                :key="lvl.slug"
+                :to="lvl.path"
+                class="nav-sublink"
+                :class="{ active: isModuleLevelActive(lvl.slug) }"
+                @click="handleSublinkClick('modules')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">{{ lvl.label }}</span>
+              </router-link>
+            </div>
+          </transition>
+        </div>
 
         <!-- 5. Records -->
         <router-link
           to="/dashboard/records"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/records') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'records' }"
+          @click="handleNavClick('records')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -105,8 +131,8 @@
         <router-link
           to="/dashboard/schedule"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/schedule') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'schedule' }"
+          @click="handleNavClick('schedule')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -124,8 +150,10 @@
           <button
             type="button"
             class="nav-link nav-dropdown-btn"
-            :class="{ active: isAttendanceActive, expanded: isAttendanceOpen }"
-            @click="toggleAttendance"
+            :class="{ active: activeMenu === 'attendance', expanded: expandedMenu === 'attendance' }"
+            @click="handleParentClick('attendance')"
+            aria-haspopup="true"
+            :aria-expanded="expandedMenu === 'attendance'"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -134,7 +162,7 @@
               </svg>
             </span>
             <span class="nav-label">Attendance</span>
-            <span class="nav-chevron" :class="{ rotated: isAttendanceOpen }">
+            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'attendance' }">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -142,36 +170,40 @@
           </button>
 
           <!-- Attendance Submenu -->
-          <div v-show="isAttendanceOpen" class="nav-submenu">
-            <router-link
-              to="/dashboard/attendance"
-              class="nav-sublink"
-              :class="{ active: isTakeAttendanceActive }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Take Attendance</span>
-            </router-link>
+          <transition name="dropdown">
+            <div v-show="expandedMenu === 'attendance'" class="nav-submenu">
+              <router-link
+                to="/dashboard/attendance"
+                class="nav-sublink"
+                :class="{ active: isTakeAttendanceActive }"
+                @click="handleSublinkClick('attendance')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Take Attendance</span>
+              </router-link>
 
-            <router-link
-              to="/dashboard/attendance/history"
-              class="nav-sublink"
-              :class="{ active: isAttendanceHistoryActive }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Attendance History</span>
-            </router-link>
-          </div>
+              <router-link
+                to="/dashboard/attendance/history"
+                class="nav-sublink"
+                :class="{ active: isAttendanceHistoryActive }"
+                @click="handleSublinkClick('attendance')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Attendance History</span>
+              </router-link>
+            </div>
+          </transition>
         </div>
 
-        <!-- 7. Reports (Dropdown: ALS AF2 & Attendance Summary) -->
+        <!-- 7. Reports (Dropdown: ALS AF2, Module Progress, Attendance Summary) -->
         <div class="nav-dropdown-item">
           <button
             type="button"
             class="nav-link nav-dropdown-btn"
-            :class="{ active: isReportsActive, expanded: isReportsOpen }"
-            @click="toggleReports"
+            :class="{ active: activeMenu === 'reports', expanded: expandedMenu === 'reports' }"
+            @click="handleParentClick('reports')"
+            aria-haspopup="true"
+            :aria-expanded="expandedMenu === 'reports'"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -179,7 +211,7 @@
               </svg>
             </span>
             <span class="nav-label">Reports</span>
-            <span class="nav-chevron" :class="{ rotated: isReportsOpen }">
+            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -187,45 +219,47 @@
           </button>
 
           <!-- Reports Submenu -->
-          <div v-show="isReportsOpen" class="nav-submenu">
-            <router-link
-              to="/dashboard/reports/af2"
-              class="nav-sublink"
-              :class="{ active: isAf2Active }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">ALS Assessment Form 2 Report</span>
-            </router-link>
+          <transition name="dropdown">
+            <div v-show="expandedMenu === 'reports'" class="nav-submenu">
+              <router-link
+                to="/dashboard/reports/af2"
+                class="nav-sublink"
+                :class="{ active: isAf2Active }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">ALS Assessment Form 2 Report</span>
+              </router-link>
 
-            <router-link
-              to="/dashboard/reports/module-progress"
-              class="nav-sublink"
-              :class="{ active: isModuleProgressActive }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
-            </router-link>
+              <router-link
+                to="/dashboard/reports/module-progress"
+                class="nav-sublink"
+                :class="{ active: isModuleProgressActive }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
+              </router-link>
 
-            <router-link
-              to="/dashboard/reports/attendance-summary"
-              class="nav-sublink"
-              :class="{ active: isAttendanceSummaryActive }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Attendance Summary</span>
-            </router-link>
-          </div>
+              <router-link
+                to="/dashboard/reports/attendance-summary"
+                class="nav-sublink"
+                :class="{ active: isAttendanceSummaryActive }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Attendance Summary</span>
+              </router-link>
+            </div>
+          </transition>
         </div>
 
         <!-- 8. Announcements -->
         <router-link
           to="/dashboard/announcements"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/announcements') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'announcements' }"
+          @click="handleNavClick('announcements')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -240,8 +274,8 @@
         <router-link
           to="/dashboard/settings"
           class="nav-link"
-          :class="{ active: isSettingsActive }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'settings' }"
+          @click="handleNavClick('settings')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -318,7 +352,7 @@
 
       <!-- View Slot -->
       <main class="main-content">
-        <router-view />
+        <router-view :key="$route.fullPath" />
       </main>
 
       <!-- Footer Banner -->
@@ -354,34 +388,73 @@ const router = useRouter();
 const sidebarOpen = ref(false);
 const showSignoutModal = ref(false);
 
-const { teacherName, teacherPosition, teacherPhoto, assignedCenters, clearSession, refreshProfile } = useTeacherSession();
+const { teacherName, teacherPosition, teacherPhoto, assignedCenters, assignedLevels, clearSession, refreshProfile } = useTeacherSession();
 
-// Learning Centers active state
-const isLearningCentersActive = computed(() => {
-  return route.path.startsWith('/dashboard/learning-centers') || route.path.startsWith('/dashboard/clc');
-});
+// Independent states: activeMenu controls which item is blue; expandedMenu controls open submenu
+function getMenuFromPath(pathname) {
+  if (pathname.startsWith('/dashboard/attendance')) return 'attendance';
+  if (pathname.startsWith('/dashboard/reports')) return 'reports';
+  if (pathname.startsWith('/dashboard/modules') || pathname.startsWith('/teacher/modules')) return 'modules';
+  if (pathname === '/dashboard' || pathname === '/dashboard/') return 'dashboard';
+  if (
+    pathname.startsWith('/dashboard/learners') ||
+    pathname.startsWith('/dashboard/learner-profile') ||
+    pathname.startsWith('/dashboard/my-learners')
+  ) {
+    return 'learners';
+  }
+  if (pathname.startsWith('/dashboard/learning-centers') || pathname.startsWith('/dashboard/clc')) {
+    return 'learning-centers';
+  }
+  if (pathname.startsWith('/dashboard/records')) return 'records';
+  if (pathname.startsWith('/dashboard/schedule')) return 'schedule';
+  if (pathname.startsWith('/dashboard/announcements')) return 'announcements';
+  if (pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/profile')) return 'settings';
+  return '';
+}
 
-// Attendance dropdown state
-const isAttendanceOpen = ref(false);
+function getExpandedFromPath(pathname) {
+  if (pathname.startsWith('/dashboard/attendance')) return 'attendance';
+  if (pathname.startsWith('/dashboard/reports')) return 'reports';
+  if (pathname.startsWith('/dashboard/modules') || pathname.startsWith('/teacher/modules')) return 'modules';
+  return null;
+}
+
+const activeMenu = ref(getMenuFromPath(route.path) || 'dashboard');
+const expandedMenu = ref(getExpandedFromPath(route.path));
+
+// Non-expandable direct router link click handler
+function handleNavClick(menu) {
+  activeMenu.value = menu;
+  expandedMenu.value = null;
+  sidebarOpen.value = false;
+}
+
+// Expandable parent menu click handler: updates activeMenu and toggles expandedMenu independently
+function handleParentClick(menu) {
+  activeMenu.value = menu;
+  expandedMenu.value = expandedMenu.value === menu ? null : menu;
+}
+
+// Child sublink click handler
+function handleSublinkClick(parentMenu) {
+  activeMenu.value = parentMenu;
+  expandedMenu.value = parentMenu;
+  sidebarOpen.value = false;
+}
 
 const isTakeAttendanceActive = computed(() => {
-  return route.path === '/dashboard/attendance' || route.path === '/dashboard/attendance/take';
+  return (
+    !route.path.startsWith('/dashboard/attendance/history') &&
+    (route.path === '/dashboard/attendance' ||
+      route.path === '/dashboard/attendance/' ||
+      route.path.startsWith('/dashboard/attendance/take'))
+  );
 });
 
 const isAttendanceHistoryActive = computed(() => {
   return route.path.startsWith('/dashboard/attendance/history');
 });
-
-const isAttendanceActive = computed(() => {
-  return route.path.startsWith('/dashboard/attendance');
-});
-
-function toggleAttendance() {
-  isAttendanceOpen.value = !isAttendanceOpen.value;
-}
-
-// Reports dropdown state - open by default so report links are visible under the Reports sidebar menu
-const isReportsOpen = ref(true);
 
 const isAf2Active = computed(() => {
   return route.path.startsWith('/dashboard/reports/af2');
@@ -398,38 +471,43 @@ const isAttendanceSummaryActive = computed(() => {
   );
 });
 
-const isReportsActive = computed(() => {
-  return route.path.startsWith('/dashboard/reports');
-});
-
-function toggleReports() {
-  isReportsOpen.value = !isReportsOpen.value;
-}
-
-const isSettingsActive = computed(() => {
-  return route.path.startsWith('/dashboard/settings') || route.path.startsWith('/dashboard/profile');
-});
-
-function isCurrentRoute(path) {
-  if (path === '/dashboard') {
-    return route.path === '/dashboard' || route.path === '/dashboard/';
+function isModuleLevelActive(slug) {
+  if (!route.path.startsWith('/dashboard/modules') && !route.path.startsWith('/teacher/modules')) {
+    return false;
   }
-  return route.path.startsWith(path);
+  if (route.path.includes(slug)) return true;
+  if (route.params.defaultLevelSlug === slug) return true;
+  if (route.query.level === slug) return true;
+  if (
+    (route.path === '/dashboard/modules' || route.path === '/dashboard/modules/') &&
+    assignedLevels.value?.[0]?.slug === slug
+  ) {
+    return true;
+  }
+  return false;
 }
 
 onMounted(() => {
   refreshProfile();
 });
 
-// Auto-expand dropdown when visiting Attendance or Reports routes
+// Route watcher: synchronizes activeMenu and expandedMenu ONLY when route path actually changes
 watch(
   () => route.path,
   (newPath) => {
-    if (newPath.startsWith('/dashboard/attendance')) {
-      isAttendanceOpen.value = true;
+    const routeMenu = getMenuFromPath(newPath);
+    if (routeMenu) {
+      activeMenu.value = routeMenu;
     }
-    if (newPath.startsWith('/dashboard/reports')) {
-      isReportsOpen.value = true;
+
+    if (newPath.startsWith('/dashboard/attendance')) {
+      expandedMenu.value = 'attendance';
+    } else if (newPath.startsWith('/dashboard/reports')) {
+      expandedMenu.value = 'reports';
+    } else if (newPath.startsWith('/dashboard/modules') || newPath.startsWith('/teacher/modules')) {
+      expandedMenu.value = 'modules';
+    } else {
+      expandedMenu.value = null;
     }
   },
   { immediate: true }
@@ -476,11 +554,38 @@ function confirmSignout() {
   color: #ffffff;
 }
 
-.nav-dropdown-btn.active {
-  background: var(--color-sidebar-active);
+/* Neutral expanded appearance when submenu is open but route is on another page */
+.nav-dropdown-btn.expanded:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.nav-dropdown-btn.expanded:not(.active):hover {
+  background: var(--color-sidebar-hover);
   color: #ffffff;
+}
+
+.nav-dropdown-btn.expanded:not(.active) .nav-chevron {
+  color: #cbd5e1;
+}
+
+/* Active bright blue highlight matching other navigation items ONLY when route is active */
+.nav-dropdown-btn.active {
+  background: var(--color-sidebar-active) !important;
+  color: #ffffff !important;
   font-weight: 600;
   box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.nav-dropdown-btn.active:hover {
+  background: var(--color-sidebar-active) !important;
+  color: #ffffff !important;
+}
+
+.nav-dropdown-btn.active .nav-icon,
+.nav-dropdown-btn.active .nav-label,
+.nav-dropdown-btn.active .nav-chevron {
+  color: #ffffff !important;
 }
 
 .nav-dropdown-btn .nav-label {
@@ -496,6 +601,7 @@ function confirmSignout() {
   transition: transform var(--transition-base);
   color: #94a3b8;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .nav-dropdown-btn:hover .nav-chevron,
@@ -519,12 +625,13 @@ function confirmSignout() {
 
 .nav-sublink {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.65rem;
   color: #94a3b8;
   font-size: 0.8125rem;
   font-weight: 500;
+  line-height: 1.35;
   border-radius: var(--radius-md);
   text-decoration: none;
   transition: all var(--transition-fast);
@@ -536,8 +643,8 @@ function confirmSignout() {
 }
 
 .nav-sublink.active {
-  background: rgba(37, 99, 235, 0.25);
-  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.3);
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -547,6 +654,7 @@ function confirmSignout() {
   border-radius: 50%;
   background: #64748b;
   flex-shrink: 0;
+  margin-top: 0.325rem;
   transition: all var(--transition-fast);
 }
 
@@ -557,5 +665,31 @@ function confirmSignout() {
 .nav-sublink.active .sublink-dot {
   background: #60a5fa;
   box-shadow: 0 0 6px #60a5fa;
+}
+
+.sublink-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+  word-break: normal;
+  flex: 1;
+}
+
+/* Accordion expand/collapse transition */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 300px;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  overflow: hidden;
 }
 </style>

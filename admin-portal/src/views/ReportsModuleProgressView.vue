@@ -1,21 +1,10 @@
 <template>
   <div class="page-container module-progress-report-view">
-    <!-- Breadcrumb (print-hidden) -->
-    <nav class="breadcrumb print-hidden">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Summary of Module Use and Learner's Progress</span>
-    </nav>
-
-    <!-- Page Header (print-hidden) -->
-    <div class="page-header-row print-hidden">
-      <div class="page-title-group">
-        <h1>Summary of Module Use and Learner's Progress</h1>
-        <p>District-wide monitoring of learner module completion, assessment scores, and mastery.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header & Breadcrumb (print-hidden) -->
+    <ReportsPageHeader
+      title="Summary of Module Use and Learner's Progress"
+      description="District-wide monitoring of learner module completion, assessment scores, and mastery."
+    />
 
     <!-- FILTER SECTION (print-hidden) -->
     <div class="report-filter-bar print-hidden">
@@ -104,10 +93,49 @@
       </div>
     </div>
 
-    <!-- REPORT PREVIEW SECTION -->
-    <div v-if="reportGenerated" class="report-preview-container">
+    <!-- REPORT PREVIEW SECTION (Always visible; shows Blank Template Preview before generating) -->
+    <div class="report-preview-container">
+      <!-- Loading State: generating report -->
+      <div v-if="loading" class="loading-box print-hidden">
+        <div class="btn-spinner" style="width: 22px; height: 22px; border-width: 2.5px; border-color: rgba(37, 99, 235, 0.2); border-top-color: #2563eb;"></div>
+        <p>Retrieving module use and progress records...</p>
+      </div>
+
+      <!-- Error State: if data retrieval fails -->
+      <div v-else-if="errorMessage" class="report-error-card print-hidden">
+        <div class="error-msg-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div>
+            <strong>Error Generating Report</strong>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
+        <button type="button" class="btn-retry" @click="handleGenerateReport">Retry</button>
+      </div>
+
       <!-- Printable Report Sheet (Dedicated report container) -->
       <div id="report-content" ref="reportContentRef" class="report-paper-sheet">
+        <!-- Status Banner: Distinguish Blank Template vs Generated Report -->
+        <div class="report-status-banner print-hidden">
+          <div v-if="!reportGenerated" class="status-pill status-blank">
+            <span class="status-badge-dot"></span>
+            <span class="status-badge-text">Blank Template Preview</span>
+            <span class="status-badge-hint">— Select filters above and click Generate Report</span>
+          </div>
+          <div v-else-if="maleLearners.length === 0 && femaleLearners.length === 0" class="status-pill status-empty">
+            <span class="status-badge-dot empty"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— No records found for the selected filters</span>
+          </div>
+          <div v-else class="status-pill status-ready">
+            <span class="status-badge-dot success"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— {{ maleLearners.length + femaleLearners.length }} record(s) loaded</span>
+          </div>
+        </div>
+
         <!-- 6. REPORT HEADER DESIGN (Follows attached PDF template) -->
         <header class="report-official-header">
           <div class="header-logo left-logo-box">
@@ -149,10 +177,61 @@
                 <th class="col-sub col-pending">Pending</th>
               </tr>
             </thead>
-            <tbody>
+
+            <!-- BLANK TEMPLATE PREVIEW BODY (Before Generate Report) -->
+            <tbody v-if="!reportGenerated">
+              <!-- Male Grouping Header -->
+              <tr class="gender-section-header">
+                <td colspan="9" class="print-visible-span">Male</td>
+              </tr>
+              <!-- Blank rows for Male -->
+              <tr v-for="bIdx in 5" :key="'blank-male-' + bIdx" class="blank-row">
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
+              </tr>
+
+              <!-- Female Grouping Header -->
+              <tr class="gender-section-header">
+                <td colspan="9" class="print-visible-span">Female</td>
+              </tr>
+              <!-- Blank rows for Female -->
+              <tr v-for="bIdx in 5" :key="'blank-female-' + bIdx" class="blank-row">
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-name">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
+              </tr>
+            </tbody>
+
+            <!-- GENERATED REPORT TABLE BODY (After Generate Report) -->
+            <tbody v-else>
+              <!-- Empty notice row if zero total records -->
+              <tr v-if="maleLearners.length === 0 && femaleLearners.length === 0" class="empty-notice-row print-hidden">
+                <td colspan="9" class="cell-center empty-notice-cell">
+                  <div class="empty-notice-content">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>No records found for the selected filters.</span>
+                  </div>
+                </td>
+              </tr>
+
               <!-- 11. MALE GROUPING -->
               <tr class="gender-section-header">
-                <td colspan="8" class="print-visible-span">Male</td>
+                <td colspan="9" class="print-visible-span">Male</td>
               </tr>
 
               <!-- Male rows -->
@@ -161,7 +240,6 @@
                   <td class="cell-center">{{ idx + 1 }}</td>
                   <td class="cell-name">
                     <span class="learner-name-cell">
-                      <!-- Functional clickable person icon beside learner name -->
                       <button
                         type="button"
                         class="person-icon-btn"
@@ -182,9 +260,7 @@
                   <td class="cell-center font-num">{{ learner.mastered }}</td>
                   <td class="cell-center font-num">{{ learner.notMastered }}</td>
                   <td class="cell-center font-num">{{ learner.pending }}</td>
-                  <!-- 10. Percentage only, color RED, no progress bar -->
                   <td class="cell-center cell-progress-red">{{ learner.progress }}%</td>
-                  <!-- 9. Actions Column with View Details button -->
                   <td class="cell-center print-hidden">
                     <button
                       type="button"
@@ -196,13 +272,13 @@
                   </td>
                 </tr>
               </template>
-              <tr v-else class="empty-group-row">
-                <td colspan="8" class="text-muted-center print-visible-span">No male learners found for the selected criteria.</td>
+              <tr v-else-if="maleLearners.length === 0 && femaleLearners.length > 0" class="empty-group-row">
+                <td colspan="9" class="text-muted-center print-visible-span">No male learners found for the selected criteria.</td>
               </tr>
 
               <!-- 11. FEMALE GROUPING -->
               <tr class="gender-section-header">
-                <td colspan="8" class="print-visible-span">Female</td>
+                <td colspan="9" class="print-visible-span">Female</td>
               </tr>
 
               <!-- Female rows -->
@@ -211,7 +287,6 @@
                   <td class="cell-center">{{ idx + 1 }}</td>
                   <td class="cell-name">
                     <span class="learner-name-cell">
-                      <!-- Functional clickable person icon beside learner name -->
                       <button
                         type="button"
                         class="person-icon-btn"
@@ -232,9 +307,7 @@
                   <td class="cell-center font-num">{{ learner.mastered }}</td>
                   <td class="cell-center font-num">{{ learner.notMastered }}</td>
                   <td class="cell-center font-num">{{ learner.pending }}</td>
-                  <!-- 10. Percentage only, color RED, no progress bar -->
                   <td class="cell-center cell-progress-red">{{ learner.progress }}%</td>
-                  <!-- 9. Actions Column with View Details button -->
                   <td class="cell-center print-hidden">
                     <button
                       type="button"
@@ -246,8 +319,8 @@
                   </td>
                 </tr>
               </template>
-              <tr v-else class="empty-group-row">
-                <td colspan="8" class="text-muted-center print-visible-span">No female learners found for the selected criteria.</td>
+              <tr v-else-if="femaleLearners.length === 0 && maleLearners.length > 0" class="empty-group-row">
+                <td colspan="9" class="text-muted-center print-visible-span">No female learners found for the selected criteria.</td>
               </tr>
             </tbody>
           </table>
@@ -260,7 +333,9 @@
         <button
           type="button"
           class="btn-print-report"
+          :disabled="!reportGenerated || (maleLearners.length === 0 && femaleLearners.length === 0)"
           @click="printReportDirectly"
+          title="Print Report"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 6 2 18 2 18 9"/>
@@ -270,43 +345,6 @@
           <span>Print Report</span>
         </button>
       </div>
-    </div>
-
-    <!-- Loading State while Generating -->
-    <div v-else-if="loading" class="initial-prompt-card print-hidden">
-      <div class="prompt-icon-circle">
-        <div class="btn-spinner" style="width: 26px; height: 26px; border-width: 3px; border-color: rgba(37, 99, 235, 0.2); border-top-color: #2563eb;"></div>
-      </div>
-      <h3>Generating Monitoring Report...</h3>
-      <p>Retrieving learner module completion records and compiling mastery statistics.</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="errorMessage" class="initial-prompt-card prompt-error-state print-hidden">
-      <div class="prompt-icon-circle error-circle">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <h3>Report Generation Error</h3>
-      <p>{{ errorMessage }}</p>
-      <div style="margin-top: 1rem;">
-        <button type="button" class="btn btn-secondary" @click="handleGenerateReport">Try Again</button>
-      </div>
-    </div>
-
-    <!-- Empty Initial State (Before Generating) -->
-    <div v-else class="initial-prompt-card print-hidden">
-      <div class="prompt-icon-circle">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-        </svg>
-      </div>
-      <h3>Generate Module Use &amp; Learner's Progress Report</h3>
-      <p>Configure filters above and click <strong>Generate Report</strong> to preview the official monitoring report inside the system.</p>
     </div>
 
     <!-- 9. VIEW DETAILS MODAL -->
@@ -509,7 +547,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getModuleProgressReport, getLearnerModuleProgressDetails } from '../api/reports.js';
 import { getLearner } from '../api/learners.js';
@@ -594,6 +633,20 @@ async function handleGenerateReport() {
   }
 }
 
+// Invalidate generated report whenever any filter changes
+function invalidateReport() {
+  if (reportGenerated.value) {
+    reportGenerated.value = false;
+    maleLearners.value = [];
+    femaleLearners.value = [];
+    errorMessage.value = '';
+  }
+}
+
+watch([selectedCenter, selectedLevel, fromDate, toDate], () => {
+  invalidateReport();
+});
+
 // Reset Filters
 function resetFilters() {
   selectedCenter.value = '';
@@ -602,6 +655,9 @@ function resetFilters() {
   toDate.value = '';
   dateError.value = '';
   errorMessage.value = '';
+  reportGenerated.value = false;
+  maleLearners.value = [];
+  femaleLearners.value = [];
 }
 
 // Scroll down to Generate PDF button
@@ -633,6 +689,10 @@ async function generateAndDownloadPdf() {
 
 // Browser Print (Direct print of dedicated report sheet)
 function printReportDirectly() {
+  if (!reportGenerated.value || (maleLearners.value.length === 0 && femaleLearners.value.length === 0)) {
+    dateError.value = 'Please select filters and click Generate Report before printing.';
+    return;
+  }
   window.print();
 }
 
@@ -1608,6 +1668,135 @@ function closeLearnerModal() {
   0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-4px); }
   60% { transform: translateY(-2px); }
+}
+
+/* Blank Template & Preview Status Pill Styling */
+.report-status-banner {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.status-pill.status-blank {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.status-pill.status-empty {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.status-pill.status-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-badge-dot.empty {
+  background: #f59e0b;
+}
+
+.status-badge-dot.success {
+  background: #10b981;
+}
+
+.status-badge-hint {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: normal;
+}
+
+.blank-row td {
+  height: 28px;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+}
+
+.empty-notice-cell {
+  background: #fffbeb !important;
+  color: #b45309;
+  padding: 1.25rem 1rem !important;
+  text-align: center;
+}
+
+.empty-notice-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.loading-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #475569;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.report-error-card {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #b91c1c;
+  margin-bottom: 0.75rem;
+}
+
+.report-error-card .error-msg-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.report-error-card .btn-retry {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #f87171;
+  background: #ffffff;
+  color: #b91c1c;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.report-error-card .btn-retry:hover {
+  background: #fee2e2;
 }
 
 /* Print Styles */

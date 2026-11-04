@@ -96,7 +96,6 @@
               <th>LRN</th>
               <th>ALS LEVEL</th>
               <th>LEARNING CENTER</th>
-              <th>MODULE PROGRESS</th>
               <th>STATUS</th>
               <th style="text-align: right;">ACTION</th>
             </tr>
@@ -114,14 +113,6 @@
                 <span class="level-pill">{{ learner.level }}</span>
               </td>
               <td class="cell-center">{{ learner.learningCenter || '-' }}</td>
-              <td class="cell-progress">
-                <div class="progress-bar-wrap">
-                  <div class="progress-track">
-                    <div class="progress-fill" :style="{ width: (learner.progress || 0) + '%' }"></div>
-                  </div>
-                  <span class="progress-text">{{ learner.progress || 0 }}%</span>
-                </div>
-              </td>
               <td class="cell-status">
                 <span class="status-badge" :class="learner.status === 'Active' ? 'badge-active' : 'badge-inactive'">
                   {{ learner.status || 'Active' }}

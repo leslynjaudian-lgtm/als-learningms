@@ -264,9 +264,6 @@
             <button type="button" class="btn btn-secondary" @click="showViewModal = false">
               Close
             </button>
-            <button type="button" class="btn btn-primary" @click="editFromView">
-              Edit Learning Area
-            </button>
           </div>
         </div>
       </div>
@@ -470,14 +467,6 @@ const viewingArea = ref(null);
 function openViewModal(area) {
   viewingArea.value = area;
   showViewModal.value = true;
-}
-
-function editFromView() {
-  const target = viewingArea.value;
-  showViewModal.value = false;
-  if (target) {
-    openEditModal(target);
-  }
 }
 
 // --- Modal State: Delete Confirmation ---

@@ -4,190 +4,26 @@
     :class="{
       'controls-hidden': !controlsVisible,
       'is-fullscreen': isFullscreen,
-      'is-zoomed': zoomScale > 1.05
+      'is-zoomed': zoomScale > 1.05,
+      'has-post-test-dock': controlsVisible && isPostTestButtonVisible
     }"
     ref="viewerContainerRef"
   >
-    <!-- 1. Top Header: Back button, module tag, title, fullscreen icon -->
-    <transition name="slide-top">
-      <div v-show="controlsVisible" class="viewer-top-bar" @click.stop>
-        <div class="top-bar-left">
-          <button
-            type="button"
-            class="nav-icon-btn"
-            @click="$emit('back')"
-            aria-label="Back to My Modules"
-            title="Back to My Modules"
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-          <div class="viewer-title-wrap">
-            <div class="title-meta-line">
-              <span class="viewer-module-tag">{{ code || 'MODULE' }}</span>
-              <span v-if="subtitle" class="viewer-lesson-indicator">
-                {{ subtitle }}
-              </span>
-              <span v-else-if="code === 'LS2-MOCK-001'" class="viewer-lesson-indicator">
-                {{ currentPage <= 8 ? 'Lesson 1: What Will We Do Without You?' : 'Lesson 2: If Animals Protested' }}
-              </span>
-              <span v-else class="viewer-lesson-indicator">
-                {{ totalPages ? `${totalPages} Pages` : '' }}
-              </span>
-            </div>
-            <h1 class="viewer-module-title">{{ title }}</h1>
-          </div>
-        </div>
-
-        <div class="top-bar-right">
-          <!-- Fullscreen Toggle Button -->
-          <button
-            type="button"
-            class="nav-icon-btn"
-            @click="toggleFullscreen"
-            :aria-label="isFullscreen ? 'Exit Full Screen' : 'Full Screen'"
-            :title="isFullscreen ? 'Exit Full Screen' : 'Full Screen'"
-          >
-            <svg v-if="!isFullscreen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </transition>
-
-    <!-- 2. Reading Mode Controls & Zoom Bar (Directly below module title) -->
-    <transition name="slide-top-sub">
-      <div v-show="controlsVisible" class="viewer-controls-bar" @click.stop>
-        <!-- Mode Toggle: Long Strip | Wide Strip -->
-        <div class="view-mode-toggle" role="tablist" aria-label="Reading Mode">
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ active: viewMode === 'long' }"
-            @click="switchViewMode('long')"
-            role="tab"
-            :aria-selected="viewMode === 'long'"
-          >
-            <!-- Vertical Scroll Directional Icon -->
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="5" y="3" width="14" height="18" rx="2"/>
-              <line x1="12" y1="7" x2="12" y2="17"/>
-              <polyline points="9 10 12 7 15 10"/>
-              <polyline points="9 14 12 17 15 14"/>
-            </svg>
-            <span>Long Strip</span>
-          </button>
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ active: viewMode === 'wide' }"
-            @click="switchViewMode('wide')"
-            role="tab"
-            :aria-selected="viewMode === 'wide'"
-          >
-            <!-- Horizontal Swipe Directional Icon -->
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="16" rx="2"/>
-              <line x1="7" y1="12" x2="17" y2="12"/>
-              <polyline points="10 9 7 12 10 15"/>
-              <polyline points="14 9 17 12 14 15"/>
-            </svg>
-            <span>Wide Strip</span>
-          </button>
-        </div>
-
-        <!-- Center Page Badge Indicator -->
-        <div class="page-badge-pill">
-          Page <strong>{{ currentPage }}</strong> of {{ totalPages || 29 }}
-        </div>
-
-        <!-- Zoom Controls: − 100% + -->
-        <div class="zoom-controls">
-          <button
-            type="button"
-            class="zoom-btn"
-            @click="zoomOut"
-            :disabled="zoomScale <= 0.65"
-            title="Zoom Out"
-            aria-label="Zoom Out"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-          <span class="zoom-level-text" @click="resetZoom" title="Tap to reset zoom to 100%">
-            {{ Math.round(zoomScale * 100) }}%
-          </span>
-          <button
-            type="button"
-            class="zoom-btn"
-            @click="zoomIn"
-            :disabled="zoomScale >= 2.5"
-            title="Zoom In"
-            aria-label="Zoom In"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </transition>
-
-    <!-- First-Use Instruction Hint (Floats discreetly, dismissed on first interaction) -->
-    <transition name="fade">
-      <div v-if="showTapHint" class="tap-hint-pill" @click="dismissTapHint">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-        </svg>
-        <span class="hint-text">Tap the screen to show or hide reading controls.</span>
-        <button type="button" class="hint-close-btn" aria-label="Dismiss">&times;</button>
-      </div>
-    </transition>
-
-    <!-- Pre-Reading Instruction Alert Banner (When visible) -->
-    <div v-if="showInstructionBanner && controlsVisible" class="reading-instruction-banner" @click.stop>
-      <div class="instruction-content">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
-        </svg>
-        <span class="instruction-text">
-          Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.
-        </span>
-      </div>
-      <button
-        type="button"
-        class="instruction-dismiss-btn"
-        @click="showInstructionBanner = false"
-        aria-label="Dismiss banner"
-      >
-        &times;
-      </button>
-    </div>
-
-    <!-- 3. MAIN PDF VIEWING BODY (Expands to 100% Screen When Controls Hidden) -->
+    <!-- 1. MAIN PDF VIEWING BODY (Permanent full-viewport foundation, never reflows or jumps) -->
     <div
       class="viewer-body"
+      :class="{ 'wide-mode': viewMode === 'wide' }"
       ref="bodyRef"
-      @touchstart="handleTouchStart"
-      @touchmove="handleTouchMove"
-      @touchend="handleTouchEnd"
-      @mousedown="handleMouseDown"
-      @mouseup="handleMouseUp"
+      @pointerdown="handlePointerDown"
+      @pointermove="handlePointerMove"
+      @pointerup="handlePointerUp"
+      @pointercancel="handlePointerCancel"
     >
       <!-- Loading State -->
       <div v-if="loading" class="pdf-loading-state">
         <div class="spinner-circle"></div>
         <p class="loading-label">Loading PDF module pages...</p>
-        <span class="loading-sub">Animals: Love Them and Care for Them</span>
+        <span class="loading-sub">{{ title || 'Animals: Love Them and Care for Them' }}</span>
       </div>
 
       <!-- Error State -->
@@ -232,6 +68,9 @@
             <span>Page {{ pageNum }} of {{ totalPages }}</span>
           </div>
         </div>
+
+        <!-- End of Long Strip Sentinel (Guarantees bottom of last page is detectable & fully reachable) -->
+        <div id="long-strip-end-sentinel" class="long-strip-end-sentinel"></div>
       </div>
 
       <!-- MODE 2: WIDE STRIP (Horizontal Single Page Reading) -->
@@ -245,6 +84,7 @@
             v-show="controlsVisible && currentPage > 1"
             type="button"
             class="wide-nav-arrow wide-nav-prev"
+            @pointerdown.stop
             @click.stop="goToPage(currentPage - 1)"
             aria-label="Previous Page"
             title="Previous Page"
@@ -260,7 +100,7 @@
           <div
             class="wide-canvas-box"
             :style="{
-              transform: zoomScale !== 1.0 ? `scale(${zoomScale})` : 'none',
+              transform: zoomScale !== 1.0 || panX !== 0 || panY !== 0 ? `translate(${panX}px, ${panY}px) scale(${zoomScale})` : 'none',
               transformOrigin: 'center center'
             }"
           >
@@ -275,6 +115,7 @@
             v-show="controlsVisible && currentPage < totalPages"
             type="button"
             class="wide-nav-arrow wide-nav-next"
+            @pointerdown.stop
             @click.stop="goToPage(currentPage + 1)"
             aria-label="Next Page"
             title="Next Page"
@@ -286,17 +127,200 @@
         </transition>
       </div>
 
-      <!-- Subtle Floating Page Indicator in Immersive Mode (Minimal, non-distracting) -->
+      <!-- Subtle Floating Page Indicator & Accessible Post-Test Button in Immersive Mode -->
       <transition name="fade">
-        <div v-if="!controlsVisible && !loading && !error" class="immersive-page-pill" @click.stop="toggleControls">
-          {{ currentPage }} / {{ totalPages }}
+        <div v-if="!controlsVisible && !loading && !error" class="immersive-bottom-wrap">
+          <button
+            v-if="isPostTestButtonVisible"
+            type="button"
+            class="immersive-post-test-btn"
+            @pointerdown.stop
+            @click.stop="openConfirmationModal"
+          >
+            <span>Continue to Post-Test</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+          <div
+            class="immersive-page-pill"
+            @pointerdown.stop
+            @click.stop="toggleControls"
+          >
+            {{ currentPage }} / {{ totalPages }}
+          </div>
         </div>
       </transition>
     </div>
 
-    <!-- 4. Wide Strip Horizontal Thumbnail Navigator (Collapsible) -->
-    <transition name="slide-bottom-sub">
-      <div v-show="controlsVisible && !loading && !error && viewMode === 'wide'" class="wide-thumbnail-dock" @click.stop>
+    <!-- 2. TOP CONTROLS OVERLAY (Overlay above PDF, GPU transform/opacity transitions) -->
+    <div class="viewer-top-overlay" :class="{ 'overlay-hidden': !controlsVisible }">
+      <!-- Top Header: Back button, module tag, title, fullscreen icon -->
+      <div class="viewer-top-bar" @click.stop>
+        <div class="top-bar-left">
+          <button
+            type="button"
+            class="nav-icon-btn"
+            @click="$emit('back')"
+            aria-label="Back to Module Overview"
+            title="Back to Module Overview"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <div class="viewer-title-wrap">
+            <div class="title-meta-line">
+              <span class="viewer-module-tag">{{ code || 'MODULE' }}</span>
+              <span v-if="subtitle" class="viewer-lesson-indicator">
+                {{ subtitle }}
+              </span>
+              <span v-else class="viewer-lesson-indicator">
+                {{ totalPages ? `${totalPages} Pages` : '' }}
+              </span>
+            </div>
+            <h1 class="viewer-module-title">{{ title }}</h1>
+          </div>
+        </div>
+
+        <div class="top-bar-right">
+          <!-- Fullscreen Toggle Button -->
+          <button
+            type="button"
+            class="nav-icon-btn"
+            @click="toggleFullscreen"
+            :aria-label="isFullscreen ? 'Exit Full Screen' : 'Full Screen'"
+            :title="isFullscreen ? 'Exit Full Screen' : 'Full Screen'"
+          >
+            <svg v-if="!isFullscreen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Reading Mode Controls & Zoom Bar (Directly below module title) -->
+      <div class="viewer-controls-bar" @click.stop>
+        <!-- Mode Toggle: Long Strip | Wide Strip -->
+        <div class="view-mode-toggle" role="tablist" aria-label="Reading Mode">
+          <button
+            type="button"
+            class="mode-btn"
+            :class="{ active: viewMode === 'long' }"
+            @click="switchViewMode('long')"
+            role="tab"
+            :aria-selected="viewMode === 'long'"
+          >
+            <!-- Vertical Scroll Directional Icon -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="3" width="14" height="18" rx="2"/>
+              <line x1="12" y1="7" x2="12" y2="17"/>
+              <polyline points="9 10 12 7 15 10"/>
+              <polyline points="9 14 12 17 15 14"/>
+            </svg>
+            <span class="mode-label-full">Long Strip</span>
+            <span class="mode-label-short">Long</span>
+          </button>
+          <button
+            type="button"
+            class="mode-btn"
+            :class="{ active: viewMode === 'wide' }"
+            @click="switchViewMode('wide')"
+            role="tab"
+            :aria-selected="viewMode === 'wide'"
+          >
+            <!-- Horizontal Swipe Directional Icon -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="2"/>
+              <line x1="7" y1="12" x2="17" y2="12"/>
+              <polyline points="10 9 7 12 10 15"/>
+              <polyline points="14 9 17 12 14 15"/>
+            </svg>
+            <span class="mode-label-full">Wide Strip</span>
+            <span class="mode-label-short">Wide</span>
+          </button>
+        </div>
+
+        <!-- Center Page Badge Indicator -->
+        <div class="page-badge-pill">
+          <span class="page-badge-full">Page <strong>{{ currentPage }}</strong> of {{ totalPages || 29 }}</span>
+          <span class="page-badge-short"><strong>{{ currentPage }}</strong> / {{ totalPages || 29 }}</span>
+        </div>
+
+        <!-- Zoom Controls: − 100% + -->
+        <div class="zoom-controls">
+          <button
+            type="button"
+            class="zoom-btn"
+            @click="zoomOut"
+            :disabled="zoomScale <= 0.65"
+            title="Zoom Out"
+            aria-label="Zoom Out"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+          <span class="zoom-level-text" @click="resetZoom" title="Tap to reset zoom to 100%">
+            {{ Math.round(zoomScale * 100) }}%
+          </span>
+          <button
+            type="button"
+            class="zoom-btn"
+            @click="zoomIn"
+            :disabled="zoomScale >= 2.5"
+            title="Zoom In"
+            aria-label="Zoom In"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Pre-Reading Instruction Alert Banner (When visible) -->
+      <div v-if="showInstructionBanner" class="reading-instruction-banner" @click.stop>
+        <div class="instruction-content">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span class="instruction-text">
+            Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.
+          </span>
+        </div>
+        <button
+          type="button"
+          class="instruction-dismiss-btn"
+          @click="showInstructionBanner = false"
+          aria-label="Dismiss banner"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. First-Use Instruction Hint (Floats discreetly, dismissed on first interaction) -->
+    <transition name="fade">
+      <div v-if="showTapHint" class="tap-hint-pill" @click="dismissTapHint">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+        <span class="hint-text">Tap the screen to show or hide reading controls.</span>
+        <button type="button" class="hint-close-btn" aria-label="Dismiss">&times;</button>
+      </div>
+    </transition>
+
+    <!-- 4. BOTTOM CONTROLS OVERLAY (Overlay above PDF, GPU transform/opacity transitions) -->
+    <div class="viewer-bottom-overlay" :class="{ 'overlay-hidden': !controlsVisible }">
+      <!-- Wide Strip Horizontal Thumbnail Navigator (Collapsible) -->
+      <div v-if="viewMode === 'wide' && !loading && !error" class="wide-thumbnail-dock" @click.stop>
         <div class="thumbnail-dock-header">
           <button
             type="button"
@@ -309,7 +333,7 @@
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>{{ thumbnailsOpen ? 'Hide Page Strip' : 'Page Thumbnails (29)' }}</span>
+            <span>{{ thumbnailsOpen ? 'Hide Page Strip' : `Page Thumbnails (${totalPages || 0})` }}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline v-if="thumbnailsOpen" points="6 9 12 15 18 9"></polyline>
               <polyline v-else points="18 15 12 9 6 15"></polyline>
@@ -334,14 +358,12 @@
           </div>
         </div>
       </div>
-    </transition>
 
-    <!-- 5. Bottom Action Dock: "Continue to Post-Test" -->
-    <transition name="slide-bottom">
-      <div v-show="controlsVisible" class="viewer-bottom-bar" @click.stop>
+      <!-- Bottom Action Dock: "Continue to Post-Test" -->
+      <div v-if="isPostTestButtonVisible" class="viewer-bottom-bar" @click.stop>
         <div class="bottom-bar-left">
           <span class="lesson-tag">
-            {{ currentPage <= 8 ? 'Lesson 1: What Will We Do Without You?' : 'Lesson 2: If Animals Protested' }}
+            {{ subtitle || title }}
           </span>
         </div>
 
@@ -358,7 +380,7 @@
           </button>
         </div>
       </div>
-    </transition>
+    </div>
 
     <!-- 6. Confirmation Modal Before Proceeding to Post-Test -->
     <div v-if="showConfirmModal" class="confirm-modal-backdrop" @click="showConfirmModal = false">
@@ -398,7 +420,7 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, markRaw, watch } from 'vue';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Static worker in public/ directory
@@ -411,11 +433,11 @@ const props = defineProps({
   },
   title: {
     type: String,
-    default: 'Animals: Love Them and Care for Them'
+    default: 'Learning Module'
   },
   code: {
     type: String,
-    default: 'LS2-MOCK-001'
+    default: ''
   },
   subtitle: {
     type: String,
@@ -445,18 +467,47 @@ const wideTextRef = ref(null);
 // Viewer State
 const loading = ref(true);
 const error = ref(null);
-const pdfDoc = ref(null);
+const pdfDoc = shallowRef(null);
 const totalPages = ref(29);
 const currentPage = ref(props.initialPage || 1);
 const viewMode = ref(props.initialMode || 'long');
 const zoomScale = ref(1.0);
 const isFullscreen = ref(false);
 
+// Long Strip Bottom Detection State
+const isLongStripAtBottom = ref(false);
+
+// Conditional Post-Test Button Visibility
+// Wide Strip: Visible only when learner navigates to the final page (Page totalPages of totalPages)
+// Long Strip: Visible only when learner reaches the bottom of the final PDF page
+const isPostTestButtonVisible = computed(() => {
+  if (loading.value || error.value || totalPages.value <= 0) {
+    return false;
+  }
+  if (viewMode.value === 'wide') {
+    return currentPage.value === totalPages.value;
+  } else if (viewMode.value === 'long') {
+    return isLongStripAtBottom.value;
+  }
+  return false;
+});
+
 // Controls Visibility State (Immersive full-screen toggle)
 const controlsVisible = ref(true);
 const showInstructionBanner = ref(true);
-const thumbnailsOpen = ref(true);
+// On mobile, thumbnail dock is collapsed by default per user requirement
+const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 768);
+const thumbnailsOpen = ref(!isMobileViewport.value);
 const showConfirmModal = ref(false);
+
+// 2D Pan Offset for Zoomed View
+const panX = ref(0);
+const panY = ref(0);
+
+function resetPan() {
+  panX.value = 0;
+  panY.value = 0;
+}
 
 // First-use tap hint state
 const showTapHint = ref(false);
@@ -473,10 +524,32 @@ function dismissTapHint() {
   } catch (e) {}
 }
 
+let lastToggleTime = 0;
 function toggleControls() {
+  const now = Date.now();
+  if (now - lastToggleTime < 350) {
+    return;
+  }
+  lastToggleTime = now;
+
+  // Capture current reading anchor in Long Strip mode as a safeguard
+  const savedScrollTop = viewMode.value === 'long' && longStripContainerRef.value
+    ? longStripContainerRef.value.scrollTop
+    : null;
+
   controlsVisible.value = !controlsVisible.value;
+
   if (showTapHint.value) {
     dismissTapHint();
+  }
+
+  // Restore exact scroll position if browser attempted any layout shift
+  if (savedScrollTop !== null && longStripContainerRef.value) {
+    nextTick(() => {
+      if (longStripContainerRef.value && Math.abs(longStripContainerRef.value.scrollTop - savedScrollTop) > 1) {
+        longStripContainerRef.value.scrollTop = savedScrollTop;
+      }
+    });
   }
 }
 
@@ -484,8 +557,15 @@ function toggleControls() {
 const longCanvasRefs = new Map();
 const longTextRefs = new Map();
 const renderedPages = new Set();
+const renderingPages = new Set();
+const activeRenderTasks = new WeakMap();
+let currentLoadingTask = null;
 let intersectionObserver = null;
 let resizeObserver = null;
+let resizeTimer = null;
+let lastBodyWidth = 0;
+let lastBodyHeight = 0;
+let orientationTimer = null;
 
 function setLongCanvasRef(el, pageNum) {
   if (el) longCanvasRefs.set(pageNum, el);
@@ -498,75 +578,171 @@ function setLongTextRef(el, pageNum) {
 }
 
 // ============================================================
-// TOUCH GESTURE HANDLING: TAP vs SWIPE vs PINCH
+// UNIFIED POINTER GESTURE HANDLING: TAP vs SWIPE vs PINCH & PAN
+// Works identically across Touch (Android Chrome, iOS Safari) and Desktop Mouse
 // ============================================================
-let touchStartX = 0;
-let touchStartY = 0;
-let touchStartTime = 0;
-let touchMoved = false;
+const activePointers = new Map();
+let pointerStartX = 0;
+let pointerStartY = 0;
+let pointerStartTime = 0;
+let pointerStartScrollTop = 0;
+let pointerMoved = false;
+let isMultiTouch = false;
 let isPinching = false;
 let initialPinchDistance = 0;
 let initialPinchScale = 1.0;
+let lastPinchEndTime = 0;
+let lastPointerPanX = 0;
+let lastPointerPanY = 0;
 
-function handleTouchStart(e) {
-  if (e.touches.length === 1) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchStartTime = Date.now();
-    touchMoved = false;
-    isPinching = false;
-  } else if (e.touches.length === 2) {
-    // Pinch to zoom started
-    isPinching = true;
-    touchMoved = true;
-    initialPinchDistance = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    initialPinchScale = zoomScale.value;
-  }
+function isInteractiveElement(target) {
+  if (!target || !(target instanceof Element)) return false;
+  return Boolean(
+    target.closest('button, a, input, select, .wide-nav-arrow, .tap-hint-pill, .immersive-post-test-btn, .immersive-page-pill, .wide-thumbnail-dock, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .reading-instruction-banner, .viewer-top-overlay, .viewer-bottom-overlay')
+  );
 }
 
-function handleTouchMove(e) {
-  if (isPinching && e.touches.length === 2) {
-    const currentDist = Math.hypot(
-      e.touches[0].clientX - e.touches[1].clientX,
-      e.touches[0].clientY - e.touches[1].clientY
-    );
-    if (initialPinchDistance > 0) {
-      const factor = currentDist / initialPinchDistance;
-      const newScale = Math.min(2.5, Math.max(0.7, Math.round(initialPinchScale * factor * 100) / 100));
-      zoomScale.value = newScale;
-    }
-  } else if (e.touches.length === 1) {
-    const dx = Math.abs(e.touches[0].clientX - touchStartX);
-    const dy = Math.abs(e.touches[0].clientY - touchStartY);
-    if (dx > 10 || dy > 10) {
-      touchMoved = true;
-    }
-  }
-}
-
-function handleTouchEnd(e) {
-  if (isPinching) {
-    if (e.touches.length === 0) isPinching = false;
+function handlePointerDown(e) {
+  if (isInteractiveElement(e.target)) {
     return;
   }
 
-  const elapsed = Date.now() - touchStartTime;
+  // Record active pointer
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-  // Clean tap detection: touch moved less than 10px and took under 350ms
-  if (!touchMoved && elapsed < 350) {
+  if (activePointers.size === 1) {
+    pointerStartX = e.clientX;
+    pointerStartY = e.clientY;
+    lastPointerPanX = e.clientX;
+    lastPointerPanY = e.clientY;
+    pointerStartTime = Date.now();
+    pointerMoved = false;
+    isMultiTouch = false;
+    isPinching = false;
+
+    if (viewMode.value === 'long' && longStripContainerRef.value) {
+      pointerStartScrollTop = longStripContainerRef.value.scrollTop;
+    }
+  } else if (activePointers.size === 2) {
+    // 2 fingers active: initiate pinch zoom
+    isMultiTouch = true;
+    isPinching = true;
+    pointerMoved = true;
+    const pts = Array.from(activePointers.values());
+    initialPinchDistance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    initialPinchScale = zoomScale.value;
+  } else {
+    // 3+ fingers: definitely not a tap
+    isMultiTouch = true;
+    pointerMoved = true;
+  }
+}
+
+function handlePointerMove(e) {
+  if (!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (isPinching && activePointers.size === 2) {
+    const pts = Array.from(activePointers.values());
+    const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    if (initialPinchDistance > 0) {
+      const factor = currentDist / initialPinchDistance;
+      const newScale = Math.min(2.5, Math.max(0.65, Math.round(initialPinchScale * factor * 100) / 100));
+      zoomScale.value = newScale;
+      if (newScale <= 1.05) {
+        resetPan();
+      }
+    }
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  } else if (activePointers.size === 1 && !isMultiTouch) {
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const dist = Math.hypot(currentX - pointerStartX, currentY - pointerStartY);
+
+    // Dynamic threshold: 14px for touch/pen (accommodates finger contact shift), 8px for mouse
+    const moveThreshold = e.pointerType === 'mouse' ? 8 : 14;
+    if (dist > moveThreshold) {
+      pointerMoved = true;
+    }
+
+    // In Long Strip, verify if container scroll offset moved
+    if (viewMode.value === 'long' && longStripContainerRef.value) {
+      if (Math.abs(longStripContainerRef.value.scrollTop - pointerStartScrollTop) > 6) {
+        pointerMoved = true;
+      }
+    }
+
+    // 1-finger panning support when zoomed in Wide Strip
+    if (viewMode.value === 'wide' && zoomScale.value > 1.05) {
+      const dx = currentX - lastPointerPanX;
+      const dy = currentY - lastPointerPanY;
+      lastPointerPanX = currentX;
+      lastPointerPanY = currentY;
+
+      const maxPanX = Math.max(60, (zoomScale.value - 1) * (window.innerWidth * 0.7));
+      const maxPanY = Math.max(60, (zoomScale.value - 1) * (window.innerHeight * 0.7));
+
+      panX.value = Math.max(-maxPanX, Math.min(maxPanX, panX.value + dx));
+      panY.value = Math.max(-maxPanY, Math.min(maxPanY, panY.value + dy));
+
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
+  }
+}
+
+function handlePointerUp(e) {
+  const hadPointer = activePointers.has(e.pointerId);
+  activePointers.delete(e.pointerId);
+
+  if (isPinching) {
+    if (activePointers.size === 0) {
+      isPinching = false;
+      lastPinchEndTime = Date.now();
+    }
+    return;
+  }
+
+  // Prevent tap detection immediately after a pinch gesture
+  if (Date.now() - lastPinchEndTime < 400) {
+    return;
+  }
+
+  // If multi-touch was active or target is interactive, do not trigger tap
+  if (isMultiTouch || isInteractiveElement(e.target)) {
+    return;
+  }
+
+  if (!hadPointer) return;
+
+  const elapsed = Date.now() - pointerStartTime;
+
+  // In Long Strip, check if the container scrolled during the pointer
+  if (viewMode.value === 'long' && longStripContainerRef.value) {
+    if (Math.abs(longStripContainerRef.value.scrollTop - pointerStartScrollTop) > 6) {
+      pointerMoved = true;
+    }
+  }
+
+  const dist = Math.hypot(e.clientX - pointerStartX, e.clientY - pointerStartY);
+  const maxTapDist = e.pointerType === 'mouse' ? 8 : 14;
+
+  // 1. Clean tap detection: moved within tap threshold and released under 450ms
+  if (!pointerMoved && dist < maxTapDist && elapsed < 450) {
     toggleControls();
     return;
   }
 
-  // Wide Strip horizontal swipe when not zoomed in
-  if (viewMode.value === 'wide' && zoomScale.value <= 1.05 && e.changedTouches?.length === 1) {
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    const deltaY = e.changedTouches[0].clientY - touchStartY;
-    // Horizontal swipe threshold
-    if (Math.abs(deltaX) > 42 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+  // 2. Wide Strip horizontal swipe when not zoomed in
+  if (viewMode.value === 'wide' && zoomScale.value <= 1.05 && activePointers.size === 0) {
+    const deltaX = e.clientX - pointerStartX;
+    const deltaY = e.clientY - pointerStartY;
+
+    // Horizontal swipe threshold: > 40px and predominantly horizontal
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3 && elapsed < 650) {
       if (deltaX < 0 && currentPage.value < totalPages.value) {
         goToPage(currentPage.value + 1);
       } else if (deltaX > 0 && currentPage.value > 1) {
@@ -576,27 +752,13 @@ function handleTouchEnd(e) {
   }
 }
 
-// Mouse support for desktop testing
-let mouseDownX = 0;
-let mouseDownY = 0;
-let mouseDownTime = 0;
-
-function handleMouseDown(e) {
-  mouseDownX = e.clientX;
-  mouseDownY = e.clientY;
-  mouseDownTime = Date.now();
-}
-
-function handleMouseUp(e) {
-  // Only trigger if left click, didn't drag, and wasn't on a button/interactive element
-  if (e.button === 0 && Math.hypot(e.clientX - mouseDownX, e.clientY - mouseDownY) < 6) {
-    const elapsed = Date.now() - mouseDownTime;
-    if (elapsed < 350) {
-      if (!e.target.closest('button, input, a, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .wide-thumbnail-dock')) {
-        toggleControls();
-      }
-    }
+function handlePointerCancel(e) {
+  activePointers.delete(e.pointerId);
+  if (activePointers.size === 0) {
+    isPinching = false;
   }
+  // When browser cancels the pointer (e.g. native scroll in Long Strip), treat as moved
+  pointerMoved = true;
 }
 
 // ============================================================
@@ -616,35 +778,65 @@ function zoomOut() {
 
 function resetZoom() {
   zoomScale.value = 1.0;
+  resetPan();
 }
 
-// Fullscreen Browser API
+// Fullscreen Browser API with vendor prefix support & graceful fallback
 function toggleFullscreen() {
-  if (!document.fullscreenElement) {
+  const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isCurrentlyFullscreen) {
     const el = viewerContainerRef.value || document.documentElement;
     if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {});
+      el.requestFullscreen().catch(() => {
+        isFullscreen.value = !isFullscreen.value;
+      });
       isFullscreen.value = true;
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+      isFullscreen.value = true;
+    } else {
+      isFullscreen.value = !isFullscreen.value;
     }
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
-      isFullscreen.value = false;
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
     }
+    isFullscreen.value = false;
   }
 }
 
 function onFullscreenChange() {
-  isFullscreen.value = !!document.fullscreenElement;
+  isFullscreen.value = !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
 
 // ============================================================
 // PDF LOADING & RENDERING
 // ============================================================
 async function loadPdfDocument() {
+  if (!props.pdfUrl) return;
+
   loading.value = true;
   error.value = null;
   renderedPages.clear();
+  renderingPages.clear();
+
+  // Cancel prior loading task if still running
+  if (currentLoadingTask) {
+    try {
+      currentLoadingTask.destroy();
+    } catch (e) {}
+    currentLoadingTask = null;
+  }
+
+  // Destroy prior PDF document to free resources
+  if (pdfDoc.value) {
+    try {
+      pdfDoc.value.destroy();
+    } catch (e) {}
+    pdfDoc.value = null;
+  }
 
   try {
     const loadingTask = pdfjsLib.getDocument({
@@ -652,10 +844,18 @@ async function loadPdfDocument() {
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
       cMapPacked: true
     });
+    currentLoadingTask = loadingTask;
 
     const doc = await loadingTask.promise;
-    pdfDoc.value = doc;
+    currentLoadingTask = null;
+
+    // Use markRaw to ensure PDFDocumentProxy is never wrapped in a Vue reactive proxy
+    pdfDoc.value = markRaw(doc);
     totalPages.value = doc.numPages;
+
+    if (currentPage.value > totalPages.value) {
+      currentPage.value = 1;
+    }
 
     loading.value = false;
     await nextTick();
@@ -672,72 +872,127 @@ async function loadPdfDocument() {
 
     initResizeObserver();
   } catch (err) {
+    if (err?.name === 'RenderingCancelledException') return;
     console.error('Failed to load PDF module:', err);
     loading.value = false;
     error.value = 'Failed to load PDF module. Please check your connection or tap Retry.';
   }
 }
 
-// Render a single page onto given canvas
-async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targetScale = 1.5) {
+// Render a single page onto given canvas with proper DPR and task cancellation
+async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targetScale = 1.0, existingPage = null) {
   if (!pdfDoc.value || !canvas) return;
 
+  // Cancel any prior in-progress render task for this canvas to avoid collisions
+  if (activeRenderTasks.has(canvas)) {
+    const activeTask = activeRenderTasks.get(canvas);
+    try {
+      activeTask.cancel();
+    } catch (e) {}
+    activeRenderTasks.delete(canvas);
+  }
+
+  let page = existingPage;
   try {
-    const page = await pdfDoc.value.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: targetScale });
+    if (!page) {
+      page = await pdfDoc.value.getPage(pageNumber);
+    }
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const renderViewport = page.getViewport({ scale: targetScale * dpr });
+    const displayViewport = page.getViewport({ scale: targetScale });
     const ctx = canvas.getContext('2d');
 
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.floor(renderViewport.width);
+    canvas.height = Math.floor(renderViewport.height);
+    canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+    canvas.style.height = `${Math.floor(displayViewport.height)}px`;
 
     const renderContext = {
       canvasContext: ctx,
-      viewport: viewport
+      viewport: renderViewport
     };
 
-    await page.render(renderContext).promise;
+    const renderTask = page.render(renderContext);
+    activeRenderTasks.set(canvas, renderTask);
+
+    await renderTask.promise;
 
     if (textContainer) {
-      textContainer.innerHTML = '';
-      textContainer.style.width = `${viewport.width}px`;
-      textContainer.style.height = `${viewport.height}px`;
-      const textContent = await page.getTextContent();
-      pdfjsLib.renderTextLayer({
-        textContentSource: textContent,
-        container: textContainer,
-        viewport: viewport,
-        textDivs: []
-      });
+      try {
+        textContainer.innerHTML = '';
+        textContainer.style.width = `${Math.floor(displayViewport.width)}px`;
+        textContainer.style.height = `${Math.floor(displayViewport.height)}px`;
+        const textContent = await page.getTextContent();
+        const textLayerTask = pdfjsLib.renderTextLayer({
+          textContentSource: textContent,
+          container: textContainer,
+          viewport: displayViewport,
+          textDivs: []
+        });
+        if (textLayerTask?.promise) {
+          await textLayerTask.promise;
+        }
+      } catch (textErr) {
+        // Text layer failure is non-fatal
+      }
     }
   } catch (err) {
+    if (err?.name === 'RenderingCancelledException') {
+      // Normal cancellation when superseded
+      return;
+    }
     console.error(`Error rendering page ${pageNumber}:`, err);
+  } finally {
+    if (activeRenderTasks.get(canvas)?.promise) {
+      activeRenderTasks.delete(canvas);
+    }
+    if (page) {
+      try {
+        page.cleanup();
+      } catch (e) {}
+    }
   }
 }
 
-// Long Strip Rendering: Maximizes mobile width
-async function renderLongPage(pageNumber) {
-  if (renderedPages.has(pageNumber)) return;
+// Long Strip Rendering: Maximizes mobile width while preserving aspect ratio
+async function renderLongPage(pageNumber, force = false) {
+  if (pageNumber < 1 || pageNumber > totalPages.value) return;
+  if (!force && (renderedPages.has(pageNumber) || renderingPages.has(pageNumber))) {
+    return;
+  }
   const canvas = longCanvasRefs.get(pageNumber);
   const textContainer = longTextRefs.get(pageNumber);
-  if (!canvas) return;
+  if (!canvas || !pdfDoc.value) return;
 
-  renderedPages.add(pageNumber);
+  renderingPages.add(pageNumber);
 
-  // Full available container width
-  const containerW = longStripContainerRef.value?.clientWidth || window.innerWidth;
-  // Fit edge-to-edge on mobile with zero or minimal margins
-  const availW = Math.max(280, containerW);
-  const scale = (availW / 595.28) * 1.5; // standard A4 pt width is ~595.28
-  await renderPageToCanvas(pageNumber, canvas, textContainer, Math.max(1.2, scale));
+  try {
+    const page = await pdfDoc.value.getPage(pageNumber);
+    const unscaledViewport = page.getViewport({ scale: 1.0 });
+
+    const containerW = longStripContainerRef.value?.clientWidth || window.innerWidth;
+    // Fit edge-to-edge on mobile with minimal padding; cap at 768px on wider desktop viewports
+    const targetDisplayWidth = Math.min(Math.max(240, containerW - 8), 768);
+    const scale = targetDisplayWidth / unscaledViewport.width;
+
+    await renderPageToCanvas(pageNumber, canvas, textContainer, scale, page);
+    renderedPages.add(pageNumber);
+  } catch (err) {
+    if (err?.name !== 'RenderingCancelledException') {
+      console.error(`Error rendering long page ${pageNumber}:`, err);
+    }
+  } finally {
+    renderingPages.delete(pageNumber);
+    if (pageNumber === totalPages.value) {
+      nextTick(() => checkLongStripBottom());
+    }
+  }
 }
 
 function initLongStripObserver() {
   if (intersectionObserver) intersectionObserver.disconnect();
+  if (!longStripContainerRef.value) return;
 
   intersectionObserver = new IntersectionObserver(
     (entries) => {
@@ -748,10 +1003,10 @@ function initLongStripObserver() {
           if (pageNum > 1) renderLongPage(pageNum - 1);
           if (pageNum < totalPages.value) renderLongPage(pageNum + 1);
 
-          // Update active page
+          // Update active page when substantially visible
           if (entry.intersectionRatio >= 0.35) {
             currentPage.value = pageNum;
-            emit('update-progress', { page: pageNum, mode: viewMode.value });
+            emit('update-progress', { page: pageNum, mode: viewMode.value, totalPages: totalPages.value });
           }
         }
       });
@@ -759,7 +1014,7 @@ function initLongStripObserver() {
     {
       root: longStripContainerRef.value,
       rootMargin: '300px 0px 300px 0px',
-      threshold: [0.1, 0.4, 0.7]
+      threshold: [0.1, 0.35, 0.7]
     }
   );
 
@@ -769,8 +1024,60 @@ function initLongStripObserver() {
   }
 }
 
+let scrollRafId = null;
+
+function checkLongStripBottom() {
+  if (viewMode.value !== 'long' || !longStripContainerRef.value || totalPages.value <= 0) {
+    isLongStripAtBottom.value = false;
+    return;
+  }
+  const container = longStripContainerRef.value;
+  const containerHeight = container.clientHeight;
+  const scrollHeight = container.scrollHeight;
+  const scrollTop = container.scrollTop;
+
+  // Single page or content fits without scrolling
+  if (scrollHeight <= containerHeight + 20) {
+    isLongStripAtBottom.value = true;
+    return;
+  }
+
+  const scrollBottom = scrollHeight - (scrollTop + containerHeight);
+  const sentinel = document.getElementById('long-strip-end-sentinel');
+  const lastSlot = document.getElementById(`long-page-slot-${totalPages.value}`);
+
+  let atBottom = false;
+
+  if (sentinel) {
+    const containerRect = container.getBoundingClientRect();
+    const sentinelRect = sentinel.getBoundingClientRect();
+    // Sentinel top has scrolled into view within 48px tolerance
+    const sentinelInView = sentinelRect.top <= containerRect.bottom + 48;
+    atBottom = sentinelInView || scrollBottom <= 48;
+  } else if (lastSlot) {
+    const containerRect = container.getBoundingClientRect();
+    const slotRect = lastSlot.getBoundingClientRect();
+    const lastPageBottomInView = (slotRect.bottom - containerRect.bottom) <= 48;
+    const lastPageTopInView = slotRect.top < containerRect.bottom;
+    atBottom = (lastPageTopInView && lastPageBottomInView) || scrollBottom <= 48;
+  } else {
+    atBottom = scrollBottom <= 48;
+  }
+
+  // Safety safeguard: do not show if active page is clearly before the last page
+  if (atBottom && currentPage.value < totalPages.value - 1) {
+    atBottom = false;
+  }
+
+  isLongStripAtBottom.value = atBottom;
+}
+
 function onLongStripScroll() {
-  // Handled smoothly by IntersectionObserver
+  if (scrollRafId) return;
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null;
+    checkLongStripBottom();
+  });
 }
 
 function scrollToLongPage(pageNumber) {
@@ -784,50 +1091,102 @@ function scrollToLongPage(pageNumber) {
 
 // Wide Strip Rendering: Fits within both width and height without cropping
 async function renderWidePage(pageNumber) {
-  if (!wideCanvasRef.value) return;
+  if (pageNumber < 1 || pageNumber > totalPages.value) return;
+  if (!wideCanvasRef.value || !pdfDoc.value) return;
 
-  const stageW = bodyRef.value?.clientWidth || window.innerWidth;
-  const stageH = bodyRef.value?.clientHeight || window.innerHeight;
+  try {
+    const page = await pdfDoc.value.getPage(pageNumber);
+    const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-  // Fit page proportionally inside stage
-  const scaleW = (stageW - 8) / 595.28;
-  const scaleH = (stageH - 8) / 841.89;
-  const fitScale = Math.min(scaleW, scaleH);
-  const scale = Math.max(0.6, fitScale) * 1.5;
+    const stageW = wideStageRef.value?.clientWidth || bodyRef.value?.clientWidth || window.innerWidth;
+    const stageH = wideStageRef.value?.clientHeight || (bodyRef.value ? bodyRef.value.clientHeight - 192 : window.innerHeight - 192);
 
-  await renderPageToCanvas(pageNumber, wideCanvasRef.value, wideTextRef.value, scale);
+    // Available viewing area inside stage with comfortable breathing margin
+    const availableW = Math.max(240, stageW - 8);
+    const availableH = Math.max(240, stageH - 8);
 
-  // Auto-scroll thumbnail strip
-  nextTick(() => {
-    const thumbEl = document.getElementById(`thumb-item-${pageNumber}`);
-    if (thumbEl && thumbnailTrackRef.value) {
-      thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const scaleW = availableW / unscaledViewport.width;
+    const scaleH = availableH / unscaledViewport.height;
+    const fitScale = Math.min(scaleW, scaleH);
+    const scale = Math.max(0.35, fitScale);
+
+    await renderPageToCanvas(pageNumber, wideCanvasRef.value, wideTextRef.value, scale, page);
+
+    // Auto-scroll thumbnail strip
+    nextTick(() => {
+      const thumbEl = document.getElementById(`thumb-item-${pageNumber}`);
+      if (thumbEl && thumbnailTrackRef.value) {
+        thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    });
+  } catch (err) {
+    if (err?.name !== 'RenderingCancelledException') {
+      console.error(`Error rendering wide page ${pageNumber}:`, err);
     }
-  });
+  }
 }
 
-// ResizeObserver for Orientation changes & Controls Toggling
+// Debounced ResizeObserver for orientation and layout resizing
 function initResizeObserver() {
   if (resizeObserver) resizeObserver.disconnect();
   if (!bodyRef.value) return;
 
-  resizeObserver = new ResizeObserver(() => {
-    if (viewMode.value === 'wide' && !loading.value && pdfDoc.value) {
-      renderWidePage(currentPage.value);
+  lastBodyWidth = bodyRef.value.clientWidth;
+  lastBodyHeight = bodyRef.value.clientHeight;
+
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const cr = entry.contentRect;
+      if (!cr) continue;
+      const w = Math.round(cr.width);
+      const h = Math.round(cr.height);
+
+      // In Long Strip, page rendering scales to fit container width, so height changes must NEVER trigger rerenders.
+      // In Wide Strip, page scales to viewport, but height shifts < 80px (e.g. mobile Chrome address bar sliding) must NOT trigger rerenders.
+      const widthChanged = Math.abs(w - lastBodyWidth) >= 8;
+      const heightChangedSignificantly = Math.abs(h - lastBodyHeight) >= 120; // genuine orientation change or desktop window resize
+
+      if (viewMode.value === 'long' && !widthChanged) {
+        continue;
+      }
+      if (viewMode.value === 'wide' && !widthChanged && !heightChangedSignificantly) {
+        continue;
+      }
+
+      lastBodyWidth = w;
+      lastBodyHeight = h;
+
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (loading.value || !pdfDoc.value) return;
+
+        if (viewMode.value === 'wide') {
+          renderWidePage(currentPage.value);
+        } else if (viewMode.value === 'long') {
+          renderLongPage(currentPage.value, true);
+          if (currentPage.value > 1) renderLongPage(currentPage.value - 1, true);
+          if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1, true);
+          // Preserve reading anchor on orientation change
+          scrollToLongPage(currentPage.value);
+        }
+      }, 150);
     }
   });
+
   resizeObserver.observe(bodyRef.value);
 }
 
 // Page Navigation
 function goToPage(pageNumber) {
   if (pageNumber < 1 || pageNumber > totalPages.value) return;
+  resetPan();
   currentPage.value = pageNumber;
-  emit('update-progress', { page: pageNumber, mode: viewMode.value });
+  emit('update-progress', { page: pageNumber, mode: viewMode.value, totalPages: totalPages.value });
 
   if (viewMode.value === 'wide') {
     renderWidePage(pageNumber);
   } else {
+    renderLongPage(pageNumber);
     scrollToLongPage(pageNumber);
   }
 }
@@ -835,17 +1194,22 @@ function goToPage(pageNumber) {
 // Mode Switching (Preserves current page)
 async function switchViewMode(newMode) {
   if (viewMode.value === newMode) return;
+  resetPan();
   viewMode.value = newMode;
-  emit('update-progress', { page: currentPage.value, mode: newMode });
+  emit('update-progress', { page: currentPage.value, mode: newMode, totalPages: totalPages.value });
 
   await nextTick();
   if (newMode === 'wide') {
     if (intersectionObserver) intersectionObserver.disconnect();
     renderWidePage(currentPage.value);
   } else {
+    isLongStripAtBottom.value = false;
     initLongStripObserver();
     renderLongPage(currentPage.value);
+    if (currentPage.value > 1) renderLongPage(currentPage.value - 1);
+    if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1);
     scrollToLongPage(currentPage.value);
+    nextTick(() => checkLongStripBottom());
   }
 }
 
@@ -862,8 +1226,8 @@ function confirmProceedToPostTest() {
 // Lifecycle
 watch(
   () => props.pdfUrl,
-  (newUrl) => {
-    if (newUrl) {
+  (newUrl, oldUrl) => {
+    if (newUrl && newUrl !== oldUrl) {
       loadPdfDocument();
     }
   }
@@ -876,12 +1240,16 @@ onMounted(() => {
 });
 
 function onOrientationChange() {
-  setTimeout(() => {
+  if (orientationTimer) clearTimeout(orientationTimer);
+  orientationTimer = setTimeout(() => {
+    if (loading.value || !pdfDoc.value) return;
     if (viewMode.value === 'wide') {
       renderWidePage(currentPage.value);
     } else {
       renderedPages.clear();
-      renderLongPage(currentPage.value);
+      renderLongPage(currentPage.value, true);
+      if (currentPage.value > 1) renderLongPage(currentPage.value - 1, true);
+      if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1, true);
     }
   }, 200);
 }
@@ -889,21 +1257,63 @@ function onOrientationChange() {
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   window.removeEventListener('orientationchange', onOrientationChange);
-  if (intersectionObserver) intersectionObserver.disconnect();
-  if (resizeObserver) resizeObserver.disconnect();
-});
-
-watch(() => props.pdfUrl, () => {
-  loadPdfDocument();
-});
-
-// Watch controls visibility: when controls hide or show, refresh wide strip scale
-watch(controlsVisible, async () => {
-  await nextTick();
-  if (viewMode.value === 'wide' && !loading.value) {
-    renderWidePage(currentPage.value);
+  if (intersectionObserver) {
+    intersectionObserver.disconnect();
+    intersectionObserver = null;
   }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  if (resizeTimer) {
+    clearTimeout(resizeTimer);
+    resizeTimer = null;
+  }
+  if (orientationTimer) {
+    clearTimeout(orientationTimer);
+    orientationTimer = null;
+  }
+  if (currentLoadingTask) {
+    try {
+      currentLoadingTask.destroy();
+    } catch (e) {}
+    currentLoadingTask = null;
+  }
+  if (pdfDoc.value) {
+    try {
+      pdfDoc.value.destroy();
+    } catch (e) {}
+    pdfDoc.value = null;
+  }
+  if (scrollRafId) {
+    cancelAnimationFrame(scrollRafId);
+    scrollRafId = null;
+  }
+  renderedPages.clear();
+  renderingPages.clear();
+  longCanvasRefs.clear();
+  longTextRefs.clear();
 });
+
+// Controls visibility toggles without rerendering the PDF canvas to prevent flickering and race conditions
+
+watch(
+  () => [viewMode.value, currentPage.value],
+  ([newMode]) => {
+    if (newMode === 'long') {
+      nextTick(() => checkLongStripBottom());
+    }
+  }
+);
+
+watch(
+  () => zoomScale.value,
+  () => {
+    if (viewMode.value === 'long') {
+      nextTick(() => checkLongStripBottom());
+    }
+  }
+);
 </script>
 
 <style scoped>
@@ -914,17 +1324,73 @@ watch(controlsVisible, async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
   background: #0b0f19;
   color: #f8fafc;
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+
+/* Overlays (GPU transform and opacity transitions; zero layout reflow on PDF) */
+.viewer-top-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.viewer-top-overlay > * {
+  pointer-events: auto;
+}
+
+.viewer-top-overlay.overlay-hidden,
+.viewer-top-overlay.overlay-hidden > * {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+.viewer-bottom-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  pointer-events: none;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.viewer-bottom-overlay > * {
+  pointer-events: auto;
+}
+
+.viewer-bottom-overlay.overlay-hidden,
+.viewer-bottom-overlay.overlay-hidden > * {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none !important;
 }
 
 /* 1. Top Header */
@@ -938,7 +1404,10 @@ watch(controlsVisible, async () => {
   border-bottom: 1px solid rgba(51, 65, 85, 0.7);
   flex-shrink: 0;
   z-index: 30;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .top-bar-left {
@@ -953,8 +1422,10 @@ watch(controlsVisible, async () => {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid #475569;
   color: #f8fafc;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -962,6 +1433,7 @@ watch(controlsVisible, async () => {
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .nav-icon-btn:hover {
@@ -1018,13 +1490,16 @@ watch(controlsVisible, async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   background: rgba(30, 41, 59, 0.95);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(51, 65, 85, 0.7);
   flex-shrink: 0;
-  gap: 0.5rem;
+  gap: 0.35rem;
   z-index: 25;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .view-mode-toggle {
@@ -1033,14 +1508,15 @@ watch(controlsVisible, async () => {
   padding: 3px;
   border-radius: 8px;
   border: 1px solid #334155;
+  flex-shrink: 0;
 }
 
 .mode-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.85rem;
-  min-height: 40px;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  min-height: 44px;
   font-size: 0.8rem;
   font-weight: 700;
   border-radius: 6px;
@@ -1050,12 +1526,21 @@ watch(controlsVisible, async () => {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .mode-btn.active {
   background: #165dfc;
   color: #ffffff;
   box-shadow: 0 1px 4px rgba(22, 93, 252, 0.45);
+}
+
+.mode-label-short {
+  display: none;
+}
+
+.mode-label-full {
+  display: inline;
 }
 
 .page-badge-pill {
@@ -1067,11 +1552,20 @@ watch(controlsVisible, async () => {
   border-radius: 6px;
   border: 1px solid #334155;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .page-badge-pill strong {
   color: #38bdf8;
   font-weight: 800;
+}
+
+.page-badge-short {
+  display: none;
+}
+
+.page-badge-full {
+  display: inline;
 }
 
 .zoom-controls {
@@ -1081,21 +1575,25 @@ watch(controlsVisible, async () => {
   border: 1px solid #334155;
   border-radius: 6px;
   padding: 2px 4px;
-  gap: 4px;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .zoom-btn {
   background: transparent;
   border: none;
   color: #cbd5e1;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: background 0.15s;
+  box-sizing: border-box;
 }
 
 .zoom-btn:disabled {
@@ -1111,7 +1609,7 @@ watch(controlsVisible, async () => {
   font-size: 0.725rem;
   font-weight: 700;
   color: #94a3b8;
-  min-width: 40px;
+  min-width: 38px;
   text-align: center;
   cursor: pointer;
 }
@@ -1163,6 +1661,9 @@ watch(controlsVisible, async () => {
   gap: 0.65rem;
   flex-shrink: 0;
   z-index: 20;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .instruction-content {
@@ -1189,17 +1690,28 @@ watch(controlsVisible, async () => {
   padding: 0 0.25rem;
 }
 
-/* 3. Main Viewer Body (Expands to 100% viewport) */
+/* 3. Main Viewer Body (Permanent full-viewport base) */
 .viewer-body {
-  flex: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   overflow: hidden;
-  position: relative;
   background: #0b0f19;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
+  touch-action: pan-y;
+  z-index: 10;
+}
+
+.viewer-body.wide-mode {
+  touch-action: none;
 }
 
 /* Loading & Error States */
@@ -1251,35 +1763,62 @@ watch(controlsVisible, async () => {
 /* MODE 1: Long Strip (Vertical Continuous Scroll) */
 .long-strip-container {
   width: 100%;
+  max-width: 100%;
   height: 100%;
   overflow-y: auto;
-  overflow-x: auto;
-  padding: 0;
+  overflow-x: hidden;
+  overflow-anchor: none;
+  padding-top: max(108px, calc(env(safe-area-inset-top) + 100px));
+  padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 88px));
+  padding-left: 0;
+  padding-right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px; /* Minimized gap between pages */
+  gap: 6px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  box-sizing: border-box;
+}
+
+.is-zoomed .long-strip-container {
+  overflow-x: auto;
+  touch-action: pan-x pan-y;
 }
 
 .long-page-slot {
   width: 100%;
-  max-width: 768px; /* Clean mobile & tablet width */
+  max-width: 768px;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
+  box-sizing: border-box;
 }
 
 .long-canvas-box {
   width: 100%;
+  max-width: 100%;
+  min-height: 280px;
   display: flex;
   justify-content: center;
+  align-items: center;
   background: #ffffff;
   position: relative;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s ease;
+  box-sizing: border-box;
+}
+
+.textLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  opacity: 0;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .pdf-canvas {
@@ -1297,27 +1836,40 @@ watch(controlsVisible, async () => {
   font-weight: 700;
 }
 
+.long-strip-end-sentinel {
+  width: 100%;
+  height: 72px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
 /* MODE 2: Wide Strip (Horizontal Single Page) */
 .wide-strip-container {
   width: 100%;
+  max-width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  touch-action: pan-y;
+  touch-action: none;
   user-select: none;
   overflow: hidden;
+  box-sizing: border-box;
+  padding-top: max(104px, calc(env(safe-area-inset-top) + 96px));
+  padding-bottom: max(88px, calc(env(safe-area-inset-bottom) + 80px));
 }
 
 .wide-active-page-stage {
   width: 100%;
+  max-width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   padding: 4px;
+  box-sizing: border-box;
 }
 
 .wide-canvas-box {
@@ -1328,15 +1880,19 @@ watch(controlsVisible, async () => {
   background: #ffffff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   border-radius: 4px;
-  transition: transform 0.15s ease;
+  transition: transform 0.08s ease-out;
+  touch-action: none;
+  box-sizing: border-box;
 }
 
 .wide-nav-arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1348,6 +1904,7 @@ watch(controlsVisible, async () => {
   z-index: 20;
   backdrop-filter: blur(6px);
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .wide-nav-arrow:hover {
@@ -1362,23 +1919,57 @@ watch(controlsVisible, async () => {
   right: 0.65rem;
 }
 
-/* Subtle Immersive Page Pill (Shown when controls are hidden) */
-.immersive-page-pill {
+/* Subtle Immersive Bottom Wrap & Page Pill (Shown when controls are hidden) */
+.immersive-bottom-wrap {
   position: absolute;
-  bottom: max(1rem, env(safe-area-inset-bottom));
+  bottom: max(0.85rem, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(4px);
-  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 35;
+  pointer-events: auto;
+  max-width: 90vw;
+}
+
+.immersive-post-test-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.25rem;
+  min-height: 44px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  background: #165dfc;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(22, 93, 252, 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+}
+
+.immersive-post-test-btn:active {
+  background: #1d4ed8;
+  transform: scale(0.98);
+}
+
+.immersive-page-pill {
+  position: relative;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 0.725rem;
   font-weight: 700;
   padding: 0.25rem 0.65rem;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   pointer-events: auto;
   cursor: pointer;
-  z-index: 35;
+  white-space: nowrap;
 }
 
 /* 4. Wide Strip Thumbnail Dock */
@@ -1386,9 +1977,18 @@ watch(controlsVisible, async () => {
   background: rgba(30, 41, 59, 0.95);
   backdrop-filter: blur(8px);
   border-top: 1px solid rgba(51, 65, 85, 0.7);
-  padding: 0.45rem 0.75rem;
+  padding: 0.45rem 0.75rem max(0.45rem, env(safe-area-inset-bottom)) 0.75rem;
   flex-shrink: 0;
   z-index: 25;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: padding-bottom 0.2s ease;
+}
+
+.has-post-test-dock .wide-thumbnail-dock {
+  padding-bottom: 0.35rem;
 }
 
 .thumbnail-dock-header {
@@ -1408,7 +2008,8 @@ watch(controlsVisible, async () => {
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 6px;
+  min-height: 36px;
 }
 
 .dock-hint {
@@ -1420,6 +2021,8 @@ watch(controlsVisible, async () => {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0.25rem 0;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
@@ -1484,6 +2087,9 @@ watch(controlsVisible, async () => {
   flex-shrink: 0;
   gap: 0.75rem;
   z-index: 30;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .lesson-tag {
@@ -1502,6 +2108,7 @@ watch(controlsVisible, async () => {
   align-items: center;
   gap: 0.45rem;
   padding: 0.65rem 1.15rem;
+  min-height: 44px;
   font-size: 0.875rem;
   font-weight: 700;
   border-radius: 10px;
@@ -1511,6 +2118,7 @@ watch(controlsVisible, async () => {
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(22, 93, 252, 0.35);
+  box-sizing: border-box;
 }
 
 .proceed-btn:hover {
@@ -1532,6 +2140,7 @@ watch(controlsVisible, async () => {
   padding: 1.25rem;
   z-index: 10000;
   animation: fadeIn 0.15s ease;
+  box-sizing: border-box;
 }
 
 .confirm-modal-box {
@@ -1543,6 +2152,7 @@ watch(controlsVisible, async () => {
   text-align: center;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
   color: #0f172a;
+  box-sizing: border-box;
 }
 
 .confirm-icon-circle {
@@ -1579,10 +2189,12 @@ watch(controlsVisible, async () => {
 .modal-btn {
   width: 100%;
   padding: 0.75rem 1rem;
+  min-height: 44px;
   font-size: 0.875rem;
   font-weight: 700;
   border-radius: 10px;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .btn-secondary {
@@ -1650,7 +2262,23 @@ watch(controlsVisible, async () => {
   to { opacity: 1; }
 }
 
-/* Mobile Responsiveness */
+/* Mobile Responsiveness & Multi-Breakpoint Polish */
+@media (max-width: 600px) {
+  .wide-nav-arrow {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    background: rgba(15, 23, 42, 0.7);
+  }
+  .wide-nav-prev {
+    left: 0.35rem;
+  }
+  .wide-nav-next {
+    right: 0.35rem;
+  }
+}
+
 @media (max-width: 480px) {
   .lesson-tag {
     display: none;
@@ -1658,17 +2286,87 @@ watch(controlsVisible, async () => {
   .proceed-btn {
     width: 100%;
     justify-content: center;
+    min-height: 44px;
+  }
+  .viewer-top-bar {
+    padding: max(0.4rem, env(safe-area-inset-top)) 0.5rem 0.4rem 0.5rem;
+  }
+  .nav-icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
   }
   .viewer-controls-bar {
-    padding: 0.4rem 0.5rem;
+    padding: 0.35rem 0.45rem;
+    gap: 0.25rem;
   }
   .mode-btn {
-    padding: 0.4rem 0.65rem;
+    padding: 0.35rem 0.5rem;
     font-size: 0.75rem;
+    min-height: 40px;
+  }
+  .mode-label-full {
+    display: none;
+  }
+  .mode-label-short {
+    display: inline;
   }
   .page-badge-pill {
-    padding: 0.3rem 0.5rem;
+    padding: 0.25rem 0.4rem;
     font-size: 0.7rem;
+  }
+  .page-badge-full {
+    display: none;
+  }
+  .page-badge-short {
+    display: inline;
+  }
+  .zoom-controls {
+    padding: 1px 2px;
+    gap: 2px;
+  }
+  .zoom-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+  .zoom-level-text {
+    min-width: 34px;
+    font-size: 0.7rem;
+  }
+  .tap-hint-pill {
+    max-width: 90vw;
+    font-size: 0.7rem;
+    padding: 0.35rem 0.65rem;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 360px) {
+  .viewer-controls-bar {
+    padding: 0.3rem 0.35rem;
+    gap: 0.2rem;
+  }
+  .mode-btn {
+    padding: 0.3rem 0.4rem;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+  }
+  .page-badge-pill {
+    padding: 0.2rem 0.3rem;
+    font-size: 0.65rem;
+  }
+  .zoom-btn {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+  }
+  .zoom-level-text {
+    min-width: 28px;
+    font-size: 0.65rem;
   }
 }
 </style>

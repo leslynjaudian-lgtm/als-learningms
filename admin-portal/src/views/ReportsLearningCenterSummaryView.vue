@@ -1,22 +1,11 @@
 <template>
   <div class="page-container lc-summary-view">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Learning Center Summary</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Learning Center Summary</h1>
-        <p>Administrative overview of Community Learning Centers.</p>
-      </div>
-
-      <div class="header-actions-group no-print">
+    <!-- Standardized Page Header & Breadcrumb (no-print) -->
+    <ReportsPageHeader
+      title="Learning Center Summary"
+      description="Administrative overview of Community Learning Centers."
+    >
+      <template #actions>
         <button
           type="button"
           class="btn btn-secondary"
@@ -29,22 +18,14 @@
           <span>Refresh</span>
         </button>
 
-        <button
-          type="button"
-          class="btn btn-primary"
-          @click="toggleReportPreview"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
+        <router-link to="/dashboard/learning-centers" class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>
           </svg>
-          <span>{{ showReportPreview ? 'Hide Report Preview' : 'Generate Report / PDF' }}</span>
-        </button>
-
-        <router-link to="/dashboard/learning-centers" class="btn btn-secondary">
-          Manage Learning Centers
+          <span>Manage Learning Centers</span>
         </router-link>
-      </div>
-    </div>
+      </template>
+    </ReportsPageHeader>
 
     <!-- Summary Cards (Single Horizontal Row) -->
     <div class="report-stats-grid">
@@ -232,161 +213,16 @@
         </table>
       </div>
     </div>
-
-    <!-- Dedicated Report Container for PDF and Print -->
-    <section v-if="showReportPreview" id="lc-report-preview" class="report-preview-container">
-      <div id="report-content" ref="reportContentRef" class="report-paper-sheet">
-        <!-- Official DepEd ALS Header with Logos -->
-        <header class="report-official-header">
-          <div class="header-logo left-logo-box">
-            <img src="/logo.png" alt="ALS Naawan District Logo" class="als-district-logo" />
-          </div>
-
-          <div class="header-title-box">
-            <p class="header-rep">Republic of the Philippines</p>
-            <p class="header-dept">Department of Education</p>
-            <p class="header-dist">Region X — Division of Misamis Oriental — Naawan District</p>
-            <p class="header-als">Alternative Learning System (ALS)</p>
-            <h2 class="official-title">COMMUNITY LEARNING CENTER (CLC) SUMMARY REPORT</h2>
-            <p class="report-filter-meta">District Administrative Overview &amp; Learning Center Profile</p>
-          </div>
-
-          <div class="header-logo right-logo-box">
-            <img src="/als-logo.png" alt="ALS Logo" class="als-logo-image" />
-          </div>
-        </header>
-
-        <!-- Metadata / Summary Bar -->
-        <div class="report-meta-summary-bar">
-          <div class="meta-item">
-            <span class="meta-label">Total Learning Centers:</span>
-            <span class="meta-val">{{ learningCenters.length }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Total Enrolled Learners:</span>
-            <span class="meta-val">{{ learners.length }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Assigned ALS Teachers:</span>
-            <span class="meta-val">{{ teachers.length }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">District Attendance Rate:</span>
-            <span class="meta-val font-bold text-amber">{{ districtAvgAttendanceRate }}%</span>
-          </div>
-        </div>
-
-        <!-- Official Report Table -->
-        <div class="table-responsive">
-          <table class="data-table als-report-table">
-            <thead>
-              <tr>
-                <th style="width: 45px; text-align: center;">No.</th>
-                <th>Community Learning Center</th>
-                <th>Assigned ALS Teachers</th>
-                <th style="width: 100px; text-align: center;">Learners</th>
-                <th style="width: 90px; text-align: center;">Elementary</th>
-                <th style="width: 90px; text-align: center;">Junior High</th>
-                <th style="width: 110px; text-align: center;">Attendance Rate</th>
-                <th style="width: 80px; text-align: center;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, idx) in filteredCenterRows" :key="row.id || idx">
-                <td class="cell-num text-center">{{ idx + 1 }}</td>
-                <td>
-                  <div class="font-semibold text-main">{{ row.name }}</div>
-                  <div class="text-xs text-muted">{{ row.locationAddress || 'Naawan District' }}</div>
-                </td>
-                <td>
-                  <div v-if="row.assignedTeachers.length > 0">
-                    <span v-for="(t, tIdx) in row.assignedTeachers" :key="tIdx" class="teacher-pill">
-                      {{ t }}
-                    </span>
-                  </div>
-                  <span v-else class="text-muted text-sm">—</span>
-                </td>
-                <td class="text-center font-mono font-bold">{{ row.totalLearners }}</td>
-                <td class="text-center font-mono">{{ row.elementaryLearners }}</td>
-                <td class="text-center font-mono">{{ row.juniorLearners }}</td>
-                <td class="text-center font-bold">
-                  {{ row.attendanceRate !== null ? row.attendanceRate + '%' : '—' }}
-                </td>
-                <td class="text-center">
-                  {{ (row.status || 'Active').toUpperCase() }}
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr class="table-total-row">
-                <td style="width: 45px; text-align: center;" class="text-center font-bold text-muted">—</td>
-                <td class="font-bold text-main">Total</td>
-                <td class="text-center text-muted">—</td>
-                <td style="width: 100px; text-align: center;" class="text-center font-mono font-bold">{{ totalFilteredLearners }}</td>
-                <td style="width: 90px; text-align: center;" class="text-center font-mono font-bold">{{ totalElementaryLearners }}</td>
-                <td style="width: 90px; text-align: center;" class="text-center font-mono font-bold">{{ totalJuniorLearners }}</td>
-                <td style="width: 110px; text-align: center;" class="text-center font-bold">
-                  {{ filteredAvgAttendanceRate !== null ? filteredAvgAttendanceRate + '%' : '—' }}
-                </td>
-                <td style="width: 80px; text-align: center;" class="text-center text-muted">—</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        <!-- Official DepEd Signatures Section -->
-        <div class="report-signatures-section">
-          <div class="sig-block">
-            <div class="sig-underline"></div>
-            <div class="sig-name">{{ adminName || 'District ALS Coordinator' }}</div>
-            <div class="sig-caption">District ALS Coordinator / Facilitator</div>
-          </div>
-          <div class="sig-block">
-            <div class="sig-underline"></div>
-            <div class="sig-name">Public Schools District Supervisor</div>
-            <div class="sig-caption">Naawan District — Division of Misamis Oriental</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Buttons Below Preview (no-print) -->
-      <GeneratePDFButton
-        :target-ref="reportContentRef"
-        :filename="pdfFilename"
-        orientation="landscape"
-      />
-    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import GeneratePDFButton from '../components/GeneratePDFButton.vue';
-import { useAdminSession } from '../composables/useAdminSession.js';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';
 import { getLearners } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/reports.js';
-
-const { adminName } = useAdminSession();
-
-const showReportPreview = ref(false);
-const reportContentRef = ref(null);
-
-function toggleReportPreview() {
-  showReportPreview.value = !showReportPreview.value;
-  if (showReportPreview.value) {
-    setTimeout(() => {
-      const el = document.getElementById('lc-report-preview');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }
-}
-
-const pdfFilename = computed(() => {
-  const dateStr = new Date().toISOString().split('T')[0];
-  return `Community_Learning_Center_Summary_Report_${dateStr}.pdf`;
-});
 
 const learningCenters = ref([]);
 const teachers = ref([]);
@@ -718,149 +554,6 @@ const filteredAvgAttendanceRate = computed(() => {
   margin-bottom: 2px;
 }
 
-/* Dedicated Report Paper Sheet */
-.report-paper-sheet {
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 2.25rem 2.5rem;
-  box-shadow: var(--shadow-sm);
-  margin-top: 1.5rem;
-}
-
-/* Official DepEd ALS Report Header with Logos */
-.report-official-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 2px solid #000000;
-  padding-bottom: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.left-logo-box,
-.right-logo-box {
-  flex-shrink: 0;
-  width: 72px;
-  height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.als-district-logo,
-.als-logo-image {
-  max-width: 68px;
-  max-height: 68px;
-  object-fit: contain;
-}
-
-.header-title-box {
-  text-align: center;
-  flex: 1;
-  padding: 0 1rem;
-}
-
-.header-rep,
-.header-dept,
-.header-dist,
-.header-als {
-  font-size: 0.75rem;
-  margin: 0;
-  line-height: 1.3;
-  color: #1e293b;
-}
-
-.header-dist {
-  font-weight: 600;
-}
-
-.official-title {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  color: #000000;
-  margin: 0.35rem 0 0.2rem 0;
-  text-transform: uppercase;
-}
-
-.report-filter-meta {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  font-style: italic;
-  margin: 0;
-}
-
-/* Metadata Bar */
-.report-meta-summary-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  background-color: #f8fafc;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem 1.25rem;
-  margin-bottom: 1.25rem;
-  gap: 1rem;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.8125rem;
-}
-
-.meta-label {
-  font-weight: 600;
-  color: var(--color-text-secondary);
-}
-
-.meta-val {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-/* Signatures Section */
-.report-signatures-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-top: 3.5rem;
-  padding: 0 1.5rem 0.5rem;
-  gap: 2rem;
-  flex-wrap: wrap;
-  page-break-inside: avoid;
-}
-
-.sig-block {
-  text-align: center;
-  min-width: 200px;
-  flex: 1;
-  max-width: 320px;
-}
-
-.sig-underline {
-  border-bottom: 1.5px solid #000000;
-  margin-bottom: 0.35rem;
-  width: 100%;
-}
-
-.sig-name {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #000000;
-  text-transform: uppercase;
-  margin-bottom: 0.2rem;
-}
-
-.sig-caption {
-  font-size: 0.775rem;
-  color: #334155;
-  font-style: italic;
-}
-
 @media (max-width: 768px) {
   .breakdown-header {
     padding: 1rem 1.25rem;
@@ -871,36 +564,6 @@ const filteredAvgAttendanceRate = computed(() => {
     flex: 1 1 100%;
     max-width: 100%;
     width: 100%;
-  }
-
-  .report-paper-sheet {
-    padding: 1.25rem 1rem;
-  }
-
-  .report-official-header {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    justify-content: center;
-  }
-
-  .report-signatures-section {
-    padding: 0;
-    gap: 1.5rem;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .sig-block {
-    width: 100%;
-    max-width: 280px;
-  }
-}
-
-@media print {
-  .report-paper-sheet {
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
   }
 }
 </style>

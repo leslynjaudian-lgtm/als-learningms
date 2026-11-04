@@ -137,6 +137,177 @@ function formatAuthResponse(user) {
 // ---------------------
 router.post('/login', async (req, res, next) => {
   try {
+    const role = req.body.role ? String(req.body.role).toUpperCase().trim() : null;
+
+    let targetRole = role;
+    if (role === 'ALS_TEACHER') targetRole = 'TEACHER';
+    else if (role === 'ALS_LEARNER') targetRole = 'LEARNER';
+    else if (role === 'ALS_ADMIN') targetRole = 'ADMIN';
+
+    // Helper to normalize strings for comparison: trim, collapse spaces, lowercase
+    const normalizeName = (str) =>
+      String(str || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const rawFullName = (
+      req.body.fullName ||
+      req.body.name ||
+      (req.body.firstName && req.body.lastName ? `${req.body.firstName} ${req.body.lastName}` : '') ||
+      (targetRole === 'LEARNER' ? req.body.username : '') ||
+      ''
+    ).trim();
+
+    const rawLrn = req.body.lrn ? String(req.body.lrn).trim() : null;
+
+    // ------------------------------------------------------------------
+    // LEARNER LOGIN FLOW
+    // ------------------------------------------------------------------
+    const isExplicitLearner =
+      targetRole === 'LEARNER' ||
+      req.body.fullName !== undefined ||
+      (targetRole !== 'TEACHER' &&
+        targetRole !== 'ADMIN' &&
+        (req.body.firstName !== undefined || req.body.lastName !== undefined));
+
+    if (isExplicitLearner) {
+      if (!rawFullName) {
+        return res.status(400).json({ error: 'Please enter your full name.' });
+      }
+
+      const normalizedInput = normalizeName(rawFullName);
+
+      // Query database for all learners to compare registered First Name and Last Name combined
+      const allLearners = await prisma.learner.findMany({
+        include: {
+          user: {
+            include: {
+              adminProfile: true,
+              teacherProfile: {
+                include: {
+                  learningCenter: true,
+                  assignedLearners: { include: { learningCenter: true } },
+                },
+              },
+              learnerProfile: {
+                include: { learningCenter: true, assignedTeacher: true },
+              },
+            },
+          },
+          learningCenter: true,
+          assignedTeacher: true,
+        },
+      });
+
+      // Strict Full Name Matching:
+      // Compare registered First Name + Space + registered Last Name against entered Full Name.
+      // Normalize both: trim, collapse spaces, lowercase.
+      // Incomplete names (missing words from First Name or Last Name) are strictly rejected.
+      const matchingLearners = allLearners.filter((l) => {
+        const first = (l.firstName && l.firstName !== 'null' ? l.firstName : '').trim();
+        const last = (l.lastName && l.lastName !== 'null' ? l.lastName : '').trim();
+        if (!first || !last) return false;
+
+        const registeredFullName = normalizeName(`${first} ${last}`);
+        return registeredFullName === normalizedInput;
+      });
+
+      // Scenario: No matching record found
+      if (matchingLearners.length === 0) {
+        return res.status(401).json({
+          error:
+            'Unable to find your learner account. Please enter your complete registered First Name and Last Name.',
+        });
+      }
+
+      // Scenario: Multiple matching records (duplicate names)
+      if (matchingLearners.length > 1) {
+        if (!rawLrn) {
+          // Trigger LRN verification step without exposing account details
+          return res.json({
+            requiresLrn: true,
+            message:
+              'Multiple learners have the same registered name. Please enter your LRN to identify your account.',
+          });
+        }
+
+        // LRN provided: strictly match LRN against the candidates
+        const lrnMatched = matchingLearners.filter(
+          (l) => l.lrn && String(l.lrn).trim() === rawLrn
+        );
+
+        if (lrnMatched.length !== 1) {
+          return res.status(401).json({
+            error:
+              'Unable to verify your learner information. Please check your details or contact your ALS teacher.',
+          });
+        }
+
+        const selectedLearner = lrnMatched[0];
+        const user = selectedLearner.user;
+
+        if (!user) {
+          return res.status(401).json({
+            error: 'Learner account not properly configured. Please contact your ALS teacher.',
+          });
+        }
+
+        if (
+          user.status !== 'ACTIVE' ||
+          (selectedLearner.status && selectedLearner.status.toLowerCase() !== 'active')
+        ) {
+          return res.status(403).json({
+            error: 'Your account is inactive or suspended. Please contact the ALS Administrator.',
+          });
+        }
+
+        user.learnerProfile = selectedLearner;
+        return res.json({
+          message: 'Login successful',
+          ...formatAuthResponse(user),
+        });
+      }
+
+      // Scenario: Exactly one matching record
+      if (rawLrn) {
+        const learnerLrn = matchingLearners[0].lrn ? String(matchingLearners[0].lrn).trim() : '';
+        if (!learnerLrn || learnerLrn !== rawLrn) {
+          return res.status(401).json({
+            error:
+              'Unable to verify your learner information. Please check your details or contact your ALS teacher.',
+          });
+        }
+      }
+
+      const selectedLearner = matchingLearners[0];
+      const user = selectedLearner.user;
+
+      if (!user) {
+        return res.status(401).json({
+          error: 'Learner account not properly configured. Please contact your ALS teacher.',
+        });
+      }
+
+      if (
+        user.status !== 'ACTIVE' ||
+        (selectedLearner.status && selectedLearner.status.toLowerCase() !== 'active')
+      ) {
+        return res.status(403).json({
+          error: 'Your account is inactive or suspended. Please contact the ALS Administrator.',
+        });
+      }
+
+      user.learnerProfile = selectedLearner;
+      return res.json({
+        message: 'Login successful',
+        ...formatAuthResponse(user),
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // TEACHER & ADMIN LOGIN FLOW
+    // ------------------------------------------------------------------
     const rawId = (
       req.body.username ||
       req.body.teacherId ||
@@ -146,7 +317,6 @@ router.post('/login', async (req, res, next) => {
       ''
     ).trim();
     const rawPassword = req.body.password || req.body.passWord || '';
-    const role = req.body.role ? String(req.body.role).toUpperCase().trim() : null;
 
     if (!rawId) {
       return res.status(400).json({ error: 'Username or identifier is required' });
@@ -178,8 +348,6 @@ router.post('/login', async (req, res, next) => {
     for (const v of variants) {
       orConditions.push({ username: v });
       orConditions.push({ email: v });
-      orConditions.push({ learnerProfile: { fullName: v } });
-      orConditions.push({ learnerProfile: { lrn: v } });
       orConditions.push({ teacherProfile: { fullName: v } });
       orConditions.push({ teacherProfile: { teacherIdNumber: v } });
     }
@@ -198,63 +366,9 @@ router.post('/login', async (req, res, next) => {
             },
           },
         },
-        learnerProfile: {
-          include: {
-            learningCenter: true,
-            assignedTeacher: true,
-          },
-        },
       },
     });
 
-    // If no exact variant matched and role is LEARNER (or general login), try partial/fuzzy name matching
-    if (users.length === 0 && (!role || role === 'LEARNER')) {
-      const partialLearners = await prisma.learner.findMany({
-        where: {
-          OR: [
-            { fullName: { contains: normalized } },
-            { fullName: { contains: words[0] } },
-            ...(words.length > 1 ? [{ fullName: { contains: words[words.length - 1] } }] : []),
-          ],
-        },
-        include: {
-          user: {
-            include: {
-              adminProfile: true,
-              teacherProfile: {
-                include: {
-                  learningCenter: true,
-                  assignedLearners: { include: { learningCenter: true } },
-                },
-              },
-              learnerProfile: {
-                include: { learningCenter: true, assignedTeacher: true },
-              },
-            },
-          },
-        },
-      });
-
-      if (partialLearners.length === 1 && partialLearners[0].user) {
-        users.push(partialLearners[0].user);
-      } else if (partialLearners.length > 1) {
-        const allWordsMatch = partialLearners.find((l) =>
-          words.every((w) => l.fullName.toLowerCase().includes(w.toLowerCase()))
-        );
-        if (allWordsMatch?.user) {
-          users.push(allWordsMatch.user);
-        } else if (partialLearners[0]?.user) {
-          users.push(partialLearners[0].user);
-        }
-      }
-    }
-
-    let targetRole = role;
-    if (role === 'ALS_TEACHER') targetRole = 'TEACHER';
-    else if (role === 'ALS_LEARNER') targetRole = 'LEARNER';
-    else if (role === 'ALS_ADMIN') targetRole = 'ADMIN';
-
-    // If role was specified in request, prefer or filter by that role
     let user = users.find((u) => !targetRole || u.role === targetRole);
     if (!user && users.length > 0) {
       user = users[0];
@@ -296,7 +410,7 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    // Verify password if provided or required
+    // Verify password for teacher/admin
     if (typeof rawPassword === 'string' && rawPassword.length > 0) {
       let match = await bcrypt.compare(rawPassword, user.passwordHash);
       if (!match && rawPassword.trim() !== rawPassword) {
@@ -306,11 +420,7 @@ router.post('/login', async (req, res, next) => {
         return res.status(401).json({ error: 'Invalid username or password' });
       }
     } else {
-      // If no password provided:
-      // Only allowed for LEARNER role when logging in by registered full name or LRN
-      if (user.role !== 'LEARNER') {
-        return res.status(400).json({ error: 'Password is required' });
-      }
+      return res.status(400).json({ error: 'Password is required' });
     }
 
     res.json({

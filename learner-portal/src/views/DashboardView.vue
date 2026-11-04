@@ -192,13 +192,11 @@ const rawStored = localStorage.getItem('als_learner_user');
 const userStored = ref(rawStored ? JSON.parse(rawStored) : {});
 
 const learnerInfo = reactive({
-  learningCenter: userStored.value.learningCenter || '',
-  teacher: userStored.value.teacher || '',
+  learningCenter: userStored.value.learningCenter && userStored.value.learningCenter !== '—' ? userStored.value.learningCenter : 'None Assigned',
+  teacher: userStored.value.teacher && userStored.value.teacher !== '—' ? userStored.value.teacher : (userStored.value.assignedTeacher && userStored.value.assignedTeacher !== '—' ? userStored.value.assignedTeacher : 'None Assigned'),
 });
 
-const learnerName = computed(() => {
-  return userStored.value.name || 'Learner';
-});
+const learnerName = ref(userStored.value.fullName || userStored.value.name || 'Learner');
 
 const stats = reactive({
   modulesInProgress: 0,
@@ -216,13 +214,28 @@ async function loadLearnerData() {
   try {
     // 1. Fetch fresh learner profile from backend
     const meRes = await api.get('/learners/me');
-    if (meRes.data && meRes.data.data) {
-      meData = meRes.data.data;
-      if (meData.learningCenter) {
-        learnerInfo.learningCenter = meData.learningCenter.name;
+    const d = meRes.data?.data || meRes.data;
+    if (d) {
+      meData = d;
+      if (d.learningCenter) {
+        learnerInfo.learningCenter = typeof d.learningCenter === 'string'
+          ? d.learningCenter
+          : (d.learningCenter.name || d.learningCenter.code || 'None Assigned');
+      } else if (d.learningCenterDetails?.name) {
+        learnerInfo.learningCenter = d.learningCenterDetails.name;
       }
-      if (meData.teacher) {
-        learnerInfo.teacher = meData.teacher.fullName || meData.teacher.user?.fullName || '';
+
+      if (d.teacher || d.assignedTeacher) {
+        const t = d.teacher || d.assignedTeacher;
+        learnerInfo.teacher = typeof t === 'string'
+          ? t
+          : (t.fullName || t.name || 'None Assigned');
+      } else if (d.teacherDetails?.fullName) {
+        learnerInfo.teacher = d.teacherDetails.fullName;
+      }
+
+      if (d.fullName || d.name) {
+        learnerName.value = d.fullName || d.name;
       }
     }
   } catch (err) {
@@ -234,15 +247,31 @@ async function loadLearnerData() {
     const modulesRes = await api.get('/modules');
     const mods = modulesRes.data?.data || modulesRes.data || [];
     modules.value = Array.isArray(mods) ? mods : [];
-    stats.modulesInProgress = modules.value.length;
-    stats.completedModules = 0;
-    stats.pendingAssessments = 0;
-    stats.overallProgress = 0;
+    
+    const completed = modules.value.filter((m) => m.completed || m.progressStatus === 'COMPLETED' || m.progress === 100).length;
+    stats.completedModules = completed;
+    stats.modulesInProgress = Math.max(0, modules.value.length - completed);
+    
     if (modules.value.length > 0) {
+      const totalProg = modules.value.reduce((acc, m) => acc + (m.progress || 0), 0);
+      stats.overallProgress = Math.round(totalProg / modules.value.length);
       activeModule.value = modules.value[0];
     } else {
+      stats.overallProgress = meData?.progress || 0;
       activeModule.value = null;
     }
+
+    let pendingCount = 0;
+    for (const m of modules.value) {
+      if (Array.isArray(m.assessments)) {
+        for (const ass of m.assessments) {
+          if (!ass.attempts || ass.attempts.length === 0) {
+            pendingCount++;
+          }
+        }
+      }
+    }
+    stats.pendingAssessments = pendingCount;
   } catch (err) {
     console.error('Failed to load modules:', err);
     modules.value = [];

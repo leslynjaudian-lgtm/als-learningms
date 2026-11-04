@@ -29,8 +29,8 @@
         <router-link
           to="/dashboard"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'dashboard' }"
+          @click="handleNavClick('dashboard')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -42,8 +42,8 @@
         <router-link
           to="/dashboard/learning-centers"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/learning-centers') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'learning-centers' }"
+          @click="handleNavClick('learning-centers')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
@@ -55,8 +55,8 @@
         <router-link
           to="/dashboard/teachers"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/teachers') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'teachers' }"
+          @click="handleNavClick('teachers')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
@@ -68,11 +68,12 @@
         <router-link
           to="/dashboard/learners"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/learners') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'learners' }"
+          @click="handleNavClick('learners')"
         >
           <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
           </span>
           <span class="nav-label">Learners</span>
         </router-link>
@@ -81,8 +82,8 @@
         <router-link
           to="/dashboard/learning-areas"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/learning-areas') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'learning-areas' }"
+          @click="handleNavClick('learning-areas')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
@@ -94,8 +95,8 @@
         <router-link
           to="/dashboard/schedule"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/schedule') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'schedule' }"
+          @click="handleNavClick('schedule')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -112,8 +113,8 @@
         <router-link
           to="/dashboard/announcements"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/announcements') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'announcements' }"
+          @click="handleNavClick('announcements')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -129,58 +130,62 @@
           <button
             type="button"
             class="nav-link nav-dropdown-btn"
-            :class="{ active: isReportsActive, expanded: isReportsOpen }"
-            @click="toggleReports"
+            :class="{ active: activeMenu === 'reports', expanded: expandedMenu === 'reports' }"
+            @click="handleParentClick('reports')"
+            aria-haspopup="true"
+            :aria-expanded="expandedMenu === 'reports'"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
             </span>
             <span class="nav-label">Reports</span>
-            <span class="nav-chevron" :class="{ rotated: isReportsOpen }">
+            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </span>
           </button>
 
           <!-- Reports Submenu -->
-          <div v-show="isReportsOpen" class="nav-submenu">
-            <router-link
-              to="/dashboard/reports/module-progress"
-              class="nav-sublink"
-              :class="{ active: isCurrentRoute('/dashboard/reports/module-progress') }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
-            </router-link>
+          <transition name="dropdown">
+            <div v-show="expandedMenu === 'reports'" class="nav-submenu">
+              <router-link
+                to="/dashboard/reports/module-progress"
+                class="nav-sublink"
+                :class="{ active: isCurrentRoute('/dashboard/reports/module-progress') }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
+              </router-link>
 
-            <router-link
-              to="/dashboard/reports/attendance-summary"
-              class="nav-sublink"
-              :class="{ active: isCurrentRoute('/dashboard/reports/attendance') }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Attendance Summary</span>
-            </router-link>
+              <router-link
+                to="/dashboard/reports/attendance-summary"
+                class="nav-sublink"
+                :class="{ active: isCurrentRoute('/dashboard/reports/attendance-summary') || isCurrentRoute('/dashboard/reports/attendance') }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Attendance Summary</span>
+              </router-link>
 
-            <router-link
-              to="/dashboard/reports/learning-center-summary"
-              class="nav-sublink"
-              :class="{ active: isCurrentRoute('/dashboard/reports/learning-center-summary') }"
-              @click="sidebarOpen = false"
-            >
-              <span class="sublink-dot"></span>
-              <span class="sublink-label">Learning Center Summary</span>
-            </router-link>
-          </div>
+              <router-link
+                to="/dashboard/reports/learning-center-summary"
+                class="nav-sublink"
+                :class="{ active: isCurrentRoute('/dashboard/reports/learning-center-summary') }"
+                @click="handleSublinkClick('reports')"
+              >
+                <span class="sublink-dot"></span>
+                <span class="sublink-label">Learning Center Summary</span>
+              </router-link>
+            </div>
+          </transition>
         </div>
 
         <!-- 7. Settings -->
         <router-link
           to="/dashboard/settings"
           class="nav-link"
-          :class="{ active: isCurrentRoute('/dashboard/settings') }"
-          @click="sidebarOpen = false"
+          :class="{ active: activeMenu === 'settings' }"
+          @click="handleNavClick('settings')"
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -265,7 +270,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SignoutConfirmationModal from '../components/SignoutConfirmationModal.vue';
 import GlobalSearchBar from '../components/GlobalSearchBar.vue';
@@ -282,15 +287,65 @@ onMounted(() => {
   refreshAdminProfile();
 });
 
-const isReportsOpen = ref(true);
-
-const isReportsActive = computed(() => {
-  return route.path.startsWith('/dashboard/reports');
-});
-
-function toggleReports() {
-  isReportsOpen.value = !isReportsOpen.value;
+// Independent states: activeMenu controls which item is blue; expandedMenu controls open submenu
+function getMenuFromPath(pathname) {
+  if (pathname.startsWith('/dashboard/reports')) return 'reports';
+  if (pathname === '/dashboard' || pathname === '/dashboard/') return 'dashboard';
+  if (pathname.startsWith('/dashboard/learning-centers')) return 'learning-centers';
+  if (pathname.startsWith('/dashboard/teachers')) return 'teachers';
+  if (pathname.startsWith('/dashboard/learners')) return 'learners';
+  if (pathname.startsWith('/dashboard/learning-areas')) return 'learning-areas';
+  if (pathname.startsWith('/dashboard/schedule')) return 'schedule';
+  if (pathname.startsWith('/dashboard/announcements')) return 'announcements';
+  if (pathname.startsWith('/dashboard/settings')) return 'settings';
+  return '';
 }
+
+function getExpandedFromPath(pathname) {
+  if (pathname.startsWith('/dashboard/reports')) return 'reports';
+  return null;
+}
+
+const activeMenu = ref(getMenuFromPath(route.path) || 'dashboard');
+const expandedMenu = ref(getExpandedFromPath(route.path));
+
+// Non-expandable direct router link click handler
+function handleNavClick(menu) {
+  activeMenu.value = menu;
+  expandedMenu.value = null;
+  sidebarOpen.value = false;
+}
+
+// Expandable parent menu click handler: updates activeMenu and toggles expandedMenu independently
+function handleParentClick(menu) {
+  activeMenu.value = menu;
+  expandedMenu.value = expandedMenu.value === menu ? null : menu;
+}
+
+// Child sublink click handler
+function handleSublinkClick(parentMenu) {
+  activeMenu.value = parentMenu;
+  expandedMenu.value = parentMenu;
+  sidebarOpen.value = false;
+}
+
+// Route watcher: synchronizes activeMenu and expandedMenu ONLY when route path actually changes
+watch(
+  () => route.path,
+  (newPath) => {
+    const routeMenu = getMenuFromPath(newPath);
+    if (routeMenu) {
+      activeMenu.value = routeMenu;
+    }
+
+    if (newPath.startsWith('/dashboard/reports')) {
+      expandedMenu.value = 'reports';
+    } else {
+      expandedMenu.value = null;
+    }
+  },
+  { immediate: true }
+);
 
 function isCurrentRoute(path) {
   if (path === '/dashboard') {
@@ -340,11 +395,33 @@ function confirmSignout() {
   color: #ffffff;
 }
 
+/* Neutral expanded styling when expanded but NOT active */
+.nav-dropdown-btn.expanded:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+}
+
+.nav-dropdown-btn.expanded:not(.active) .nav-chevron {
+  color: #cbd5e1;
+}
+
+/* Active bright blue highlight matching other navigation items */
 .nav-dropdown-btn.active {
-  background: var(--color-sidebar-active);
-  color: #ffffff;
+  background: var(--color-sidebar-active) !important;
+  color: #ffffff !important;
   font-weight: 600;
   box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+}
+
+.nav-dropdown-btn.active:hover {
+  background: var(--color-sidebar-active) !important;
+  color: #ffffff !important;
+}
+
+.nav-dropdown-btn.active .nav-icon,
+.nav-dropdown-btn.active .nav-label,
+.nav-dropdown-btn.active .nav-chevron {
+  color: #ffffff !important;
 }
 
 .nav-dropdown-btn .nav-label {
@@ -360,6 +437,7 @@ function confirmSignout() {
   transition: transform var(--transition-base);
   color: #94a3b8;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .nav-dropdown-btn:hover .nav-chevron,
@@ -383,12 +461,13 @@ function confirmSignout() {
 
 .nav-sublink {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.65rem;
   color: #94a3b8;
   font-size: 0.8125rem;
   font-weight: 500;
+  line-height: 1.35;
   border-radius: var(--radius-md);
   text-decoration: none;
   transition: all var(--transition-fast);
@@ -400,8 +479,8 @@ function confirmSignout() {
 }
 
 .nav-sublink.active {
-  background: rgba(37, 99, 235, 0.25);
-  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.3);
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -411,11 +490,39 @@ function confirmSignout() {
   border-radius: 50%;
   background: currentColor;
   opacity: 0.7;
+  margin-top: 0.325rem;
+  flex-shrink: 0;
+}
+
+.nav-sublink.active .sublink-dot {
+  background: #60a5fa;
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.7);
 }
 
 .sublink-label {
-  white-space: nowrap;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+  word-break: normal;
+  flex: 1;
+}
+
+/* Accordion expand/collapse transition */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 300px;
+  opacity: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  overflow: hidden;
 }
 </style>

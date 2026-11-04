@@ -355,27 +355,7 @@ router.post('/', async (req, res, next) => {
     const learnerStatus = status || 'Active';
     const trimmedLrn = lrn && lrn.trim() ? lrn.trim() : null;
 
-    // Prevent duplicate learner names
-    const existingLearner = await prisma.learner.findFirst({
-      where: {
-        OR: [
-          { fullName: { equals: fullName } },
-          {
-            AND: [
-              { firstName: { equals: cleanFirst } },
-              { lastName: { equals: cleanLast } },
-            ],
-          },
-        ],
-      },
-    });
-    if (existingLearner) {
-      return res.status(409).json({
-        error: `A learner with the name "${fullName}" is already registered. Duplicate learner names are not allowed.`,
-      });
-    }
-
-    // Check if LRN already exists if provided
+    // Check if LRN already exists if provided (LRN identifies an individual learner)
     if (trimmedLrn) {
       const existingLrn = await prisma.learner.findUnique({
         where: { lrn: trimmedLrn },
@@ -385,20 +365,25 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // 5. Account credentials - exact Full Name is the Login Username!
-    const username = fullName;
-
-    // Check username collision in User table
-    const existingUser = await prisma.user.findFirst({
-      where: { username: { equals: username } },
-    });
-    if (existingUser) {
-      return res.status(409).json({
-        error: `A user account with the username "${username}" already exists.`,
-      });
+    // 5. Account credentials - ensure unique username in User table
+    // (Names are not unique; multiple learners can share identical names)
+    let baseUsername = customUsername && customUsername.trim() ? customUsername.trim() : fullName;
+    let finalUsername = baseUsername;
+    let counter = 1;
+    while (await prisma.user.findFirst({ where: { username: finalUsername } })) {
+      counter++;
+      if (trimmedLrn) {
+        finalUsername = `${baseUsername} (${trimmedLrn})`;
+        if (await prisma.user.findFirst({ where: { username: finalUsername } })) {
+          finalUsername = `${baseUsername} (${counter})`;
+        }
+      } else {
+        finalUsername = `${baseUsername} (${counter})`;
+      }
+      finalUsername = finalUsername.slice(0, 100);
     }
 
-    const rawPassword = customPassword && customPassword.trim() ? customPassword.trim() : username;
+    const rawPassword = customPassword && customPassword.trim() ? customPassword.trim() : (trimmedLrn || fullName);
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(rawPassword, salt);
 
@@ -406,7 +391,7 @@ router.post('/', async (req, res, next) => {
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
-          username,
+          username: finalUsername,
           passwordHash,
           role: 'LEARNER',
           status: (learnerStatus || '').toLowerCase() === 'active' ? 'ACTIVE' : 'INACTIVE',
@@ -516,7 +501,18 @@ router.put('/:id', async (req, res, next) => {
       updateData.fullName = newMiddle ? `${newLast}, ${newFirst} ${newMiddle}` : `${newLast}, ${newFirst}`;
     }
 
-    if (lrn !== undefined) updateData.lrn = lrn ? lrn.trim() : null;
+    if (lrn !== undefined) {
+      const newLrn = lrn ? lrn.trim() : null;
+      if (newLrn && newLrn !== existing.lrn) {
+        const existingLrn = await prisma.learner.findUnique({
+          where: { lrn: newLrn },
+        });
+        if (existingLrn && existingLrn.id !== id) {
+          return res.status(409).json({ error: `LRN "${newLrn}" is already registered to another learner.` });
+        }
+      }
+      updateData.lrn = newLrn;
+    }
     if (dob) updateData.birthDate = new Date(dob);
     if (sex) updateData.gender = sex;
     if (contactNumber !== undefined) updateData.contactNo = contactNumber ? contactNumber.trim() : null;
@@ -546,7 +542,13 @@ router.put('/:id', async (req, res, next) => {
           userUpdateData.status = (status || '').toLowerCase() === 'active' ? 'ACTIVE' : 'INACTIVE';
         }
         if (updateData.fullName) {
-          userUpdateData.username = updateData.fullName;
+          let newUsername = updateData.fullName;
+          let counter = 1;
+          while (await tx.user.findFirst({ where: { username: newUsername, NOT: { id: existing.userId } } })) {
+            counter++;
+            newUsername = `${updateData.fullName} (${counter})`.slice(0, 100);
+          }
+          userUpdateData.username = newUsername;
         }
         if (Object.keys(userUpdateData).length > 0) {
           await tx.user.update({

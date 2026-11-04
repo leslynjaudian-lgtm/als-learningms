@@ -1,23 +1,12 @@
 <template>
   <div class="page-container af2-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb-nav print-hidden">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports/af2" class="breadcrumb-link">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">ALS Assessment Form 2 Report</span>
-    </nav>
-
-    <!-- Page Header (Teacher Portal Header Style) -->
-    <div class="page-header-row print-hidden">
-      <div class="page-title-group">
-        <h1 class="page-title">ALS Assessment Form 2 Report</h1>
-        <p class="page-subtitle">
-          Record of Module Use and Monitoring of Learner's Progress
-        </p>
-      </div>
-      <div class="page-header-actions">
+    <!-- Standardized Page Header & Breadcrumb (print-hidden) -->
+    <ReportsPageHeader
+      title="ALS Assessment Form 2 Report"
+      description="Record of Module Use and Monitoring of Learner's Progress"
+      reports-path="/dashboard/reports/af2"
+    >
+      <template #actions>
         <button
           type="button"
           class="btn-encode-record"
@@ -30,15 +19,15 @@
           </svg>
           <span>Add Learner Record</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </ReportsPageHeader>
 
     <!-- Filter Section (Above the Report) -->
     <div class="filter-card print-hidden">
-      <!-- Top Row: 3 Primary Dropdowns (1. Center, 2. Level, 3. Learner) -->
+      <!-- Row 1: Balanced 3-Column Grid (Center, Level, Learner) -->
       <div class="filter-dropdowns-row">
         <!-- 1. Learning Center Dropdown -->
-        <div class="filter-field col-center">
+        <div class="filter-field">
           <label class="filter-label">Learning Center <span class="req-star">*</span></label>
           <div class="select-wrapper">
             <select
@@ -62,7 +51,7 @@
         </div>
 
         <!-- 2. ALS Level Dropdown (Dependent on Learning Center) -->
-        <div class="filter-field col-level">
+        <div class="filter-field">
           <label class="filter-label">ALS Level <span class="req-star">*</span></label>
           <div class="select-wrapper">
             <select
@@ -89,7 +78,7 @@
         </div>
 
         <!-- 3. Learner Name Dropdown (Dependent on Center & Level) -->
-        <div class="filter-field col-learner">
+        <div class="filter-field">
           <label class="filter-label">Learner Name <span class="req-star">*</span></label>
           <div class="select-wrapper">
             <select
@@ -116,32 +105,30 @@
         </div>
       </div>
 
-      <!-- Bottom Row: Date Fields & Action Buttons -->
-      <div class="filter-bottom-row">
-        <div class="filter-dates-group">
-          <!-- 4. From Date -->
-          <div class="filter-field col-date">
-            <label class="filter-label">From</label>
-            <input
-              v-model="filterDateStarted"
-              type="date"
-              class="filter-date-input"
-              placeholder="MM/DD/YYYY"
-              @change="dateError = ''; validationError = ''"
-            />
-          </div>
+      <!-- Row 2: Date Filters & Action Buttons (Aligned from the Left) -->
+      <div class="filter-row-secondary">
+        <!-- 4. From Date -->
+        <div class="filter-field col-date">
+          <label class="filter-label">From Date</label>
+          <input
+            v-model="filterDateStarted"
+            type="date"
+            class="filter-date-input"
+            placeholder="MM/DD/YYYY"
+            @change="dateError = ''; validationError = ''"
+          />
+        </div>
 
-          <!-- 5. To Date -->
-          <div class="filter-field col-date">
-            <label class="filter-label">To</label>
-            <input
-              v-model="filterDateFinished"
-              type="date"
-              class="filter-date-input"
-              placeholder="MM/DD/YYYY"
-              @change="dateError = ''; validationError = ''"
-            />
-          </div>
+        <!-- 5. To Date -->
+        <div class="filter-field col-date">
+          <label class="filter-label">To Date</label>
+          <input
+            v-model="filterDateFinished"
+            type="date"
+            class="filter-date-input"
+            placeholder="MM/DD/YYYY"
+            @change="dateError = ''; validationError = ''"
+          />
         </div>
 
         <div class="filter-actions-group">
@@ -159,15 +146,17 @@
           <button
             type="button"
             class="btn-generate-report"
+            :disabled="loadingReport"
             @click="generateReport"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <span v-if="loadingReport" class="btn-spinner-white"></span>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
               <line x1="16" y1="13" x2="8" y2="13"/>
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            <span>Generate Report</span>
+            <span>{{ loadingReport ? 'Generating...' : 'Generate Report' }}</span>
           </button>
         </div>
       </div>
@@ -183,14 +172,53 @@
 
     <!-- Formal Report Container -->
     <div class="report-wrapper">
-      <!-- Loading State -->
+      <!-- Loading State: initial learners fetch -->
       <div v-if="loadingLearners" class="loading-box print-hidden">
         <div class="spinner"></div>
         <p>Loading learner and report data...</p>
       </div>
 
+      <!-- Loading State: generating report -->
+      <div v-else-if="loadingReport" class="loading-box print-hidden">
+        <div class="spinner"></div>
+        <p>Retrieving Assessment Form 2 records...</p>
+      </div>
+
+      <!-- Error State: if data retrieval fails -->
+      <div v-else-if="reportError" class="report-error-card print-hidden">
+        <div class="error-msg-box">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div>
+            <strong>Error Generating Report</strong>
+            <p>{{ reportError }}</p>
+          </div>
+        </div>
+        <button type="button" class="btn-retry" @click="generateReport">Retry</button>
+      </div>
+
       <!-- Formal White Document Sheet (Landscape ALS Assessment Form 2) -->
       <div v-else id="report-content" ref="reportContentRef" class="af2-report-paper">
+        <!-- Status Banner: Distinguish Blank Template vs Generated Report -->
+        <div class="report-status-banner print-hidden">
+          <div v-if="!hasGeneratedReport" class="status-pill status-blank">
+            <span class="status-badge-dot"></span>
+            <span class="status-badge-text">Blank Template Preview</span>
+            <span class="status-badge-hint">— Select filters above and click Generate Report</span>
+          </div>
+          <div v-else-if="displayedRecords.length === 0" class="status-pill status-empty">
+            <span class="status-badge-dot empty"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— No records found for {{ reportData.learnerName }}</span>
+          </div>
+          <div v-else class="status-pill status-ready">
+            <span class="status-badge-dot success"></span>
+            <span class="status-badge-text">Report Generated</span>
+            <span class="status-badge-hint">— {{ displayedRecords.length }} record(s) loaded for {{ reportData.learnerName }}</span>
+          </div>
+        </div>
+
         <!-- Generated Report Title Only (Unwanted headers and logos removed per requirements) -->
         <div class="af2-clean-header">
           <h2 class="af2-main-title">RECORD OF MODULE USE AND MONITORING OF LEARNER’S PROGRESS</h2>
@@ -313,6 +341,18 @@
             </thead>
 
             <tbody>
+              <!-- Empty state indicator row when report was generated but has no records -->
+              <tr v-if="hasGeneratedReport && displayedRecords.length === 0" class="empty-notice-row print-hidden">
+                <td colspan="11" class="cell-center empty-notice-cell">
+                  <div class="empty-notice-content">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>No module assessment records found for this learner in the selected period.</span>
+                  </div>
+                </td>
+              </tr>
+
               <!-- Existing Learner Records -->
               <tr
                 v-for="(rec, idx) in displayedRecords"
@@ -320,7 +360,7 @@
                 class="record-row"
               >
                 <td class="cell-left td-module">{{ rec.moduleTitle || '—' }}</td>
-                <td class="cell-center td-strand">{{ rec.strandName || formatStrandFromModule(rec.moduleTitle) }}</td>
+                <td class="cell-center td-strand">{{ formatStrandDisplay(rec.strandName || formatStrandFromModule(rec.moduleTitle)) }}</td>
                 <td class="cell-center td-date">{{ formatDate(rec.dateStarted) }}</td>
                 <td class="cell-center td-date">{{ formatDate(rec.dateFinished) }}</td>
                 <td class="cell-center td-score">{{ formatScoreDisplay(rec.preTestScore, rec.preTestTotal) }}</td>
@@ -640,12 +680,14 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useAf2Records } from '../composables/useAf2Records.js';
 import { getAssignedLearners } from '../api/learners.js';
+import { getTeacherProfile } from '../api/auth.js';
 
-const { teacherName, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherName, teacherId, assignedCenters } = useTeacherSession();
 const { getRecordsForLearner, saveRecord, seedDefaultRecordsIfEmpty } = useAf2Records();
 
 const reportContentRef = ref(null);
@@ -663,7 +705,9 @@ const filterDateStarted = ref('');
 const filterDateFinished = ref('');
 const validationError = ref('');
 const dateError = ref('');
+const reportError = ref('');
 const hasGeneratedReport = ref(false);
+const loadingReport = ref(false);
 
 // Filtered report data container
 const reportData = reactive({
@@ -706,20 +750,22 @@ const availableLevels = computed(() => {
     if (l.level) set.add(normalizeLevel(l.level));
   });
 
-  // If no learners exist yet in that center, fallback to teacher's assigned program level / specialization
+  // If no learners exist yet in that center, fallback to standard levels
   if (set.size === 0) {
     const spec = (currentTeacher.value?.specialization || currentTeacher.value?.programLevel || '').toLowerCase();
     if (spec.includes('elem')) {
       set.add('A&E Elementary');
     } else if (spec.includes('junior') || spec.includes('jhs') || spec.includes('sec')) {
-      set.add('A&E Junior High School');
+      set.add('A&E Junior High');
     } else {
       set.add('A&E Elementary');
-      set.add('A&E Junior High School');
+      set.add('A&E Junior High');
     }
   }
 
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+  // Use exactly "A&E Elementary" and "A&E Junior High" as level labels
+  const allowed = ['A&E Elementary', 'A&E Junior High'];
+  return allowed.filter((lvl) => set.has(lvl));
 });
 
 // Available Learners assigned to teacher who match BOTH selected Center and Level
@@ -734,11 +780,33 @@ const availableLearners = computed(() => {
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 });
 
-// Load assigned learners for current logged-in teacher
+// Load assigned learners and learning centers for current logged-in teacher from backend
 async function loadLearners() {
   loadingLearners.value = true;
   try {
     const tid = teacherId.value || currentTeacher.value?.id;
+    if (tid) {
+      try {
+        const { data: profile } = await getTeacherProfile(tid);
+        if (profile) {
+          if (Array.isArray(profile.learningCenters) && profile.learningCenters.length > 0) {
+            currentTeacher.value = {
+              ...currentTeacher.value,
+              learningCenters: profile.learningCenters,
+            };
+          }
+          if (profile.learningCenter && !currentTeacher.value?.learningCenter) {
+            currentTeacher.value = {
+              ...currentTeacher.value,
+              learningCenter: profile.learningCenter,
+            };
+          }
+        }
+      } catch (e) {
+        // Fallback to existing session
+      }
+    }
+
     if (!tid) {
       assignedLearnersList.value = [];
       return;
@@ -769,8 +837,8 @@ async function loadLearners() {
 function normalizeLevel(lvl) {
   if (!lvl) return 'A&E Elementary';
   const str = String(lvl).toLowerCase();
-  if (str.includes('elem')) return 'A&E Elementary';
-  if (str.includes('junior') || str.includes('sec') || str.includes('jhs')) return 'A&E Junior High School';
+  if (str.includes('elem') || str === 'ae') return 'A&E Elementary';
+  if (str.includes('junior') || str.includes('sec') || str.includes('jhs')) return 'A&E Junior High';
   return 'A&E Elementary';
 }
 
@@ -800,7 +868,9 @@ function resetFilters() {
   filterDateFinished.value = '';
   validationError.value = '';
   dateError.value = '';
+  reportError.value = '';
   hasGeneratedReport.value = false;
+  loadingReport.value = false;
 
   reportData.learnerId = null;
   reportData.learnerName = '';
@@ -812,9 +882,10 @@ function resetFilters() {
 }
 
 // Generate / Refresh formal report with strict validation
-function generateReport() {
+async function generateReport() {
   validationError.value = '';
   dateError.value = '';
+  reportError.value = '';
 
   if (!filterCenter.value) {
     validationError.value = 'Please select a Learning Center.';
@@ -839,32 +910,37 @@ function generateReport() {
     return;
   }
 
-  reportData.learnerId = found.id;
-  reportData.learnerName = found.name;
-  reportData.lrn = found.lrn || '';
-  reportData.level = filterLevel.value || found.level || 'A&E Elementary';
-  reportData.learningCenter = filterCenter.value || found.learningCenter || '';
-  reportData.teacherName = teacherName.value && teacherName.value !== 'ALS Teacher' ? teacherName.value : (currentTeacher.value?.fullName || found.assignedTeacher || '');
+  loadingReport.value = true;
+  try {
+    reportData.learnerId = found.id;
+    reportData.learnerName = found.name;
+    reportData.lrn = found.lrn || '';
+    reportData.level = filterLevel.value || found.level || 'A&E Elementary';
+    reportData.learningCenter = filterCenter.value || found.learningCenter || '';
+    reportData.teacherName = teacherName.value && teacherName.value !== 'ALS Teacher' ? teacherName.value : (currentTeacher.value?.fullName || found.assignedTeacher || '');
 
-  // Seed default demo records for Juan Dela Cruz if none exist yet
-  seedDefaultRecordsIfEmpty(found);
+    // Fetch real AF2 records matching learner and active filters (no fake records generated)
+    const recs = getRecordsForLearner({
+      learnerId: found.id,
+      learnerName: found.name,
+      level: reportData.level,
+      learningCenter: reportData.learningCenter,
+      dateStarted: filterDateStarted.value,
+      dateFinished: filterDateFinished.value,
+    });
 
-  // Fetch AF2 records matching learner and active filters
-  const recs = getRecordsForLearner({
-    learnerId: found.id,
-    learnerName: found.name,
-    level: reportData.level,
-    learningCenter: reportData.learningCenter,
-    dateStarted: filterDateStarted.value,
-    dateFinished: filterDateFinished.value,
-  });
+    reportData.records = Array.isArray(recs) ? recs : [];
+    hasGeneratedReport.value = true;
 
-  reportData.records = recs;
-  hasGeneratedReport.value = true;
-
-  const el = document.getElementById('report-content');
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById('report-content');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (err) {
+    console.error('Error generating AF2 report:', err);
+    reportError.value = 'Failed to retrieve assessment records. Please try again.';
+  } finally {
+    loadingReport.value = false;
   }
 }
 
@@ -936,6 +1012,21 @@ function formatStrandFromModule(title) {
   if (t.includes('digital') || t.includes('computer')) return 'LS5 Digital Literacy';
   if (t.includes('self') || t.includes('society')) return 'LS6 Understanding the Self and Society';
   return 'LS1 Communication Skills (English)';
+}
+
+function formatStrandDisplay(strand) {
+  if (!strand) return 'LS1';
+  const str = String(strand).trim();
+  if (str.length <= 16) return str;
+  const lower = str.toLowerCase();
+  if (lower.includes('english')) return 'LS1 (English)';
+  if (lower.includes('filipino')) return 'LS1 (Filipino)';
+  if (lower.includes('scientific') || lower.includes('science')) return 'LS2 (Science)';
+  if (lower.includes('math') || lower.includes('problem')) return 'LS3 (Math)';
+  if (lower.includes('career') || lower.includes('life')) return 'LS4 (Life & Career)';
+  if (lower.includes('digital') || lower.includes('computer')) return 'LS5 (Digital)';
+  if (lower.includes('self') || lower.includes('society')) return 'LS6 (Self & Society)';
+  return str;
 }
 
 // Print & PDF actions
@@ -1048,10 +1139,21 @@ onMounted(() => {
 
 // Watch teacher profile updates
 watch(
-  teacherName,
-  (newVal) => {
-    if (newVal && newVal !== 'ALS Teacher') {
-      reportData.teacherName = newVal;
+  [teacherName, () => currentTeacher.value?.fullName],
+  ([newVal, newFull]) => {
+    const resolved = newVal && newVal !== 'ALS Teacher' ? newVal : (newFull || '');
+    if (resolved) {
+      reportData.teacherName = resolved;
+    }
+  }
+);
+
+// Watch for teacher ID becoming available asynchronously to load assigned learners
+watch(
+  () => teacherId.value || currentTeacher.value?.id,
+  (newTid) => {
+    if (newTid && assignedLearnersList.value.length === 0) {
+      loadLearners();
     }
   }
 );
@@ -1147,54 +1249,44 @@ watch(
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 1.15rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* Row 1: Balanced 3-column grid for Center, Level, Learner starting from the left */
 .filter-dropdowns-row {
   display: grid;
-  grid-template-columns: 1.15fr 1fr 1.35fr;
-  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.15rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-@media (max-width: 900px) {
-  .filter-dropdowns-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.filter-bottom-row {
+/* Row 2: Date Filters & Action Buttons, starting cleanly from the left */
+.filter-row-secondary {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding-top: 0.85rem;
+  justify-content: flex-start;
+  gap: 1.15rem;
+  padding-top: 1.15rem;
   border-top: 1px solid #f1f5f9;
-}
-
-.filter-dates-group {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.85rem;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .col-date {
-  width: 155px;
-  flex: 0 0 155px;
-}
-
-@media (max-width: 600px) {
-  .col-date {
-    width: 100%;
-    flex: 1 1 calc(50% - 0.5rem);
-  }
+  flex: 0 0 210px;
+  min-width: 170px;
+  box-sizing: border-box;
 }
 
 .filter-actions-group {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
+  box-sizing: border-box;
 }
 
 .filter-error-text {
@@ -1234,11 +1326,11 @@ watch(
 .filter-select,
 .filter-date-input {
   width: 100%;
-  height: 40px;
+  height: 42px;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 0.85rem;
+  padding: 0 0.85rem;
   font-size: 0.875rem;
   color: #0f172a;
   outline: none;
@@ -1273,15 +1365,15 @@ watch(
   color: #64748b;
 }
 
-/* Reset Filters: Beside To field in Top Row */
+/* Reset Filters Button */
 .btn-reset-filter {
-  height: 40px;
+  height: 42px;
   background-color: #ffffff;
   border: 1px solid #cbd5e1;
   color: #475569;
   font-size: 0.875rem;
   font-weight: 500;
-  padding: 0 1.15rem;
+  padding: 0 1.25rem;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
@@ -1298,35 +1390,76 @@ watch(
   color: #0f172a;
 }
 
-/* Bottom Row: Generate Report Button aligned to the right side */
-.filter-bottom-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid #f1f5f9;
-}
-
+/* Generate Report Button */
 .btn-generate-report {
+  height: 42px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   background-color: #1d4ed8;
   color: #ffffff;
   border: 1px solid #1d4ed8;
   font-size: 0.875rem;
   font-weight: 600;
-  padding: 0.625rem 1.35rem;
+  padding: 0 1.35rem;
   border-radius: 8px;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(29, 78, 216, 0.2);
   transition: all 0.15s ease;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
-.btn-generate-report:hover {
+.btn-generate-report:hover:not(:disabled) {
   background-color: #1e40af;
   border-color: #1e40af;
   box-shadow: 0 4px 6px rgba(29, 78, 216, 0.3);
+}
+
+.btn-generate-report:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-spinner-white {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Responsiveness on smaller screens: stack filters vertically */
+@media (max-width: 768px) {
+  .filter-card {
+    padding: 1rem;
+  }
+  .filter-dropdowns-row {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .filter-row-secondary {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+  }
+  .col-date {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+  .filter-actions-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+  .btn-reset-filter,
+  .btn-generate-report {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* Loading Box */
@@ -1353,6 +1486,48 @@ watch(
   to { transform: rotate(360deg); }
 }
 
+/* Report Error Card */
+.report-error-card {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #991b1b;
+}
+
+.error-msg-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.error-msg-box p {
+  margin: 0.2rem 0 0;
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
+.btn-retry {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.btn-retry:hover {
+  background: #b91c1c;
+}
+
 /* ============================================================ */
 /* OFFICIAL FORMAL REPORT DOCUMENT SHEET (DepEd AF2 Styled)     */
 /* ============================================================ */
@@ -1360,6 +1535,61 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.report-status-banner {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.status-pill.status-blank {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.status-pill.status-empty {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.status-pill.status-ready {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.status-badge-dot.empty {
+  background: #f59e0b;
+}
+
+.status-badge-dot.success {
+  background: #10b981;
+}
+
+.status-badge-hint {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: normal;
 }
 
 .af2-report-paper {
@@ -1490,12 +1720,14 @@ watch(
 .table-outer-wrapper {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-top: 0.65rem;
   margin-bottom: 1.75rem;
 }
 
 .af2-table {
   width: 100%;
+  min-width: 980px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.71875rem;
@@ -1509,20 +1741,20 @@ watch(
   border: 1px solid #000000;
   padding: 0.35rem 0.35rem;
   vertical-align: middle;
-  word-wrap: break-word;
+  word-wrap: normal;
   overflow-wrap: break-word;
   color: #000000;
 }
 
-/* Column Width Percentages for Balanced Formal Layout matching PDF */
-.th-module, .td-module { width: 21%; }
-.th-strand, .td-strand { width: 5.5%; text-align: center; }
-.th-date, .th-sub-date, .td-date { width: 5.5%; text-align: center; }
-.th-score, .td-score { width: 5.5%; text-align: center; }
-.th-activities, .td-activities { width: 15%; }
-.th-self, .td-self { width: 12%; }
+/* Column Width Percentages for Balanced Formal Layout */
+.th-module, .td-module { width: 20%; }
+.th-strand, .td-strand { width: 8%; text-align: center; }
+.th-date, .th-sub-date, .td-date { width: 7%; text-align: center; white-space: nowrap; }
+.th-score, .td-score { width: 6.5%; text-align: center; white-space: nowrap; }
+.th-activities, .td-activities { width: 14%; }
+.th-self, .td-self { width: 11%; }
 .th-teacher-assessment, .th-sub-mastery, .td-check { width: 5%; text-align: center; }
-.th-remarks, .td-remarks { width: 14.5%; }
+.th-remarks, .td-remarks { width: 10%; }
 
 /* Table Headers */
 .af2-table thead th {
@@ -1563,8 +1795,30 @@ watch(
 
 .text-wrapped {
   white-space: pre-line;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: break-word;
   line-height: 1.25;
+}
+
+/* Empty records indicator row */
+.empty-notice-row td {
+  height: auto !important;
+}
+
+.empty-notice-cell {
+  background: #f8fafc;
+  padding: 1.25rem 1rem !important;
+  color: #64748b;
+  font-size: 0.8125rem;
+  font-style: italic;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.empty-notice-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
 }
 
 /* Checkmark Style (✓) */
@@ -1998,7 +2252,14 @@ watch(
     max-width: 100% !important;
   }
 
+  .table-outer-wrapper {
+    overflow: visible !important;
+    margin: 0.5rem 0 !important;
+  }
+
   .af2-table {
+    min-width: 100% !important;
+    width: 100% !important;
     border: 1.5px solid #000000 !important;
     page-break-inside: auto;
   }
