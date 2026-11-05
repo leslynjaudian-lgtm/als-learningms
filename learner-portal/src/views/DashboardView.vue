@@ -187,6 +187,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import api from '../api/axios';
+import { useNotifications } from '../composables/useNotifications.js';
+
+const { notifications, fetchNotifications } = useNotifications();
 
 const rawStored = localStorage.getItem('als_learner_user');
 const userStored = ref(rawStored ? JSON.parse(rawStored) : {});
@@ -311,8 +314,13 @@ async function loadLearnerData() {
       },
     });
     const anns = annRes.data?.data || annRes.data || [];
+    await fetchNotifications();
     if (Array.isArray(anns) && anns.length > 0) {
-      latestAnnouncement.value = anns[0];
+      // Prefer the most recent unread announcement if one exists, otherwise the latest announcement
+      const unreadAnn = anns.find((a) =>
+        notifications.value.some((n) => n.notificationKey === `announcement:${a.id}` && !n.isRead)
+      );
+      latestAnnouncement.value = unreadAnn || anns[0];
     }
   } catch (err) {
     console.warn('Could not load announcement for dashboard:', err);

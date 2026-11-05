@@ -339,9 +339,11 @@ import {
   deleteAnnouncement,
 } from '../api/announcements.js';
 import { getLearningCenters } from '../api/learningCenters.js';
+import { useNotifications } from '../composables/useNotifications.js';
 
 const route = useRoute();
 const router = useRouter();
+const { markAsRead } = useNotifications();
 
 const announcements = ref([]);
 const learningCenters = ref([]);
@@ -513,6 +515,7 @@ async function saveAnnouncement() {
         createdBy: 'Administrator',
       });
     }
+    window.dispatchEvent(new Event('als-notifications-updated'));
     closeModal();
   } catch (err) {
     console.error('Failed to save announcement:', err);
@@ -526,6 +529,9 @@ async function saveAnnouncement() {
 function openViewModal(item) {
   viewingAnnouncement.value = item;
   showViewModal.value = true;
+  if (item?.id) {
+    markAsRead(`announcement:${item.id}`);
+  }
 }
 
 // Delete Confirmation Modal

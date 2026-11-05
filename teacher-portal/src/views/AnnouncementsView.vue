@@ -476,10 +476,12 @@ import { getTeacherProfile } from '../api/auth.js';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../api/announcements.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getLearningCenters } from '../api/learningCenters.js';
+import { useNotifications } from '../composables/useNotifications.js';
 
 const route = useRoute();
 const router = useRouter();
 const { currentTeacher, teacherId, teacherName, assignedCenters } = useTeacherSession();
+const { markAsRead } = useNotifications();
 
 const announcements = ref([]);
 const loading = ref(false);
@@ -994,6 +996,7 @@ async function saveAnnouncement() {
     }
 
     await loadAnnouncements();
+    window.dispatchEvent(new Event('als-notifications-updated'));
     closeModal();
   } catch (err) {
     console.error('Failed to save announcement:', err);
@@ -1010,6 +1013,9 @@ const viewingAnnouncement = ref(null);
 function openViewModal(item) {
   viewingAnnouncement.value = item;
   showViewModal.value = true;
+  if (item?.id) {
+    markAsRead(`announcement:${item.id}`);
+  }
 }
 
 // Delete Confirmation Modal

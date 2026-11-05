@@ -479,6 +479,10 @@ model Announcement {
   audience         AnnouncementAudience @default(ALL_TEACHERS)
   status           AnnouncementStatus   @default(PUBLISHED)
   isPinned         Boolean              @default(false) @map("is_pinned")
+  isImportant      Boolean              @default(false) @map("is_important")
+  priority         String               @default("NORMAL") @db.VarChar(30)
+  category         String               @default("ANNOUNCEMENT") @db.VarChar(50)
+  deadlineAt       DateTime?            @map("deadline_at")
   authorId         Int                  @map("author_id")
   author           User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
   creatorRole      Role                 @default(ADMIN) @map("creator_role")
@@ -523,8 +527,52 @@ model Schedule {
   teacher          Teacher?       @relation(fields: [teacherId], references: [id], onDelete: SetNull)
   description      String?        @db.Text
   status           String         @default("Upcoming") @db.VarChar(50)
+  isImportant      Boolean        @default(false) @map("is_important")
+  priority         String         @default("NORMAL") @db.VarChar(30)
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
   @@map("schedules")
+}
+
+// ==========================================
+// 15. NOTIFICATIONS & READ TRACKING
+// ==========================================
+
+model Notification {
+  id               Int       @id @default(autoincrement())
+  title            String    @db.VarChar(255)
+  message          String    @db.Text
+  type             String    @default("ANNOUNCEMENT") @db.VarChar(50)
+  priority         String    @default("NORMAL") @db.VarChar(30)
+  isImportant      Boolean   @default(false) @map("is_important")
+  targetRole       Role      @map("target_role")
+  targetUserId     Int?      @map("target_user_id")
+  targetTeacherId  Int?      @map("target_teacher_id")
+  targetLearnerId  Int?      @map("target_learner_id")
+  learningCenterId Int?      @map("learning_center_id")
+  programLevel     String?   @map("program_level") @db.VarChar(50)
+  sourceType       String?   @map("source_type") @db.VarChar(50)
+  sourceId         Int?      @map("source_id")
+  linkUrl          String?   @map("link_url") @db.VarChar(255)
+  deadlineAt       DateTime? @map("deadline_at")
+  createdByRole    String?   @map("created_by_role") @db.VarChar(50)
+  createdByName    String?   @map("created_by_name") @db.VarChar(150)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([targetRole, targetUserId])
+  @@index([sourceType, sourceId])
+  @@map("notifications")
+}
+
+model NotificationRead {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  notificationKey String   @map("notification_key") @db.VarChar(120)
+  readAt          DateTime @default(now()) @map("read_at")
+
+  @@unique([userId, notificationKey])
+  @@index([userId])
+  @@map("notification_reads")
 }

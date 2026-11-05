@@ -2,7 +2,7 @@
   <div class="module-details-page">
     <!-- Top Breadcrumb / Back Navigation -->
     <div class="back-nav-bar">
-      <router-link to="/dashboard/modules" class="btn-back-link">
+      <router-link :to="backToModulesRoute" class="btn-back-link">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/>
           <polyline points="12 19 5 12 12 5"/>
@@ -28,7 +28,7 @@
       </div>
       <h3>Module Not Found</h3>
       <p>{{ errorMessage }}</p>
-      <router-link to="/dashboard/modules" class="btn-primary-back">
+      <router-link :to="backToModulesRoute" class="btn-primary-back">
         Return to Modules Feed
       </router-link>
     </div>
@@ -554,6 +554,17 @@
           </div>
         </div>
       </div>
+
+      <!-- Bottom Breadcrumb / Back Navigation -->
+      <div class="bottom-back-nav-bar">
+        <router-link :to="backToModulesRoute" class="btn-back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+          </svg>
+          <span>Back to Modules</span>
+        </router-link>
+      </div>
     </div>
 
     <!-- Review Modal Dialog -->
@@ -1057,6 +1068,16 @@ const moduleData = ref(null);
 const submissions = ref([]);
 const activeTab = ref('details');
 
+// Dynamic back destination according to module's ALS Level
+const backToModulesRoute = computed(() => {
+  const target = String(moduleData.value?.targetLevel || '').toUpperCase().trim();
+  const lvl = String(moduleData.value?.level || moduleData.value?.programLevel || '').toLowerCase().trim();
+  if (target === 'JUNIOR' || lvl.includes('junior') || lvl.includes('jhs') || lvl.includes('sec')) {
+    return '/dashboard/modules/junior-high';
+  }
+  return '/dashboard/modules/elementary';
+});
+
 // Delete Modal State
 const showDeleteModal = ref(false);
 const isDeletingModule = ref(false);
@@ -1071,7 +1092,7 @@ async function confirmDeleteModule() {
   try {
     await deleteModule(moduleData.value.id);
     showDeleteModal.value = false;
-    router.push('/dashboard/modules');
+    router.push(backToModulesRoute.value);
   } catch (err) {
     console.error('Error deleting module:', err);
     alert(err.response?.data?.error || 'Failed to delete module. Please try again.');
@@ -1754,6 +1775,16 @@ watch(
 /* Back Nav Bar */
 .back-nav-bar {
   margin-bottom: 1.25rem;
+}
+
+.bottom-back-nav-bar {
+  margin-top: 2rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .btn-back-link {

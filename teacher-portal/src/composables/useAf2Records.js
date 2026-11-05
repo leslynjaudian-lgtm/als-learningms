@@ -133,12 +133,14 @@ export function useAf2Records() {
         }
       }
 
-      // 4. Date range filter
-      if (dateStarted && rec.dateStarted) {
-        if (new Date(rec.dateStarted) < new Date(dateStarted)) return false;
-      }
-      if (dateFinished && rec.dateFinished) {
-        if (new Date(rec.dateFinished) > new Date(dateFinished)) return false;
+      // 4. Date range filter (inclusive reporting period)
+      const startRange = (dateStarted || '').trim().split('T')[0];
+      const endRange = (dateFinished || '').trim().split('T')[0];
+      const recDate = (rec.dateFinished || rec.dateCompleted || rec.dateStarted || '').trim().split('T')[0];
+
+      if (recDate) {
+        if (startRange && recDate < startRange) return false;
+        if (endRange && recDate > endRange) return false;
       }
 
       return true;

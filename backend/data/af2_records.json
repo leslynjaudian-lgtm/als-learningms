@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "rec_1793856352483_v5ll6",
+    "teacherId": 18,
+    "learnerId": 18,
+    "learnerName": "Catian, Kingking Hambre",
+    "lrn": "131273120039",
+    "level": "A&E Elementary",
+    "learningCenterId": 3,
+    "learningCenter": "Mapulog CLC",
+    "centerName": "Mapulog CLC",
+    "moduleTitle": "Math",
+    "strandName": "LS3 Mathematical and Problem Solving Skills",
+    "dateStarted": "2026-10-29",
+    "dateFinished": "2026-10-31",
+    "dateCompleted": "2026-10-31",
+    "preTestScore": 5,
+    "preTestTotal": 10,
+    "postTestScore": 9,
+    "postTestTotal": 10,
+    "otherActivities": "Nag solve, sumulat sa papel, aIJK\\HKASJZXNASJKZXJKZMZK",
+    "selfAssessment": "",
+    "assessment": "Mastered",
+    "moduleStatus": "Mastered",
+    "remarks": "Good job",
+    "createdAt": "2026-11-05T05:25:52.483Z",
+    "updatedAt": "2026-11-05T05:25:52.484Z"
+  }
+]

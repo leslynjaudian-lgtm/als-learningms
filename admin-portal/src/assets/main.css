@@ -2336,3 +2336,52 @@ input::-webkit-contacts-auto-fill-button {
   }
 }
 
+/* ================================================
+   Notification Bell Electric Vibration Animation
+   (Continuous rapid electric vibration, SVG only)
+   ================================================ */
+svg.bell-icon {
+  display: block;
+  transform-box: fill-box;
+  transform-origin: 50% 15%;
+}
+
+.notification-bell.is-shaking svg,
+svg.bell-icon.bell-electric-shake {
+  transform-origin: 50% 15%;
+  animation: electricBellShake 0.3s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes electricBellShake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-8deg);
+  }
+  30% {
+    transform: rotate(8deg);
+  }
+  45% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(7deg);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+  90% {
+    transform: rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-bell.is-shaking svg,
+  svg.bell-icon.bell-electric-shake {
+    animation: none;
+  }
+}
+
+

@@ -42,6 +42,75 @@ function normalizeStatusInput(val) {
   return 'PUBLISHED';
 }
 
+function inferAnnouncementMeta(input = {}, fallback = {}) {
+  const titleText = String(input.title ?? fallback.title ?? '').trim();
+  const bodyText = String(input.content ?? input.message ?? fallback.content ?? '').trim();
+  const combined = `${titleText} ${bodyText}`;
+
+  const rawPriority = input.priority !== undefined ? String(input.priority || '').trim().toUpperCase() : null;
+  const explicitImportant =
+    input.isImportant !== undefined
+      ? Boolean(input.isImportant)
+      : input.is_important !== undefined
+        ? Boolean(input.is_important)
+        : null;
+  const pinnedFlag =
+    input.isPinned !== undefined
+      ? Boolean(input.isPinned)
+      : input.is_pinned !== undefined
+        ? Boolean(input.is_pinned)
+        : Boolean(fallback.is_pinned);
+
+  const rawDeadline = input.deadlineAt ?? input.deadline_at ?? fallback.deadline_at ?? null;
+  const parsedDeadline = rawDeadline ? new Date(rawDeadline) : null;
+  const validDeadline = parsedDeadline && !isNaN(parsedDeadline.getTime()) ? parsedDeadline : null;
+
+  let isImportant = true;
+  if (explicitImportant !== null) {
+    isImportant = explicitImportant;
+  } else if (rawPriority) {
+    isImportant = ['IMPORTANT', 'HIGH', 'URGENT'].includes(rawPriority);
+  } else if (pinnedFlag || validDeadline) {
+    isImportant = true;
+  } else if (/\b(ordinary|optional|general info|reading tip|fun fact|fyi|casual|non-important|not important)\b/i.test(combined)) {
+    isImportant = false;
+  } else if (/\b(important|urgent|reminder|deadline|required|mandatory|reschedule|rescheduled|cancelled|postponed|assessment|exam|orientation|submission|tapusin|paalala|mahalaga|action required)\b/i.test(combined)) {
+    isImportant = true;
+  } else if (fallback.is_important !== undefined) {
+    isImportant = Boolean(fallback.is_important);
+  } else {
+    isImportant = true;
+  }
+
+  let priority = 'NORMAL';
+  if (rawPriority && ['NORMAL', 'IMPORTANT', 'HIGH', 'URGENT'].includes(rawPriority)) {
+    priority = rawPriority;
+    if (priority === 'NORMAL' && explicitImportant === true) {
+      priority = 'IMPORTANT';
+    }
+  } else {
+    priority = isImportant ? 'IMPORTANT' : 'NORMAL';
+  }
+
+  const rawCategory = String(input.category ?? fallback.category ?? '').trim().toUpperCase();
+  let category = 'ANNOUNCEMENT';
+  if (['ANNOUNCEMENT', 'REMINDER', 'SCHEDULE'].includes(rawCategory)) {
+    category = rawCategory;
+  } else if (/\b(schedule|session|reschedule|rescheduled|class|meeting|orientation)\b/i.test(combined)) {
+    category = 'SCHEDULE';
+  } else if (validDeadline || /\b(reminder|deadline|due|tapusin|paalala|submit|submission)\b/i.test(combined)) {
+    category = 'REMINDER';
+  }
+
+  return {
+    isPinned: pinnedFlag ? 1 : 0,
+    isImportant: isImportant ? 1 : 0,
+    priority,
+    category,
+    deadlineAt: validDeadline,
+  };
+}
+
 function formatAnnouncement(a) {
   const isTeacher = a.creator_role === 'TEACHER' || a.role === 'TEACHER' || a.teacher_id != null || !!a.teacher_name;
   const authorName = isTeacher
@@ -62,6 +131,13 @@ function formatAnnouncement(a) {
     : formatAudience(a.audience);
 
   const statusLabel = (a.status === 'DRAFT' || a.status === 'Draft') ? 'Draft' : 'Published';
+  const isImportant = Boolean(
+    a.is_important ||
+    a.is_pinned ||
+    ['IMPORTANT', 'HIGH', 'URGENT'].includes(String(a.priority || '').toUpperCase())
+  );
+  const priority = a.priority || (isImportant ? 'IMPORTANT' : 'NORMAL');
+  const category = a.category || 'ANNOUNCEMENT';
 
   return {
     id: a.id,
@@ -73,7 +149,11 @@ function formatAnnouncement(a) {
     status: statusLabel,
     statusRaw: a.status,
     isPinned: Boolean(a.is_pinned),
-    priorityLabel: a.is_pinned ? 'Pinned' : null,
+    isImportant,
+    priority,
+    category,
+    deadlineAt: a.deadline_at || null,
+    priorityLabel: a.is_pinned ? 'Pinned' : (isImportant ? 'Important' : null),
     createdBy: authorName,
     author: authorName,
     creatorRole: a.creator_role || (isTeacher ? 'TEACHER' : 'ADMIN'),
@@ -139,6 +219,7 @@ router.get('/', async (req, res, next) => {
     const baseSql = `
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -339,6 +420,7 @@ router.get('/:id', async (req, res, next) => {
     const rows = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -580,17 +662,25 @@ router.post('/', async (req, res, next) => {
       const rawDate = datePosted || date || createdAt;
       const postDate = rawDate ? new Date(rawDate) : null;
       const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
+      const meta = inferAnnouncementMeta(req.body);
+      const dbStatus = normalizeStatusInput(status);
 
       const targetIdsToInsert = isIndividual ? resolvedTargetLearnerIds : [null];
       for (const targetId of targetIdsToInsert) {
         if (validDate) {
           await prisma.$executeRawUnsafe(
             `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, 'PUBLISHED', 0, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
+              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
             title.trim(),
             bodyContent,
             dbAudience,
+            dbStatus,
+            meta.isPinned,
+            meta.isImportant,
+            meta.priority,
+            meta.category,
+            meta.deadlineAt,
             authorUserId,
             resolvedTeacherId,
             centerId,
@@ -601,11 +691,17 @@ router.post('/', async (req, res, next) => {
         } else {
           await prisma.$executeRawUnsafe(
             `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, 'PUBLISHED', 0, ?, 'TEACHER', ?, ?, ?, ?, NOW(), NOW())`,
+              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, NOW(), NOW())`,
             title.trim(),
             bodyContent,
             dbAudience,
+            dbStatus,
+            meta.isPinned,
+            meta.isImportant,
+            meta.priority,
+            meta.category,
+            meta.deadlineAt,
             authorUserId,
             resolvedTeacherId,
             centerId,
@@ -618,6 +714,7 @@ router.post('/', async (req, res, next) => {
       const [inserted] = await prisma.$queryRawUnsafe(`
         SELECT 
           a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+          a.is_important, a.priority, a.category, a.deadline_at,
           a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
           a.created_at, a.updated_at,
           u.username, u.role,
@@ -652,15 +749,23 @@ router.post('/', async (req, res, next) => {
     const rawDate = datePosted || date || createdAt;
     const postDate = rawDate ? new Date(rawDate) : null;
     const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
+    const meta = inferAnnouncementMeta(req.body);
+    const dbStatus = normalizeStatusInput(status);
 
     if (validDate) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, 'PUBLISHED', 0, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
+          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
         title.trim(),
         bodyContent,
         normAdminAudience,
+        dbStatus,
+        meta.isPinned,
+        meta.isImportant,
+        meta.priority,
+        meta.category,
+        meta.deadlineAt,
         authorUserId,
         centerId || null,
         validDate
@@ -668,11 +773,17 @@ router.post('/', async (req, res, next) => {
     } else {
       await prisma.$executeRawUnsafe(
         `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, 'PUBLISHED', 0, ?, 'ADMIN', NULL, ?, NULL, NULL, NOW(), NOW())`,
+          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, NOW(), NOW())`,
         title.trim(),
         bodyContent,
         normAdminAudience,
+        dbStatus,
+        meta.isPinned,
+        meta.isImportant,
+        meta.priority,
+        meta.category,
+        meta.deadlineAt,
         authorUserId,
         centerId || null
       );
@@ -681,6 +792,7 @@ router.post('/', async (req, res, next) => {
     const [inserted] = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -716,7 +828,7 @@ router.put('/:id', async (req, res, next) => {
     }
 
     const [existing] = await prisma.$queryRawUnsafe(
-      'SELECT id, title, content, audience, status, creator_role, learning_center_id, program_level, target_learner_id, teacher_id FROM announcements WHERE id = ?',
+      'SELECT id, title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, creator_role, learning_center_id, program_level, target_learner_id, teacher_id FROM announcements WHERE id = ?',
       id
     );
 
@@ -775,11 +887,13 @@ router.put('/:id', async (req, res, next) => {
     const rawDate = datePosted || date || createdAt;
     const postDate = rawDate ? new Date(rawDate) : null;
     const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
+    const meta = inferAnnouncementMeta({ ...req.body, title: newTitle, content: bodyContent }, existing);
 
     if (validDate) {
       await prisma.$executeRawUnsafe(
         `UPDATE announcements 
          SET title = ?, content = ?, audience = ?, status = ?, 
+             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?,
              learning_center_id = ?, program_level = ?, target_learner_id = ?, teacher_id = ?,
              created_at = ?, updated_at = NOW()
          WHERE id = ?`,
@@ -787,6 +901,11 @@ router.put('/:id', async (req, res, next) => {
         bodyContent,
         newAudience,
         newStatus,
+        meta.isPinned,
+        meta.isImportant,
+        meta.priority,
+        meta.category,
+        meta.deadlineAt,
         newCenterId,
         newProgramLevel,
         newTargetLearnerId,
@@ -798,6 +917,7 @@ router.put('/:id', async (req, res, next) => {
       await prisma.$executeRawUnsafe(
         `UPDATE announcements 
          SET title = ?, content = ?, audience = ?, status = ?,
+             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?,
              learning_center_id = ?, program_level = ?, target_learner_id = ?, teacher_id = ?,
              updated_at = NOW()
          WHERE id = ?`,
@@ -805,6 +925,11 @@ router.put('/:id', async (req, res, next) => {
         bodyContent,
         newAudience,
         newStatus,
+        meta.isPinned,
+        meta.isImportant,
+        meta.priority,
+        meta.category,
+        meta.deadlineAt,
         newCenterId,
         newProgramLevel,
         newTargetLearnerId,
@@ -813,9 +938,15 @@ router.put('/:id', async (req, res, next) => {
       );
     }
 
+    await prisma.$executeRawUnsafe(
+      'DELETE FROM notification_reads WHERE notification_key = ?',
+      `announcement:${id}`
+    );
+
     const [updated] = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,

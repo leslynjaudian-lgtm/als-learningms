@@ -112,6 +112,274 @@ router.get('/me', authenticate, requireRole('LEARNER'), async (req, res, next) =
 });
 
 // ---------------------
+// GET /api/learners/me/progress
+// Get current authenticated learner progress metrics and learning strands
+// ---------------------
+router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACHER']), async (req, res, next) => {
+  try {
+    let learnerId = req.user.role === 'LEARNER' ? req.user.profileId : null;
+    if (!learnerId && req.query.learnerId) {
+      learnerId = parseInt(req.query.learnerId, 10);
+    }
+    if (!learnerId && req.user.learnerProfile?.id) {
+      learnerId = req.user.learnerProfile.id;
+    }
+
+    if (!learnerId) {
+      return res.status(400).json({ error: 'Learner profile ID not specified or found' });
+    }
+
+    const learner = await prisma.learner.findUnique({
+      where: { id: learnerId },
+      select: {
+        id: true,
+        level: true,
+        learningCenterId: true,
+      },
+    });
+
+    if (!learner) {
+      return res.status(404).json({ error: 'Learner profile not found' });
+    }
+
+    const OFFICIAL_STRANDS = [
+      {
+        key: 'LS1-ENG',
+        code: 'LS1-ENG',
+        name: 'LS1 — Communication Skills (English)',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS1-ENG' || areaCode.includes('ENG')) return true;
+          if (text.includes('english') && (text.includes('ls1') || text.includes('communication'))) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS1-FIL',
+        code: 'LS1-FIL',
+        name: 'LS1 — Communication Skills (Filipino)',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS1-FIL' || areaCode.includes('FIL')) return true;
+          if (text.includes('filipino') && (text.includes('ls1') || text.includes('communication'))) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS2-SCI',
+        code: 'LS2',
+        name: 'LS2 — Scientific Literacy and Critical Thinking Skills',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS2-SCI' || areaCode === 'LS2' || areaCode.startsWith('LS2')) return true;
+          if (text.includes('scientific') || text.includes('science')) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS3-MATH',
+        code: 'LS3',
+        name: 'LS3 — Mathematical and Problem Solving Skills',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS3-MATH' || areaCode === 'LS3' || areaCode.startsWith('LS3')) return true;
+          if (text.includes('math') || text.includes('mathematical')) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS4-LIFE',
+        code: 'LS4',
+        name: 'LS4 — Life and Career Skills',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS4-LIFE' || areaCode === 'LS4' || areaCode.startsWith('LS4')) return true;
+          if (text.includes('life and career') || text.includes('life & career')) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS5-SOC',
+        code: 'LS5',
+        name: 'LS5 — Understanding the Self and Society',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS5-SOC' || areaCode === 'LS5' || areaCode.startsWith('LS5')) return true;
+          if (text.includes('self and society') || text.includes('self & society') || text.includes('understanding self')) return true;
+          return false;
+        },
+      },
+      {
+        key: 'LS6-DIGI',
+        code: 'LS6',
+        name: 'LS6 — Digital Citizenship',
+        match: (areaCode, text) => {
+          if (areaCode === 'LS6-DIGI' || areaCode === 'LS6' || areaCode.startsWith('LS6')) return true;
+          if (text.includes('digital')) return true;
+          return false;
+        },
+      },
+    ];
+
+    if (!learner.learningCenterId) {
+      return res.json({
+        success: true,
+        data: {
+          overallProgress: 0,
+          modulesCompleted: 0,
+          totalModules: 0,
+          assessmentsTaken: 0,
+          totalAssessments: 0,
+          strands: OFFICIAL_STRANDS.map((s) => ({
+            code: s.code,
+            name: s.name,
+            progress: 0,
+            modulesCompleted: 0,
+            totalModules: 0,
+          })),
+        },
+      });
+    }
+
+    // Scoped assigned modules for this learner
+    const modules = await prisma.module.findMany({
+      where: {
+        status: 'PUBLISHED',
+        learningCenterId: learner.learningCenterId,
+        targetLevel: learner.level,
+        code: { not: 'LS2-MOCK-001' },
+        AND: [
+          {
+            OR: [
+              { assignments: { none: {} } },
+              { assignments: { some: { learnerId: learner.id } } },
+            ],
+          },
+        ],
+      },
+      include: {
+        learningArea: true,
+        assessments: {
+          include: {
+            attempts: {
+              where: {
+                learnerId: learner.id,
+                status: 'SUBMITTED',
+              },
+            },
+          },
+        },
+        learnerProgress: {
+          where: {
+            learnerId: learner.id,
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    let completedModulesCount = 0;
+    let totalAssessments = 0;
+    let assessmentsTaken = 0;
+
+    const strandMap = {};
+    for (const s of OFFICIAL_STRANDS) {
+      strandMap[s.key] = {
+        code: s.code,
+        name: s.name,
+        modulesCompleted: 0,
+        totalModules: 0,
+        progress: 0,
+      };
+    }
+
+    for (const m of modules) {
+      const prog = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
+      const isCompleted =
+        prog?.status === 'COMPLETED' ||
+        prog?.masteryStatus === 'MASTERED' ||
+        (prog?.totalPages > 0 && (prog?.completedPages || 0) >= prog.totalPages && prog?.postTestScore != null);
+
+      if (isCompleted) {
+        completedModulesCount++;
+      }
+
+      // Assessments count
+      if (Array.isArray(m.assessments)) {
+        for (const ass of m.assessments) {
+          totalAssessments++;
+          const hasAttempt = Array.isArray(ass.attempts) && ass.attempts.length > 0;
+          const hasScoreInProg =
+            (ass.type === 'PRE_TEST' && prog?.preTestScore != null) ||
+            (ass.type === 'POST_TEST' && prog?.postTestScore != null);
+
+          if (hasAttempt || hasScoreInProg) {
+            assessmentsTaken++;
+          }
+        }
+      }
+
+      // Match strand
+      const areaCode = (m.learningArea?.code || m.code || '').toUpperCase().trim();
+      const fullText = [
+        m.learningArea?.code || '',
+        m.learningArea?.name || '',
+        m.code || '',
+        m.title || '',
+        m.description || '',
+      ].join(' ').toLowerCase();
+
+      let matchedKey = null;
+      for (const s of OFFICIAL_STRANDS) {
+        if (s.match(areaCode, fullText)) {
+          matchedKey = s.key;
+          break;
+        }
+      }
+
+      // Fallback for generic LS1
+      if (!matchedKey && (areaCode === 'LS1' || areaCode.startsWith('LS1'))) {
+        matchedKey = 'LS1-ENG';
+      }
+
+      if (matchedKey && strandMap[matchedKey]) {
+        strandMap[matchedKey].totalModules++;
+        if (isCompleted) {
+          strandMap[matchedKey].modulesCompleted++;
+        }
+      }
+    }
+
+    const strands = OFFICIAL_STRANDS.map((s) => {
+      const item = strandMap[s.key];
+      const prog = item.totalModules > 0
+        ? Math.round((item.modulesCompleted / item.totalModules) * 100)
+        : 0;
+      return {
+        code: item.code,
+        name: item.name,
+        modulesCompleted: item.modulesCompleted,
+        totalModules: item.totalModules,
+        progress: prog,
+      };
+    });
+
+    const totalModules = modules.length;
+    const overallProgress = totalModules > 0
+      ? Math.round((completedModulesCount / totalModules) * 100)
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        overallProgress,
+        modulesCompleted: completedModulesCount,
+        totalModules,
+        assessmentsTaken,
+        totalAssessments,
+        strands,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
 // GET /api/learners
 // List learners with strict backend role-scoping
 // ---------------------

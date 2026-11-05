@@ -263,7 +263,25 @@ router.post('/', optionalAuth, async (req, res, next) => {
       },
     });
 
-    res.status(201).json(formatSchedule(newSchedule));
+    const isImp =
+      req.body.isImportant !== undefined
+        ? (req.body.isImportant ? 1 : 0)
+        : req.body.is_important !== undefined
+          ? (req.body.is_important ? 1 : 0)
+          : (status || 'Upcoming') !== 'Cancelled' ? 1 : 0;
+    const schedPriority = req.body.priority || (isImp ? 'IMPORTANT' : 'NORMAL');
+    await prisma.$executeRawUnsafe(
+      'UPDATE schedules SET is_important = ?, priority = ? WHERE id = ?',
+      isImp,
+      schedPriority,
+      newSchedule.id
+    );
+
+    res.status(201).json({
+      ...formatSchedule(newSchedule),
+      isImportant: Boolean(isImp),
+      priority: schedPriority,
+    });
   } catch (err) {
     next(err);
   }
@@ -359,7 +377,33 @@ router.put('/:id', optionalAuth, async (req, res, next) => {
       },
     });
 
-    res.json(formatSchedule(updated));
+    const isImp =
+      req.body.isImportant !== undefined
+        ? (req.body.isImportant ? 1 : 0)
+        : req.body.is_important !== undefined
+          ? (req.body.is_important ? 1 : 0)
+          : (updated.status || 'Upcoming') !== 'Cancelled' ? 1 : 0;
+    const schedPriority = req.body.priority || (isImp ? 'IMPORTANT' : 'NORMAL');
+    await prisma.$executeRawUnsafe(
+      'UPDATE schedules SET is_important = ?, priority = ? WHERE id = ?',
+      isImp,
+      schedPriority,
+      id
+    );
+
+    // If schedule date, time, or status was modified (e.g. rescheduled), reset read state so affected users are notified
+    if (date !== undefined || startTime !== undefined || endTime !== undefined || status !== undefined) {
+      await prisma.$executeRawUnsafe(
+        'DELETE FROM notification_reads WHERE notification_key = ?',
+        `schedule:${id}`
+      );
+    }
+
+    res.json({
+      ...formatSchedule(updated),
+      isImportant: Boolean(isImp),
+      priority: schedPriority,
+    });
   } catch (err) {
     next(err);
   }

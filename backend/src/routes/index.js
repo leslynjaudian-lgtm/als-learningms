@@ -13,6 +13,7 @@ import scheduleRoutes from './schedules.js';
 import recordRoutes from './records.js';
 import reportRoutes from './reports.js';
 import searchRoutes from './search.js';
+import notificationRoutes from './notifications.js';
 
 const router = Router();
 
@@ -44,5 +45,6 @@ router.use('/schedules', scheduleRoutes);
 router.use('/records', recordRoutes);
 router.use('/reports', reportRoutes);
 router.use('/search', searchRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

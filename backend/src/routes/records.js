@@ -55,8 +55,25 @@ router.get('/', optionalAuth, async (req, res, next) => {
       if (!isNaN(parsed)) teacherId = parsed;
     }
 
-    if (!teacherId) {
-      // If no teacher can be resolved, return an empty array (do NOT leak other teachers' records)
+    // If teacherId could not be resolved from session or query, but learnerId was provided,
+    // resolve teacherId directly from the learner's assigned teacher.
+    if (!teacherId && req.query.learnerId) {
+      const lid = parseInt(req.query.learnerId, 10);
+      if (!isNaN(lid)) {
+        const targetLearner = await prisma.learner.findUnique({
+          where: { id: lid },
+          select: { assignedTeacherId: true },
+        });
+        if (targetLearner?.assignedTeacherId) {
+          teacherId = targetLearner.assignedTeacherId;
+        }
+      }
+    }
+
+    // If user is ADMIN, allow fetching across teachers or by learnerId
+    const isAdmin = req.user && req.user.role === 'ADMIN';
+    if (!teacherId && !isAdmin && !req.query.learnerId) {
+      // If no teacher or learner can be resolved, return an empty array (do NOT leak other teachers' records)
       return res.json([]);
     }
 
@@ -67,15 +84,45 @@ router.get('/', optionalAuth, async (req, res, next) => {
       learningCenterId,
       learningCenter,
       search,
+      fromDate,
+      toDate,
+      dateStarted,
+      dateFinished,
     } = req.query;
 
-    // 2. Fetch learners strictly assigned to this teacher
-    const assignedLearners = await prisma.learner.findMany({
-      where: { assignedTeacherId: teacherId },
-      include: {
-        learningCenter: { select: { id: true, name: true } },
-      },
-    });
+    const targetLearnerId = learnerId ? parseInt(learnerId, 10) : null;
+
+    // 2. Fetch learners assigned to this teacher or target learner
+    let assignedLearners = [];
+    if (teacherId) {
+      assignedLearners = await prisma.learner.findMany({
+        where: { assignedTeacherId: teacherId },
+        include: {
+          learningCenter: { select: { id: true, name: true } },
+        },
+      });
+    } else if (isAdmin) {
+      assignedLearners = await prisma.learner.findMany({
+        include: {
+          learningCenter: { select: { id: true, name: true } },
+        },
+      });
+    }
+
+    // Ensure the specifically requested learner is always included if valid
+    if (targetLearnerId && !isNaN(targetLearnerId) && !assignedLearners.some((l) => l.id === targetLearnerId)) {
+      const extraLearner = await prisma.learner.findUnique({
+        where: { id: targetLearnerId },
+        include: {
+          learningCenter: { select: { id: true, name: true } },
+        },
+      });
+      if (extraLearner) {
+        if (!req.user || req.user.role !== 'TEACHER' || extraLearner.assignedTeacherId === req.user.profileId) {
+          assignedLearners.push(extraLearner);
+        }
+      }
+    }
 
     if (!assignedLearners || assignedLearners.length === 0) {
       return res.json([]);
@@ -87,7 +134,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     // 3. Fetch actual LearnerProgress records for these assigned learners from the database
     const progressList = await prisma.learnerProgress.findMany({
       where: {
-        learnerId: { in: assignedLearnerIds },
+        learnerId: targetLearnerId && !isNaN(targetLearnerId) ? targetLearnerId : { in: assignedLearnerIds },
       },
       include: {
         learner: {
@@ -125,8 +172,10 @@ router.get('/', optionalAuth, async (req, res, next) => {
       const mod = p.module;
       if (!learner || !mod) continue;
 
-      const key = `${p.learnerId}_${p.moduleId}`;
-      seenModuleLearnerKeys.add(key);
+      const modKeyId = `${p.learnerId}_${p.moduleId}`;
+      const modKeyTitle = `${p.learnerId}_${(mod.title || '').trim().toLowerCase()}`;
+      seenModuleLearnerKeys.add(modKeyId);
+      seenModuleLearnerKeys.add(modKeyTitle);
 
       let preTotal = 10;
       let postTotal = 10;
@@ -151,9 +200,29 @@ router.get('/', optionalAuth, async (req, res, next) => {
         displayLevel = 'A&E Elementary';
       }
 
-      const dateCompleted = p.completedAt
-        ? p.completedAt.toISOString().split('T')[0]
-        : (p.updatedAt ? p.updatedAt.toISOString().split('T')[0] : '');
+      // Check if there is a matching manual AF2 record to merge teacher's remarks or details
+      const matchedAf = af2List.find(
+        (af) =>
+          Number(af.learnerId) === learner.id &&
+          (Number(af.moduleId) === mod.id ||
+            (af.moduleTitle &&
+              af.moduleTitle.trim().toLowerCase() === mod.title.trim().toLowerCase()))
+      );
+
+      let finalRemarks = matchedAf?.remarks ? matchedAf.remarks.trim() : '';
+      let finalOtherActivities = matchedAf?.otherActivities
+        ? matchedAf.otherActivities.trim()
+        : (mod.activitiesRelated ? mod.activitiesRelated.replace(/\\n/g, '\n').trim() : '');
+      let finalSelfAssessment = matchedAf?.selfAssessment ? matchedAf.selfAssessment.trim() : '';
+      let finalStatus = status;
+      if (matchedAf?.assessment && (matchedAf.assessment === 'Mastered' || matchedAf.assessment === 'Not Mastered')) {
+        finalStatus = matchedAf.assessment;
+      } else if (matchedAf?.moduleStatus) {
+        finalStatus = matchedAf.moduleStatus;
+      }
+
+      const recDateStarted = matchedAf?.dateStarted || (p.createdAt ? p.createdAt.toISOString().split('T')[0] : (mod.dateStarted ? mod.dateStarted.toISOString().split('T')[0] : ''));
+      const recDateCompleted = matchedAf?.dateFinished || matchedAf?.dateCompleted || (p.completedAt ? p.completedAt.toISOString().split('T')[0] : (p.updatedAt ? p.updatedAt.toISOString().split('T')[0] : ''));
 
       records.push({
         id: `prog_${p.id}`,
@@ -169,26 +238,29 @@ router.get('/', optionalAuth, async (req, res, next) => {
         moduleId: mod.id,
         moduleTitle: mod.title,
         strandName: mod.learningArea?.name || '',
-        preTestScore: p.preTestScore != null ? Number(p.preTestScore) : null,
+        preTestScore: p.preTestScore != null ? Number(p.preTestScore) : (matchedAf?.preTestScore != null ? Number(matchedAf.preTestScore) : null),
         preTestTotal: preTotal,
-        postTestScore: p.postTestScore != null ? Number(p.postTestScore) : null,
+        postTestScore: p.postTestScore != null ? Number(p.postTestScore) : (matchedAf?.postTestScore != null ? Number(matchedAf.postTestScore) : null),
         postTestTotal: postTotal,
-        assessment: status,
-        moduleStatus: status,
-        dateStarted: p.createdAt ? p.createdAt.toISOString().split('T')[0] : '',
-        dateFinished: dateCompleted,
-        dateCompleted: dateCompleted,
-        otherActivities: '',
-        remarks: '',
+        assessment: finalStatus,
+        moduleStatus: finalStatus,
+        dateStarted: recDateStarted,
+        dateFinished: recDateCompleted,
+        dateCompleted: recDateCompleted,
+        otherActivities: finalOtherActivities,
+        selfAssessment: finalSelfAssessment,
+        remarks: finalRemarks,
       });
     }
 
     // 5b. Process any AF2 recorded entries not already covered
     for (const af of af2List) {
       const lid = Number(af.learnerId);
-      const key = `${lid}_${af.moduleId || af.moduleTitle}`;
-      if (!seenModuleLearnerKeys.has(key)) {
-        seenModuleLearnerKeys.add(key);
+      const modKeyId = af.moduleId ? `${lid}_${af.moduleId}` : null;
+      const modKeyTitle = af.moduleTitle ? `${lid}_${af.moduleTitle.trim().toLowerCase()}` : null;
+      if ((!modKeyId || !seenModuleLearnerKeys.has(modKeyId)) && (!modKeyTitle || !seenModuleLearnerKeys.has(modKeyTitle))) {
+        if (modKeyId) seenModuleLearnerKeys.add(modKeyId);
+        if (modKeyTitle) seenModuleLearnerKeys.add(modKeyTitle);
         const learner = assignedMap.get(lid);
         if (!learner && !assignedLearnerIds.includes(lid)) continue;
 
@@ -224,6 +296,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
           dateFinished: af.dateFinished || af.dateCompleted || '',
           dateCompleted: af.dateFinished || af.dateCompleted || '',
           otherActivities: af.otherActivities || '',
+          selfAssessment: af.selfAssessment || '',
           remarks: af.remarks || '',
         });
       }
@@ -245,7 +318,10 @@ router.get('/', optionalAuth, async (req, res, next) => {
     if (targetLevel) {
       const normQuery = targetLevel.trim().toLowerCase();
       filtered = filtered.filter((r) => {
+        // If learnerId is specified, the learner's records already strictly belong to them
+        if (targetLearnerId) return true;
         const rLvl = (r.level || '').toLowerCase();
+        if (!rLvl) return true;
         if (normQuery.includes('elem')) {
           return rLvl.includes('elem');
         }
@@ -260,13 +336,18 @@ router.get('/', optionalAuth, async (req, res, next) => {
     if (learningCenterId) {
       const cidNum = parseInt(learningCenterId, 10);
       if (!isNaN(cidNum)) {
-        filtered = filtered.filter((r) => Number(r.learningCenterId) === cidNum);
+        filtered = filtered.filter((r) => {
+          if (targetLearnerId) return true;
+          return Number(r.learningCenterId) === cidNum;
+        });
       }
     } else if (learningCenter) {
       const normCenter = learningCenter.trim().toLowerCase();
-      filtered = filtered.filter(
-        (r) => (r.learningCenter || '').trim().toLowerCase() === normCenter
-      );
+      filtered = filtered.filter((r) => {
+        if (targetLearnerId) return true;
+        const rc = (r.learningCenter || r.centerName || '').trim().toLowerCase();
+        return !rc || rc === normCenter || rc.includes(normCenter) || normCenter.includes(rc);
+      });
     }
 
     // Filter 4: Text Search
@@ -278,6 +359,25 @@ router.get('/', optionalAuth, async (req, res, next) => {
           (r.lrn && r.lrn.toLowerCase().includes(q)) ||
           (r.moduleTitle && r.moduleTitle.toLowerCase().includes(q))
       );
+    }
+
+    // Filter 5: Date Range (Inclusive reporting period)
+    const startRange = (fromDate || dateStarted || '').trim().split('T')[0];
+    const endRange = (toDate || dateFinished || '').trim().split('T')[0];
+
+    if (startRange || endRange) {
+      filtered = filtered.filter((r) => {
+        const finishDate = (r.dateFinished || r.dateCompleted || '').trim().split('T')[0];
+        const startDate = (r.dateStarted || '').trim().split('T')[0];
+
+        // If neither date is present, do not silently exclude manually saved records
+        if (!finishDate && !startDate) return true;
+
+        const matchesFinish = finishDate && (!startRange || finishDate >= startRange) && (!endRange || finishDate <= endRange);
+        const matchesStart = startDate && (!startRange || startDate >= startRange) && (!endRange || startDate <= endRange);
+
+        return matchesFinish || matchesStart;
+      });
     }
 
     res.json(filtered);

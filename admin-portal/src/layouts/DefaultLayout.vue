@@ -221,12 +221,99 @@
         </div>
 
         <div class="topbar-right">
-          <button class="notification-btn" title="Notifications" aria-label="Notifications">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
-            </svg>
-            <span class="notif-badge"></span>
-          </button>
+          <div class="notif-wrapper" ref="notifContainerRef">
+            <button
+              type="button"
+              class="notification-btn notification-bell"
+              :class="{ 'is-shaking': shouldAnimateBell }"
+              title="Notifications"
+              aria-label="Notifications"
+              :aria-expanded="notifPanelOpen"
+              @click.stop="toggleNotifPanel"
+            >
+              <svg
+                :class="['bell-icon', { 'bell-electric-shake': shouldAnimateBell }]"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+              <span v-if="unreadCount > 0" class="notif-badge"></span>
+            </button>
+
+            <!-- Notification Dropdown Panel -->
+            <div v-if="notifPanelOpen" class="notif-dropdown-panel" @click.stop>
+              <div class="notif-panel-header">
+                <div class="notif-panel-title-wrap">
+                  <span class="notif-panel-title">Notifications</span>
+                  <span v-if="unreadCount > 0" class="notif-unread-pill">{{ unreadCount }} new</span>
+                </div>
+                <button
+                  v-if="unreadCount > 0"
+                  type="button"
+                  class="notif-mark-all-btn"
+                  @click="handleMarkAllRead"
+                >
+                  Mark all read
+                </button>
+              </div>
+
+              <div class="notif-panel-body">
+                <div v-if="notifications.length === 0" class="notif-empty-state">
+                  No notifications at this time.
+                </div>
+                <div
+                  v-for="item in notifications"
+                  :key="item.notificationKey"
+                  class="notif-item"
+                  :class="{ 'is-unread': !item.isRead, 'is-important': item.isImportant && !item.isRead }"
+                  @click="handleNotificationClick(item)"
+                >
+                  <div class="notif-item-top">
+                    <div class="notif-badges">
+                      <span class="notif-type-badge" :class="'type-' + (item.type || 'ANNOUNCEMENT').toLowerCase()">
+                        {{ formatNotifType(item.type) }}
+                      </span>
+                      <span v-if="item.isImportant" class="notif-important-badge">Important</span>
+                    </div>
+                    <span class="notif-time">{{ item.relativeTime }}</span>
+                  </div>
+                  <div class="notif-item-title-row">
+                    <span v-if="!item.isRead" class="notif-unread-dot"></span>
+                    <span class="notif-item-title">{{ item.title }}</span>
+                  </div>
+                  <p class="notif-item-message">{{ item.message }}</p>
+                  <div class="notif-item-footer">
+                    <span class="notif-sender">{{ item.sender }}</span>
+                    <button
+                      v-if="!item.isRead"
+                      type="button"
+                      class="notif-item-read-btn"
+                      @click.stop="markAsRead(item.notificationKey)"
+                    >
+                      Mark as read
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="notif-panel-footer">
+                <router-link to="/dashboard/announcements" class="notif-view-all-link" @click="notifPanelOpen = false">
+                  View Announcements
+                </router-link>
+                <span class="notif-footer-sep">•</span>
+                <router-link to="/dashboard/schedule" class="notif-view-all-link" @click="notifPanelOpen = false">
+                  View Schedule
+                </router-link>
+              </div>
+            </div>
+          </div>
 
           <router-link to="/dashboard/settings" class="user-chip">
             <div class="user-avatar" :class="{ 'has-photo': !!adminPhoto }">
@@ -270,21 +357,83 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import SignoutConfirmationModal from '../components/SignoutConfirmationModal.vue';
 import GlobalSearchBar from '../components/GlobalSearchBar.vue';
 import { useAdminSession } from '../composables/useAdminSession.js';
+import { useNotifications } from '../composables/useNotifications.js';
 
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const showSignoutModal = ref(false);
+const notifPanelOpen = ref(false);
+const notifContainerRef = ref(null);
 
 const { adminPhoto, adminName, adminRole, clearAdminSession, refreshAdminProfile } = useAdminSession();
+const {
+  notifications,
+  unreadCount,
+  shouldAnimateBell,
+  fetchNotifications,
+  markAsRead,
+  markAllAsRead,
+  clearNotificationsState,
+} = useNotifications();
+
+let pollTimer = null;
+
+function toggleNotifPanel() {
+  notifPanelOpen.value = !notifPanelOpen.value;
+}
+
+function formatNotifType(type) {
+  const t = String(type || 'ANNOUNCEMENT').toUpperCase();
+  if (t === 'SCHEDULE') return 'Schedule';
+  if (t === 'REMINDER') return 'Reminder';
+  return 'Announcement';
+}
+
+async function handleNotificationClick(item) {
+  if (item && !item.isRead) {
+    await markAsRead(item.notificationKey);
+  }
+  notifPanelOpen.value = false;
+  const targetUrl = item?.actionUrl || '/dashboard/announcements';
+  if (route.path !== targetUrl) {
+    router.push(targetUrl);
+  }
+}
+
+async function handleMarkAllRead() {
+  await markAllAsRead();
+}
+
+function handleDocumentClick(e) {
+  if (notifPanelOpen.value && notifContainerRef.value && !notifContainerRef.value.contains(e.target)) {
+    notifPanelOpen.value = false;
+  }
+}
+
+function handleWindowFocus() {
+  fetchNotifications();
+}
 
 onMounted(() => {
   refreshAdminProfile();
+  fetchNotifications();
+  pollTimer = setInterval(fetchNotifications, 15000);
+  document.addEventListener('click', handleDocumentClick);
+  window.addEventListener('focus', handleWindowFocus);
+  window.addEventListener('als-notifications-updated', handleWindowFocus);
+});
+
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer);
+  document.removeEventListener('click', handleDocumentClick);
+  window.removeEventListener('focus', handleWindowFocus);
+  window.removeEventListener('als-notifications-updated', handleWindowFocus);
 });
 
 // Independent states: activeMenu controls which item is blue; expandedMenu controls open submenu
@@ -333,6 +482,8 @@ function handleSublinkClick(parentMenu) {
 watch(
   () => route.path,
   (newPath) => {
+    notifPanelOpen.value = false;
+    fetchNotifications();
     const routeMenu = getMenuFromPath(newPath);
     if (routeMenu) {
       activeMenu.value = routeMenu;
@@ -361,12 +512,296 @@ function handleLogout() {
 
 function confirmSignout() {
   showSignoutModal.value = false;
+  notifPanelOpen.value = false;
+  clearNotificationsState();
   clearAdminSession();
   router.push({ name: 'Login' });
 }
 </script>
 
 <style scoped>
+.notif-wrapper {
+  position: relative;
+}
+
+.bell-icon {
+  display: block;
+  transform-box: fill-box;
+  transform-origin: 50% 15%;
+}
+
+.notification-bell.is-shaking svg,
+.bell-icon.bell-electric-shake {
+  transform-origin: 50% 15%;
+  animation: electricBellShake 0.3s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes electricBellShake {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-8deg);
+  }
+  30% {
+    transform: rotate(8deg);
+  }
+  45% {
+    transform: rotate(-7deg);
+  }
+  60% {
+    transform: rotate(7deg);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+  90% {
+    transform: rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-bell.is-shaking svg,
+  .bell-icon.bell-electric-shake {
+    animation: none;
+  }
+}
+
+.notif-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(370px, calc(100vw - 24px));
+  max-height: 460px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  z-index: 1200;
+  overflow: hidden;
+  color: #1e293b;
+}
+
+.notif-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.notif-panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-panel-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.notif-unread-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.notif-mark-all-btn {
+  background: transparent;
+  border: none;
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.notif-mark-all-btn:hover {
+  text-decoration: underline;
+}
+
+.notif-panel-body {
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.notif-empty-state {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 0.84rem;
+  color: #64748b;
+}
+
+.notif-item {
+  padding: 11px 15px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  text-align: left;
+}
+
+.notif-item:hover {
+  background: #f8fafc;
+}
+
+.notif-item.is-unread {
+  background: #eff6ff;
+}
+
+.notif-item.is-unread:hover {
+  background: #dbeafe;
+}
+
+.notif-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.notif-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.notif-type-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.notif-type-badge.type-announcement {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.notif-type-badge.type-reminder {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.notif-type-badge.type-schedule {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.notif-important-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.notif-time {
+  font-size: 0.7rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.notif-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.notif-unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.notif-item-title {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.notif-item-message {
+  font-size: 0.76rem;
+  color: #475569;
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.notif-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notif-sender {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.notif-item-read-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.notif-item-read-btn:hover {
+  background: #f1f5f9;
+}
+
+.notif-panel-footer {
+  padding: 9px 14px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.notif-footer-sep {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.notif-view-all-link {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.notif-view-all-link:hover {
+  text-decoration: underline;
+}
 .nav-dropdown-item {
   display: flex;
   flex-direction: column;

@@ -56,8 +56,15 @@ export async function exportReportToPdf(target, options = {}) {
       orientation,
       compress: true,
     },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    pagebreak: { mode: ['css', 'legacy'], after: '.has-page-break' },
   };
+
+  // Temporarily hide .print-hidden elements inside the target container during capture
+  const hiddenElements = Array.from(element.querySelectorAll('.print-hidden'));
+  const previousDisplays = hiddenElements.map((el) => el.style.display);
+  hiddenElements.forEach((el) => {
+    el.style.display = 'none';
+  });
 
   try {
     await html2pdf().set(opt).from(element).save();
@@ -66,6 +73,10 @@ export async function exportReportToPdf(target, options = {}) {
     // If html2pdf encounters an issue, fallback cleanly to browser print
     window.print();
     throw err;
+  } finally {
+    hiddenElements.forEach((el, idx) => {
+      el.style.display = previousDisplays[idx];
+    });
   }
 }
 

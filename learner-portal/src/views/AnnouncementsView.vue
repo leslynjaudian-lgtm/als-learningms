@@ -14,7 +14,8 @@
         v-for="item in announcements"
         :key="item.id"
         class="learner-card"
-        style="display: flex; gap: 0.85rem; align-items: flex-start; padding: 1.15rem;"
+        style="display: flex; gap: 0.85rem; align-items: flex-start; padding: 1.15rem; cursor: pointer;"
+        @click="markAnnouncementRead(item)"
       >
         <div
           :style="{ background: item.iconBg || '#eff6ff', color: item.iconColor || '#165dfc' }"
@@ -64,9 +65,17 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import api from '../api/axios.js';
+import { useNotifications } from '../composables/useNotifications.js';
 
 const announcements = ref([]);
 const loading = ref(false);
+const { markAsRead } = useNotifications();
+
+function markAnnouncementRead(item) {
+  if (item?.id) {
+    markAsRead(`announcement:${item.id}`);
+  }
+}
 
 async function loadAnnouncements() {
   loading.value = true;

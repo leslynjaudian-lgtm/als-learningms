@@ -58,51 +58,189 @@ router.get('/', async (req, res, next) => {
       toDate,
     } = req.query;
 
-    let records = readAf2Records();
+    // 1. Read manually recorded AF2 entries from JSON
+    const af2Records = readAf2Records();
 
-    // Optionally enrich with live DB learner & teacher & center info if available
-    const [learners, teachers, centers] = await Promise.all([
-      prisma.learner.findMany({ select: { id: true, fullName: true, firstName: true, middleName: true, lastName: true, lrn: true, level: true, learningCenterId: true, assignedTeacherId: true } }).catch(() => []),
+    // 2. Fetch live DB learner, teacher, center, and progress info
+    const [learners, teachers, centers, progressList] = await Promise.all([
+      prisma.learner.findMany({
+        include: { learningCenter: true, assignedTeacher: true },
+      }).catch(() => []),
       prisma.teacher.findMany({ select: { id: true, fullName: true, learningCenterId: true } }).catch(() => []),
       prisma.learningCenter.findMany({ select: { id: true, name: true } }).catch(() => []),
+      prisma.learnerProgress.findMany({
+        include: {
+          learner: { include: { learningCenter: true, assignedTeacher: true } },
+          module: {
+            include: {
+              learningArea: true,
+              assessments: {
+                include: { _count: { select: { questions: true } } },
+              },
+            },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }).catch(() => []),
     ]);
 
     const learnerMap = new Map(learners.map((l) => [l.id, l]));
     const teacherMap = new Map(teachers.map((t) => [t.id, t.fullName]));
     const centerMap = new Map(centers.map((c) => [c.id, c.name]));
 
-    records = records.map((rec) => {
-      let lName = rec.learnerName;
-      let lrn = rec.lrn;
-      let lvl = rec.level;
-      let cName = rec.learningCenter || rec.centerName;
-      let tName = rec.teacherName;
+    const combined = [];
+    const seenModuleLearnerKeys = new Set();
 
-      if (rec.learnerId && learnerMap.has(Number(rec.learnerId))) {
-        const dbLearner = learnerMap.get(Number(rec.learnerId));
-        lName = formatLearnerName(dbLearner) || dbLearner.fullName;
-        if (!lrn) lrn = dbLearner.lrn;
-        if (!lvl) {
-          lvl = dbLearner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High School';
-        }
-        if (!cName && dbLearner.learningCenterId && centerMap.has(dbLearner.learningCenterId)) {
-          cName = centerMap.get(dbLearner.learningCenterId);
-        }
-        if (!tName && dbLearner.assignedTeacherId && teacherMap.has(dbLearner.assignedTeacherId)) {
-          tName = teacherMap.get(dbLearner.assignedTeacherId);
-        }
+    // Process database LearnerProgress records
+    for (const p of progressList) {
+      const learner = p.learner || learnerMap.get(p.learnerId);
+      const mod = p.module;
+      if (!learner || !mod) continue;
+
+      const modKeyId = `${p.learnerId}_${p.moduleId}`;
+      const modKeyTitle = `${p.learnerId}_${(mod.title || '').trim().toLowerCase()}`;
+      seenModuleLearnerKeys.add(modKeyId);
+      seenModuleLearnerKeys.add(modKeyTitle);
+
+      let preTotal = 10;
+      let postTotal = 10;
+      if (Array.isArray(mod.assessments)) {
+        const preAss = mod.assessments.find((a) => a.type === 'PRE_TEST');
+        const postAss = mod.assessments.find((a) => a.type === 'POST_TEST');
+        if (preAss?._count?.questions) preTotal = preAss._count.questions;
+        if (postAss?._count?.questions) postTotal = postAss._count.questions;
       }
 
-      return {
-        ...rec,
-        learnerName: lName || '—',
-        lrn: lrn || '',
-        level: lvl || 'A&E Elementary',
-        learningCenter: cName || '—',
-        centerName: cName || '—',
-        teacherName: tName || '—',
-      };
-    });
+      let status = 'In Progress';
+      if (p.masteryStatus === 'MASTERED' || p.status === 'COMPLETED') {
+        status = 'Mastered';
+      } else if (p.masteryStatus === 'NOT_MASTERED') {
+        status = 'Not Mastered';
+      }
+
+      let displayLevel = 'A&E Elementary';
+      if (learner.level === 'JUNIOR' || learner.level === 'A&E Junior High') {
+        displayLevel = 'A&E Junior High';
+      } else if (learner.level === 'ELEMENTARY' || learner.level === 'A&E Elementary') {
+        displayLevel = 'A&E Elementary';
+      }
+
+      const matchedAf = af2Records.find(
+        (af) =>
+          Number(af.learnerId) === learner.id &&
+          (Number(af.moduleId) === mod.id ||
+            (af.moduleTitle &&
+              af.moduleTitle.trim().toLowerCase() === mod.title.trim().toLowerCase()))
+      );
+
+      let finalRemarks = matchedAf?.remarks ? matchedAf.remarks.trim() : '';
+      let finalOtherActivities = matchedAf?.otherActivities
+        ? matchedAf.otherActivities.trim()
+        : (mod.activitiesRelated ? mod.activitiesRelated.replace(/\\n/g, '\n').trim() : '');
+      let finalSelfAssessment = matchedAf?.selfAssessment ? matchedAf.selfAssessment.trim() : '';
+      let finalStatus = status;
+      if (matchedAf?.assessment && (matchedAf.assessment === 'Mastered' || matchedAf.assessment === 'Not Mastered')) {
+        finalStatus = matchedAf.assessment;
+      } else if (matchedAf?.moduleStatus) {
+        finalStatus = matchedAf.moduleStatus;
+      }
+
+      const recDateStarted = matchedAf?.dateStarted || (p.createdAt ? p.createdAt.toISOString().split('T')[0] : (mod.dateStarted ? mod.dateStarted.toISOString().split('T')[0] : ''));
+      const recDateCompleted = matchedAf?.dateFinished || matchedAf?.dateCompleted || (p.completedAt ? p.completedAt.toISOString().split('T')[0] : (p.updatedAt ? p.updatedAt.toISOString().split('T')[0] : ''));
+
+      combined.push({
+        id: `prog_${p.id}`,
+        source: 'database',
+        progressId: p.id,
+        teacherId: learner.assignedTeacherId || mod.teacherId,
+        teacherName: learner.assignedTeacher?.fullName || teacherMap.get(learner.assignedTeacherId) || '—',
+        learnerId: learner.id,
+        learnerName: formatLearnerName(learner) || learner.fullName,
+        lrn: learner.lrn || '',
+        level: displayLevel,
+        learningCenterId: learner.learningCenterId,
+        learningCenter: learner.learningCenter?.name || centerMap.get(learner.learningCenterId) || '—',
+        centerName: learner.learningCenter?.name || centerMap.get(learner.learningCenterId) || '—',
+        moduleId: mod.id,
+        moduleTitle: mod.title,
+        strandName: mod.learningArea?.name || '',
+        preTestScore: p.preTestScore != null ? Number(p.preTestScore) : (matchedAf?.preTestScore != null ? Number(matchedAf.preTestScore) : null),
+        preTestTotal: preTotal,
+        postTestScore: p.postTestScore != null ? Number(p.postTestScore) : (matchedAf?.postTestScore != null ? Number(matchedAf.postTestScore) : null),
+        postTestTotal: postTotal,
+        assessment: finalStatus,
+        moduleStatus: finalStatus,
+        dateStarted: recDateStarted,
+        dateFinished: recDateCompleted,
+        dateCompleted: recDateCompleted,
+        otherActivities: finalOtherActivities,
+        selfAssessment: finalSelfAssessment,
+        remarks: finalRemarks,
+      });
+    }
+
+    // Process manually recorded AF2 entries not already in combined
+    for (const rec of af2Records) {
+      const lid = Number(rec.learnerId);
+      const modKeyId = rec.moduleId ? `${lid}_${rec.moduleId}` : null;
+      const modKeyTitle = rec.moduleTitle ? `${lid}_${rec.moduleTitle.trim().toLowerCase()}` : null;
+
+      if ((!modKeyId || !seenModuleLearnerKeys.has(modKeyId)) && (!modKeyTitle || !seenModuleLearnerKeys.has(modKeyTitle))) {
+        if (modKeyId) seenModuleLearnerKeys.add(modKeyId);
+        if (modKeyTitle) seenModuleLearnerKeys.add(modKeyTitle);
+
+        let lName = rec.learnerName;
+        let lrn = rec.lrn;
+        let lvl = rec.level;
+        let cName = rec.learningCenter || rec.centerName;
+        let tName = rec.teacherName;
+        let cid = rec.learningCenterId;
+
+        if (lid && learnerMap.has(lid)) {
+          const dbLearner = learnerMap.get(lid);
+          lName = formatLearnerName(dbLearner) || dbLearner.fullName;
+          if (!lrn) lrn = dbLearner.lrn;
+          if (!lvl) {
+            lvl = dbLearner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
+          }
+          if (!cName && dbLearner.learningCenterId && centerMap.has(dbLearner.learningCenterId)) {
+            cName = centerMap.get(dbLearner.learningCenterId);
+          }
+          cid = cid || dbLearner.learningCenterId;
+          if (!tName && dbLearner.assignedTeacherId && teacherMap.has(dbLearner.assignedTeacherId)) {
+            tName = teacherMap.get(dbLearner.assignedTeacherId);
+          }
+        }
+
+        combined.push({
+          ...rec,
+          id: rec.id || `af2_${Date.now()}`,
+          source: 'af2',
+          learnerId: lid,
+          learnerName: lName || '—',
+          lrn: lrn || '',
+          level: lvl || 'A&E Elementary',
+          learningCenterId: cid,
+          learningCenter: cName || '—',
+          centerName: cName || '—',
+          teacherName: tName || '—',
+          preTestScore: rec.preTestScore != null && rec.preTestScore !== '' ? Number(rec.preTestScore) : null,
+          preTestTotal: rec.preTestTotal != null && rec.preTestTotal !== '' ? Number(rec.preTestTotal) : 10,
+          postTestScore: rec.postTestScore != null && rec.postTestScore !== '' ? Number(rec.postTestScore) : null,
+          postTestTotal: rec.postTestTotal != null && rec.postTestTotal !== '' ? Number(rec.postTestTotal) : 10,
+          assessment: rec.assessment || rec.moduleStatus || 'Mastered',
+          moduleStatus: rec.assessment || rec.moduleStatus || 'Mastered',
+          dateStarted: rec.dateStarted || '',
+          dateFinished: rec.dateFinished || rec.dateCompleted || '',
+          dateCompleted: rec.dateFinished || rec.dateCompleted || '',
+          otherActivities: rec.otherActivities || '',
+          selfAssessment: rec.selfAssessment || '',
+          remarks: rec.remarks || '',
+        });
+      }
+    }
+
+    let records = combined;
 
     // Apply filters
     if (learningCenterId) {
@@ -167,14 +305,17 @@ router.get('/', async (req, res, next) => {
       );
     }
 
-    if (fromDate) {
-      const d = new Date(fromDate);
-      records = records.filter((r) => r.dateStarted && new Date(r.dateStarted) >= d);
-    }
+    const startRange = (fromDate || req.query.dateStarted || '').trim().split('T')[0];
+    const endRange = (toDate || req.query.dateFinished || '').trim().split('T')[0];
 
-    if (toDate) {
-      const d = new Date(toDate);
-      records = records.filter((r) => r.dateFinished && new Date(r.dateFinished) <= d);
+    if (startRange || endRange) {
+      records = records.filter((r) => {
+        const recordDate = (r.dateFinished || r.dateCompleted || r.dateStarted || '').trim().split('T')[0];
+        if (!recordDate) return true;
+        if (startRange && recordDate < startRange) return false;
+        if (endRange && recordDate > endRange) return false;
+        return true;
+      });
     }
 
     res.json(records);

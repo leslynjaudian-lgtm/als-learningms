@@ -976,20 +976,28 @@ function validateStep1() {
 // Fetch modules from database for the currently logged-in teacher and selected ALS Level
 async function loadModules() {
   loading.value = true;
+  modules.value = []; // Immediately clear previous list to ensure no stale data appears
   try {
-    const tid = teacherId.value;
+    const tid = teacherId.value || currentTeacher.value?.id;
+    const targetEnum = activeTargetLevel.value; // 'ELEMENTARY' or 'JUNIOR'
     const params = {
-      level: activeLevel.value,
+      targetLevel: targetEnum,
+      level: targetEnum,
     };
     if (tid) params.teacherId = tid;
     const res = await getModules(params);
     if (Array.isArray(res.data)) {
+      // Filter strictly by the actual stored ALS Level (m.targetLevel)
       modules.value = res.data.filter((m) => {
-        const lvl = String(m.level || m.targetLevel || m.programLevel || '').toLowerCase();
-        if (activeTargetLevel.value === 'ELEMENTARY') {
-          return lvl.includes('elem');
+        const modTarget = String(m.targetLevel || '').toUpperCase().trim();
+        if (modTarget === 'ELEMENTARY' || modTarget === 'JUNIOR') {
+          return modTarget === targetEnum;
+        }
+        const lvl = String(m.level || m.programLevel || '').toUpperCase();
+        if (targetEnum === 'ELEMENTARY') {
+          return lvl.includes('ELEM');
         } else {
-          return lvl.includes('jun') || lvl.includes('sec');
+          return lvl.includes('JUN') || lvl.includes('SEC');
         }
       });
     } else {
@@ -1012,7 +1020,16 @@ async function loadTeacherLearners() {
     teacherLearners.value = (data || []).map((l) => ({
       id: l.id,
       name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
-      level: l.level === 'ELEMENTARY' ? 'A&E Elementary' : (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' ? 'A&E Junior High' : l.level) || 'A&E Elementary',
+      level:
+        l.level === 'ELEMENTARY'
+          ? 'A&E Elementary'
+          : l.level === 'JUNIOR' ||
+            l.level === 'LOWER_SECONDARY' ||
+            l.level === 'A&E Junior' ||
+            l.level === 'A&E Junior High'
+          ? 'A&E Junior High'
+          : l.level || 'A&E Elementary',
+      targetLevel: l.level === 'ELEMENTARY' ? 'ELEMENTARY' : 'JUNIOR',
       learningCenterId: l.learningCenterId,
       learningCenter: l.learningCenter || '',
     }));
@@ -1266,21 +1283,33 @@ watch(teacherId, (newId) => {
   }
 });
 
+// React immediately whenever route path changes (e.g. from /elementary to /junior-high)
 watch(
-  () => activeLevel.value,
-  (newVal) => {
-    if (newVal) {
-      newModule.level = newVal;
-      loadModules();
-      loadTeacherLearners();
+  () => route.path,
+  async (newPath, oldPath) => {
+    if (newPath !== oldPath) {
+      newModule.level = activeLevel.value;
+      await loadModules();
+      await loadTeacherLearners();
     }
   }
 );
 
-onMounted(() => {
+watch(
+  () => activeTargetLevel.value,
+  async (newTarget) => {
+    if (newTarget) {
+      newModule.level = activeLevel.value;
+      await loadModules();
+      await loadTeacherLearners();
+    }
+  }
+);
+
+onMounted(async () => {
   newModule.level = activeLevel.value;
-  loadModules();
-  loadTeacherLearners();
+  await loadModules();
+  await loadTeacherLearners();
 });
 </script>
 
