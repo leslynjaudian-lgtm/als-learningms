@@ -53,12 +53,13 @@
       <div class="profile-grid-2">
         <!-- Left: Avatar Card -->
         <div class="profile-avatar-card">
-          <div class="big-avatar-circle" :class="{ 'has-photo': !!displayedPhoto }">
+          <div class="big-avatar-circle" :class="{ 'has-photo': !!displayedPhoto && !photoLoadError }">
             <img
-              v-if="displayedPhoto"
+              v-if="displayedPhoto && !photoLoadError"
               :src="displayedPhoto"
               alt="Teacher Profile Photo"
               class="big-avatar-photo"
+              @error="photoLoadError = true"
             />
             <svg
               v-else
@@ -539,11 +540,16 @@ const savedProfilePhoto = ref(teacherPhoto.value || '');
 const selectedPhoto = ref(null);
 const previewPhoto = ref('');
 const photoRemoved = ref(false);
+const photoLoadError = ref(false);
 
 const displayedPhoto = computed(() => {
   if (previewPhoto.value) return previewPhoto.value;
   if (photoRemoved.value) return '';
   return savedProfilePhoto.value;
+});
+
+watch(displayedPhoto, () => {
+  photoLoadError.value = false;
 });
 
 const assignedCenterDisplay = computed(() => {

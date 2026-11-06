@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../config/prisma.js';
 import { verifyToken } from '../config/jwt.js';
+import { notifyAnnouncementPublished } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -39,6 +40,7 @@ function normalizeStatusInput(val) {
   if (!val) return 'PUBLISHED';
   const s = String(val).trim().toUpperCase();
   if (s === 'DRAFT') return 'DRAFT';
+  if (s === 'SCHEDULED') return 'SCHEDULED';
   return 'PUBLISHED';
 }
 
@@ -130,7 +132,29 @@ function formatAnnouncement(a) {
     ? a.target_learner_name
     : formatAudience(a.audience);
 
-  const statusLabel = (a.status === 'DRAFT' || a.status === 'Draft') ? 'Draft' : 'Published';
+  const normStatus = String(a.status || '').toUpperCase();
+  let statusLabel = 'Published';
+  if (normStatus === 'DRAFT') statusLabel = 'Draft';
+  else if (normStatus === 'SCHEDULED') statusLabel = 'Scheduled';
+
+  let scheduledDateFormatted = '';
+  let scheduledTimeFormatted = '';
+  if (a.scheduled_at) {
+    const sDate = new Date(a.scheduled_at);
+    if (!isNaN(sDate.getTime())) {
+      scheduledDateFormatted = sDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      scheduledTimeFormatted = sDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  }
+
   const isImportant = Boolean(
     a.is_important ||
     a.is_pinned ||
@@ -147,7 +171,10 @@ function formatAnnouncement(a) {
     audience: audienceLabel,
     audienceRaw: a.audience,
     status: statusLabel,
-    statusRaw: a.status,
+    statusRaw: normStatus,
+    scheduledAt: a.scheduled_at || null,
+    scheduledDate: scheduledDateFormatted,
+    scheduledTime: scheduledTimeFormatted,
     isPinned: Boolean(a.is_pinned),
     isImportant,
     priority,
@@ -219,7 +246,7 @@ router.get('/', async (req, res, next) => {
     const baseSql = `
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
-        a.is_important, a.priority, a.category, a.deadline_at,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -341,31 +368,34 @@ router.get('/', async (req, res, next) => {
       }
       const tuid = authUser?.id || null;
 
-      let sql = baseSql + ` WHERE a.status = 'PUBLISHED' `;
+      let sql = baseSql + ` WHERE `;
       const params = [];
 
       if (tid) {
         sql += `
-          AND (
-            -- 1. Admin announcements intended for All Teachers
+          (
+            -- 1. Admin announcements intended for All Teachers (must be PUBLISHED)
             (
               (a.creator_role = 'ADMIN' OR (a.creator_role IS NULL AND (u.role = 'ADMIN' OR a.teacher_id IS NULL)))
               AND a.audience IN ('ALL_TEACHERS', 'TEACHERS', 'ALL')
+              AND a.status = 'PUBLISHED'
             )
             OR
-            -- 2. The logged-in teacher's own announcements
+            -- 2. The logged-in teacher's own announcements (Draft, Scheduled, Published)
             (
-              a.teacher_id = ?
-              ${tuid ? 'OR (a.creator_role = \'TEACHER\' AND a.author_id = ?)' : ''}
+              (a.teacher_id = ? ${tuid ? 'OR (a.creator_role = \'TEACHER\' AND a.author_id = ?)' : ''})
+              ${status ? 'AND a.status = ?' : ''}
             )
           )
         `;
         params.push(tid);
         if (tuid) params.push(tuid);
+        if (status) params.push(normalizeStatusInput(status));
       } else {
         sql += `
-          AND (a.creator_role = 'ADMIN' OR (a.creator_role IS NULL AND (u.role = 'ADMIN' OR a.teacher_id IS NULL)))
+          (a.creator_role = 'ADMIN' OR (a.creator_role IS NULL AND (u.role = 'ADMIN' OR a.teacher_id IS NULL)))
           AND a.audience IN ('ALL_TEACHERS', 'TEACHERS', 'ALL')
+          AND a.status = 'PUBLISHED'
         `;
       }
 
@@ -420,7 +450,7 @@ router.get('/:id', async (req, res, next) => {
     const rows = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
-        a.is_important, a.priority, a.category, a.deadline_at,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -479,13 +509,34 @@ router.post('/', async (req, res, next) => {
     } = req.body;
 
     const bodyContent = (content || message || '').trim();
+    const dbStatus = normalizeStatusInput(status);
+    let resolvedScheduledAt = null;
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({ error: 'Title is required' });
+    if (dbStatus === 'SCHEDULED') {
+      const rawScheduled = req.body.scheduledAt || req.body.scheduled_at || (req.body.scheduleDate ? `${req.body.scheduleDate}T${req.body.scheduleTime || '09:00'}` : null);
+      resolvedScheduledAt = rawScheduled ? new Date(rawScheduled) : null;
+      if (!resolvedScheduledAt || isNaN(resolvedScheduledAt.getTime())) {
+        return res.status(400).json({ error: 'Please specify a valid scheduled date and time.' });
+      }
+      if (resolvedScheduledAt.getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'Scheduled date and time must be in the future.' });
+      }
     }
-    if (!bodyContent) {
-      return res.status(400).json({ error: 'Message content is required' });
+
+    if (dbStatus === 'DRAFT') {
+      if (!title?.trim() && !bodyContent) {
+        return res.status(400).json({ error: 'Please enter at least a title or message to save a draft.' });
+      }
+    } else {
+      if (!title || !title.trim()) {
+        return res.status(400).json({ error: 'Title is required' });
+      }
+      if (!bodyContent) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
     }
+
+    const effectiveTitle = (title && title.trim()) ? title.trim() : (bodyContent.slice(0, 50) || 'Untitled Draft');
 
     // Determine creator role
     let resolvedRole = (creatorRole || creator_role || authUser?.role || '').toUpperCase();
@@ -558,41 +609,53 @@ router.post('/', async (req, res, next) => {
       }
 
       // 3. Learning Center validation
-      const centerId = learningCenterId || learning_center_id
+      let centerId = learningCenterId || learning_center_id
         ? parseInt(learningCenterId || learning_center_id, 10)
         : null;
 
-      if (!centerId) {
+      if (!centerId && dbStatus === 'DRAFT') {
+        centerId = teacher.learningCenterId || (teacher.assignedLearners?.[0]?.learningCenterId) || null;
+      }
+
+      if (!centerId && dbStatus !== 'DRAFT') {
         return res.status(400).json({ error: 'Learning Center is required.' });
       }
 
       // Verify teacher is assigned to this Learning Center
-      const isAssignedCenter =
-        (teacher.learningCenterId && Number(teacher.learningCenterId) === centerId) ||
-        (Array.isArray(teacher.assignedLearners) && teacher.assignedLearners.some((l) => Number(l.learningCenterId) === centerId));
+      if (centerId && dbStatus !== 'DRAFT') {
+        const isAssignedCenter =
+          (teacher.learningCenterId && Number(teacher.learningCenterId) === centerId) ||
+          (Array.isArray(teacher.assignedLearners) && teacher.assignedLearners.some((l) => Number(l.learningCenterId) === centerId));
 
-      if (!isAssignedCenter) {
-        return res.status(400).json({ error: 'Teacher is not assigned to the selected Learning Center.' });
+        if (!isAssignedCenter) {
+          return res.status(400).json({ error: 'Teacher is not assigned to the selected Learning Center.' });
+        }
       }
 
       // 4. ALS Level validation
-      const normProgramLevel = normalizeProgramLevel(programLevel || program_level);
-      if (!normProgramLevel || (normProgramLevel !== 'A&E Elementary' && normProgramLevel !== 'A&E Junior High')) {
+      let normProgramLevel = normalizeProgramLevel(programLevel || program_level);
+      if (!normProgramLevel && dbStatus === 'DRAFT') {
+        const teacherSpec = teacher.specialization || 'Both';
+        normProgramLevel = teacherSpec.toLowerCase().includes('elem') ? 'A&E Elementary' : 'A&E Junior High';
+      }
+      if ((!normProgramLevel || (normProgramLevel !== 'A&E Elementary' && normProgramLevel !== 'A&E Junior High')) && dbStatus !== 'DRAFT') {
         return res.status(400).json({ error: 'ALS Level is required (must be A&E Elementary or A&E Junior High).' });
       }
 
       // Verify teacher is assigned to this ALS Level
-      const teacherSpec = teacher.specialization || 'Both';
-      const teacherSpecLower = teacherSpec.toLowerCase();
-      if (teacherSpecLower.includes('both')) {
-        // Teacher handles both, valid
-      } else if (teacherSpecLower.includes('elem')) {
-        if (normProgramLevel !== 'A&E Elementary') {
-          return res.status(400).json({ error: 'Teacher is not assigned to A&E Junior High.' });
-        }
-      } else if (teacherSpecLower.includes('jun')) {
-        if (normProgramLevel !== 'A&E Junior High') {
-          return res.status(400).json({ error: 'Teacher is not assigned to A&E Elementary.' });
+      if (dbStatus !== 'DRAFT') {
+        const teacherSpec = teacher.specialization || 'Both';
+        const teacherSpecLower = teacherSpec.toLowerCase();
+        if (teacherSpecLower.includes('both')) {
+          // Teacher handles both, valid
+        } else if (teacherSpecLower.includes('elem')) {
+          if (normProgramLevel !== 'A&E Elementary') {
+            return res.status(400).json({ error: 'Teacher is not assigned to A&E Junior High.' });
+          }
+        } else if (teacherSpecLower.includes('jun')) {
+          if (normProgramLevel !== 'A&E Junior High') {
+            return res.status(400).json({ error: 'Teacher is not assigned to A&E Elementary.' });
+          }
         }
       }
 
@@ -615,7 +678,7 @@ router.post('/', async (req, res, next) => {
 
       const dbAudience = isIndividual ? 'INDIVIDUAL_LEARNER' : 'ALL_LEARNERS';
 
-      if (isIndividual) {
+      if (isIndividual && dbStatus !== 'DRAFT') {
         if (resolvedTargetLearnerIds.length === 0) {
           return res.status(400).json({ error: 'Please select an individual learner.' });
         }
@@ -663,16 +726,15 @@ router.post('/', async (req, res, next) => {
       const postDate = rawDate ? new Date(rawDate) : null;
       const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
       const meta = inferAnnouncementMeta(req.body);
-      const dbStatus = normalizeStatusInput(status);
 
       const targetIdsToInsert = isIndividual ? resolvedTargetLearnerIds : [null];
       for (const targetId of targetIdsToInsert) {
         if (validDate) {
           await prisma.$executeRawUnsafe(
             `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
-            title.trim(),
+              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
+            effectiveTitle,
             bodyContent,
             dbAudience,
             dbStatus,
@@ -681,6 +743,7 @@ router.post('/', async (req, res, next) => {
             meta.priority,
             meta.category,
             meta.deadlineAt,
+            resolvedScheduledAt,
             authorUserId,
             resolvedTeacherId,
             centerId,
@@ -691,9 +754,9 @@ router.post('/', async (req, res, next) => {
         } else {
           await prisma.$executeRawUnsafe(
             `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, NOW(), NOW())`,
-            title.trim(),
+              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, NOW(), NOW())`,
+            effectiveTitle,
             bodyContent,
             dbAudience,
             dbStatus,
@@ -702,6 +765,7 @@ router.post('/', async (req, res, next) => {
             meta.priority,
             meta.category,
             meta.deadlineAt,
+            resolvedScheduledAt,
             authorUserId,
             resolvedTeacherId,
             centerId,
@@ -714,7 +778,7 @@ router.post('/', async (req, res, next) => {
       const [inserted] = await prisma.$queryRawUnsafe(`
         SELECT 
           a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
-          a.is_important, a.priority, a.category, a.deadline_at,
+          a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
           a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
           a.created_at, a.updated_at,
           u.username, u.role,
@@ -731,6 +795,10 @@ router.post('/', async (req, res, next) => {
         ORDER BY a.id DESC
         LIMIT 1
       `);
+
+      if (inserted?.id && (inserted.status === 'PUBLISHED' || dbStatus === 'PUBLISHED')) {
+        notifyAnnouncementPublished(inserted.id).catch((e) => console.error('[Announcements] notify error:', e));
+      }
 
       return res.status(201).json(formatAnnouncement(inserted));
     }
@@ -750,14 +818,13 @@ router.post('/', async (req, res, next) => {
     const postDate = rawDate ? new Date(rawDate) : null;
     const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
     const meta = inferAnnouncementMeta(req.body);
-    const dbStatus = normalizeStatusInput(status);
 
     if (validDate) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
-        title.trim(),
+          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
+        effectiveTitle,
         bodyContent,
         normAdminAudience,
         dbStatus,
@@ -766,6 +833,7 @@ router.post('/', async (req, res, next) => {
         meta.priority,
         meta.category,
         meta.deadlineAt,
+        resolvedScheduledAt,
         authorUserId,
         centerId || null,
         validDate
@@ -773,9 +841,9 @@ router.post('/', async (req, res, next) => {
     } else {
       await prisma.$executeRawUnsafe(
         `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, NOW(), NOW())`,
-        title.trim(),
+          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, NOW(), NOW())`,
+        effectiveTitle,
         bodyContent,
         normAdminAudience,
         dbStatus,
@@ -784,6 +852,7 @@ router.post('/', async (req, res, next) => {
         meta.priority,
         meta.category,
         meta.deadlineAt,
+        resolvedScheduledAt,
         authorUserId,
         centerId || null
       );
@@ -792,7 +861,7 @@ router.post('/', async (req, res, next) => {
     const [inserted] = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
-        a.is_important, a.priority, a.category, a.deadline_at,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,
@@ -809,6 +878,10 @@ router.post('/', async (req, res, next) => {
       ORDER BY a.id DESC
       LIMIT 1
     `);
+
+    if (inserted?.id && dbStatus === 'PUBLISHED') {
+      notifyAnnouncementPublished(inserted.id).catch((e) => console.error('[Announcements] notify error:', e));
+    }
 
     res.status(201).json(formatAnnouncement(inserted));
   } catch (err) {
@@ -828,7 +901,7 @@ router.put('/:id', async (req, res, next) => {
     }
 
     const [existing] = await prisma.$queryRawUnsafe(
-      'SELECT id, title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, creator_role, learning_center_id, program_level, target_learner_id, teacher_id FROM announcements WHERE id = ?',
+      'SELECT id, title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, creator_role, learning_center_id, program_level, target_learner_id, teacher_id FROM announcements WHERE id = ?',
       id
     );
 
@@ -884,6 +957,25 @@ router.put('/:id', async (req, res, next) => {
       ? normalizeStatusInput(status)
       : existing.status;
 
+    let newScheduledAt = existing.scheduled_at;
+    if (newStatus === 'SCHEDULED') {
+      const rawScheduled = req.body.scheduledAt || req.body.scheduled_at || (req.body.scheduleDate ? `${req.body.scheduleDate}T${req.body.scheduleTime || '09:00'}` : null);
+      if (rawScheduled) {
+        const sAt = new Date(rawScheduled);
+        if (sAt && !isNaN(sAt.getTime())) {
+          if (sAt.getTime() <= Date.now()) {
+            return res.status(400).json({ error: 'Scheduled date and time must be in the future.' });
+          }
+          newScheduledAt = sAt;
+        }
+      }
+      if (!newScheduledAt) {
+        return res.status(400).json({ error: 'Please specify a valid scheduled date and time.' });
+      }
+    } else if (newStatus === 'PUBLISHED') {
+      newScheduledAt = null;
+    }
+
     const rawDate = datePosted || date || createdAt;
     const postDate = rawDate ? new Date(rawDate) : null;
     const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
@@ -893,7 +985,7 @@ router.put('/:id', async (req, res, next) => {
       await prisma.$executeRawUnsafe(
         `UPDATE announcements 
          SET title = ?, content = ?, audience = ?, status = ?, 
-             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?,
+             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?, scheduled_at = ?,
              learning_center_id = ?, program_level = ?, target_learner_id = ?, teacher_id = ?,
              created_at = ?, updated_at = NOW()
          WHERE id = ?`,
@@ -906,6 +998,7 @@ router.put('/:id', async (req, res, next) => {
         meta.priority,
         meta.category,
         meta.deadlineAt,
+        newScheduledAt,
         newCenterId,
         newProgramLevel,
         newTargetLearnerId,
@@ -917,7 +1010,7 @@ router.put('/:id', async (req, res, next) => {
       await prisma.$executeRawUnsafe(
         `UPDATE announcements 
          SET title = ?, content = ?, audience = ?, status = ?,
-             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?,
+             is_pinned = ?, is_important = ?, priority = ?, category = ?, deadline_at = ?, scheduled_at = ?,
              learning_center_id = ?, program_level = ?, target_learner_id = ?, teacher_id = ?,
              updated_at = NOW()
          WHERE id = ?`,
@@ -930,6 +1023,7 @@ router.put('/:id', async (req, res, next) => {
         meta.priority,
         meta.category,
         meta.deadlineAt,
+        newScheduledAt,
         newCenterId,
         newProgramLevel,
         newTargetLearnerId,
@@ -946,7 +1040,110 @@ router.put('/:id', async (req, res, next) => {
     const [updated] = await prisma.$queryRawUnsafe(`
       SELECT 
         a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
-        a.is_important, a.priority, a.category, a.deadline_at,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
+        a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
+        a.created_at, a.updated_at,
+        u.username, u.role,
+        tp.full_name as teacher_name,
+        ap.full_name as admin_name,
+        lc.name as learning_center_name,
+        tgt_l.full_name as target_learner_name
+      FROM announcements a
+      LEFT JOIN users u ON a.author_id = u.id
+      LEFT JOIN teachers tp ON (tp.id = a.teacher_id OR (tp.user_id = u.id AND a.teacher_id IS NULL))
+      LEFT JOIN admins ap ON ap.user_id = u.id
+      LEFT JOIN learning_centers lc ON lc.id = a.learning_center_id
+      LEFT JOIN learners tgt_l ON tgt_l.id = a.target_learner_id
+      WHERE a.id = ?
+    `, id);
+
+    const transitionedToPublished = newStatus === 'PUBLISHED' && existing.status !== 'PUBLISHED';
+    if (updated?.id && transitionedToPublished) {
+      notifyAnnouncementPublished(updated.id).catch((e) => console.error('[Announcements] notify error:', e));
+    }
+
+    res.json(formatAnnouncement(updated));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
+// POST /api/announcements/:id/publish
+// Publish draft or scheduled announcement immediately
+// ---------------------
+router.post('/:id/publish', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid announcement ID' });
+
+    const [existing] = await prisma.$queryRawUnsafe(
+      'SELECT id, title, content, audience, status FROM announcements WHERE id = ?',
+      id
+    );
+    if (!existing) return res.status(404).json({ error: 'Announcement not found' });
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE announcements SET status = 'PUBLISHED', scheduled_at = NULL, updated_at = NOW() WHERE id = ?`,
+      id
+    );
+
+    notifyAnnouncementPublished(id).catch((e) => console.error('[Announcements] notify error:', e));
+
+    const [updated] = await prisma.$queryRawUnsafe(`
+      SELECT 
+        a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
+        a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
+        a.created_at, a.updated_at,
+        u.username, u.role,
+        tp.full_name as teacher_name,
+        ap.full_name as admin_name,
+        lc.name as learning_center_name,
+        tgt_l.full_name as target_learner_name
+      FROM announcements a
+      LEFT JOIN users u ON a.author_id = u.id
+      LEFT JOIN teachers tp ON (tp.id = a.teacher_id OR (tp.user_id = u.id AND a.teacher_id IS NULL))
+      LEFT JOIN admins ap ON ap.user_id = u.id
+      LEFT JOIN learning_centers lc ON lc.id = a.learning_center_id
+      LEFT JOIN learners tgt_l ON tgt_l.id = a.target_learner_id
+      WHERE a.id = ?
+    `, id);
+
+    res.json(formatAnnouncement(updated));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
+// POST /api/announcements/:id/schedule
+// Reschedule announcement
+// ---------------------
+router.post('/:id/schedule', async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid announcement ID' });
+
+    const rawScheduled = req.body.scheduledAt || req.body.scheduled_at || (req.body.scheduleDate ? `${req.body.scheduleDate}T${req.body.scheduleTime || '09:00'}` : null);
+    const sAt = rawScheduled ? new Date(rawScheduled) : null;
+    if (!sAt || isNaN(sAt.getTime())) {
+      return res.status(400).json({ error: 'Please specify a valid scheduled date and time.' });
+    }
+    if (sAt.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'Scheduled date and time must be in the future.' });
+    }
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE announcements SET status = 'SCHEDULED', scheduled_at = ?, updated_at = NOW() WHERE id = ?`,
+      sAt,
+      id
+    );
+
+    const [updated] = await prisma.$queryRawUnsafe(`
+      SELECT 
+        a.id, a.title, a.content, a.audience, a.status, a.is_pinned,
+        a.is_important, a.priority, a.category, a.deadline_at, a.scheduled_at,
         a.author_id, a.creator_role, a.teacher_id, a.learning_center_id, a.program_level, a.target_learner_id,
         a.created_at, a.updated_at,
         u.username, u.role,

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
+import { runReminderChecks } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -277,6 +278,8 @@ router.post('/', optionalAuth, async (req, res, next) => {
       newSchedule.id
     );
 
+    runReminderChecks(true).catch((e) => console.error('[Schedules] runReminderChecks error:', e));
+
     res.status(201).json({
       ...formatSchedule(newSchedule),
       isImportant: Boolean(isImp),
@@ -398,6 +401,8 @@ router.put('/:id', optionalAuth, async (req, res, next) => {
         `schedule:${id}`
       );
     }
+
+    runReminderChecks(true).catch((e) => console.error('[Schedules] runReminderChecks error:', e));
 
     res.json({
       ...formatSchedule(updated),

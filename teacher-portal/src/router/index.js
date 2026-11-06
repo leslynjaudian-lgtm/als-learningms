@@ -177,7 +177,14 @@ const routes = [
         meta: { title: 'Module Details', requiresAuth: true },
       },
       {
-        path: 'records',
+        path: 'modules/:id/submissions/:submissionId',
+        alias: ['/teacher/modules/:id/submissions/:submissionId'],
+        name: 'ReviewLearnerActivity',
+        component: ModuleDetailsView,
+        meta: { title: 'Review Learner Activity', requiresAuth: true },
+      },
+      {
+        path: 'records/:learnerId?',
         name: 'Records',
         component: RecordsView,
         meta: { title: 'Records', requiresAuth: true },
@@ -196,7 +203,7 @@ const routes = [
         meta: { title: 'Take Attendance', requiresAuth: true },
       },
       {
-        path: 'attendance/history',
+        path: 'attendance/history/:learnerId?',
         name: 'AttendanceHistory',
         component: AttendanceHistoryView,
         meta: { title: 'Attendance History', requiresAuth: true },

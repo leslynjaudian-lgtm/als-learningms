@@ -1,8 +1,13 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-const uploadsDir = path.join(process.cwd(), 'uploads/profile-photos');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const BACKEND_ROOT = path.resolve(__dirname, '../..');
+
+const uploadsDir = path.join(BACKEND_ROOT, 'uploads/profile-photos');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -76,7 +81,7 @@ export function handleProfilePhotoUpload(req, res, next) {
 // MODULE FILES UPLOAD
 // Supports: PDF, DOCX, DOC, JPG, JPEG, PNG
 // ==========================================
-const moduleUploadsDir = path.join(process.cwd(), 'uploads/modules');
+const moduleUploadsDir = path.join(BACKEND_ROOT, 'uploads/modules');
 if (!fs.existsSync(moduleUploadsDir)) {
   fs.mkdirSync(moduleUploadsDir, { recursive: true });
 }

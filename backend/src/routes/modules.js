@@ -1,11 +1,357 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { handleModuleFileUpload } from '../middleware/uploadMiddleware.js';
+import { calculateModuleProgress, syncLearnerModuleProgress } from '../utils/progressCalculator.js';
+import { notifyModulePublished } from '../services/notificationService.js';
 
 const router = Router();
 
-// Helper to format module record
+// Build a clean, readable filename for downloaded PDF modules (e.g. Science_LS2.pdf)
+function buildReadablePdfFilename(m) {
+  const rawTitle = String(m?.title || 'Learning_Module')
+    .trim()
+    .replace(/\.pdf$/i, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  const rawStrand = String(m?.learningArea?.code || m?.code || '')
+    .trim()
+    .toUpperCase();
+  const lsMatch = rawStrand.match(/^LS\d+/i);
+  const cleanStrand = lsMatch
+    ? lsMatch[0].toUpperCase()
+    : rawStrand.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+  const baseTitle = rawTitle || 'Learning_Module';
+  if (
+    cleanStrand &&
+    !baseTitle.toUpperCase().endsWith(`_${cleanStrand}`) &&
+    baseTitle.toUpperCase() !== cleanStrand
+  ) {
+    return `${baseTitle}_${cleanStrand}.pdf`;
+  }
+  return `${baseTitle}.pdf`;
+}
+
+// Validate and normalize Pre-Test or Post-Test questions array
+function validateAndNormalizeAssessmentQuestions(rawQuestions, label = 'Assessment') {
+  if (!Array.isArray(rawQuestions)) {
+    return { valid: true, questions: [] };
+  }
+
+  const normalizedQuestions = [];
+  for (let i = 0; i < rawQuestions.length; i++) {
+    const q = rawQuestions[i] || {};
+    const qNum = i + 1;
+    const qText = String(q.questionText ?? q.prompt ?? q.question ?? '').trim();
+
+    if (!qText) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please enter a question.`,
+      };
+    }
+
+    const rawOptions = Array.isArray(q.options)
+      ? q.options
+      : Array.isArray(q.choices)
+      ? q.choices
+      : [];
+
+    if (rawOptions.length < 2) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please provide at least two answer options.`,
+      };
+    }
+
+    const normalizedOptions = [];
+    const seenOptionTexts = new Set();
+
+    for (let j = 0; j < rawOptions.length; j++) {
+      const opt = rawOptions[j];
+      const optId = typeof opt === 'object' && opt?.id ? Number(opt.id) : null;
+      const optText =
+        typeof opt === 'string'
+          ? opt.trim()
+          : String(opt?.optionText ?? opt?.text ?? '').trim();
+
+      if (!optText) {
+        return {
+          valid: false,
+          error: `${label} Question ${qNum}: Empty answer choices are not allowed.`,
+        };
+      }
+
+      const lowerText = optText.toLowerCase();
+      if (seenOptionTexts.has(lowerText)) {
+        return {
+          valid: false,
+          error: `${label} Question ${qNum}: Duplicate answer choices are not allowed.`,
+        };
+      }
+      seenOptionTexts.add(lowerText);
+
+      const letterAtJ = String.fromCharCode(65 + j);
+      const isCorrect =
+        typeof opt === 'object' && opt?.isCorrect !== undefined
+          ? Boolean(opt.isCorrect)
+          : q.correctOptionIndex !== undefined && q.correctOptionIndex !== null
+          ? Number(q.correctOptionIndex) === j
+          : q.correctAnswer !== undefined && q.correctAnswer !== null
+          ? q.correctAnswer === j || String(q.correctAnswer).toUpperCase() === letterAtJ
+          : false;
+
+      normalizedOptions.push({
+        id: !isNaN(optId) && optId > 0 ? optId : null,
+        optionText: optText,
+        isCorrect: Boolean(isCorrect),
+        sortOrder: j + 1,
+      });
+    }
+
+    const correctCount = normalizedOptions.filter((o) => o.isCorrect).length;
+    if (correctCount !== 1) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please select the correct answer in the Answer Key.`,
+      };
+    }
+
+    const qId = q.id ? Number(q.id) : null;
+    const hasCorrectFeedback = q.correctFeedback !== undefined;
+    const hasIncorrectFeedback = q.incorrectFeedback !== undefined;
+    const hasExplanation = q.explanation !== undefined;
+    normalizedQuestions.push({
+      id: !isNaN(qId) && qId > 0 ? qId : null,
+      questionText: qText,
+      explanation: q.explanation ? String(q.explanation).trim() : null,
+      correctFeedback:
+        q.correctFeedback !== undefined && q.correctFeedback !== null
+          ? String(q.correctFeedback).trim() || null
+          : null,
+      incorrectFeedback:
+        q.incorrectFeedback !== undefined && q.incorrectFeedback !== null
+          ? String(q.incorrectFeedback).trim() || null
+          : null,
+      hasCorrectFeedback,
+      hasIncorrectFeedback,
+      hasExplanation,
+      points: 1,
+      sortOrder: i + 1,
+      options: normalizedOptions,
+    });
+  }
+
+  return { valid: true, questions: normalizedQuestions };
+}
+
+// Synchronize Pre-Test or Post-Test questions for a module without creating duplicate assessments/questions
+// and while preserving existing learner attempts and scores.
+async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, questions }) {
+  const existingAssessments = await prisma.assessment.findMany({
+    where: { moduleId, type },
+    include: {
+      questions: {
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          options: {
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+      },
+      _count: { select: { attempts: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
+
+  // Pick the primary assessment (prefer one with attempts if duplicates existed)
+  let assessment =
+    existingAssessments.find((a) => (a._count?.attempts || 0) > 0) ||
+    existingAssessments[0] ||
+    null;
+
+  // Clean up any accidental duplicate assessments of the same type that have no attempts
+  for (const extra of existingAssessments) {
+    if (assessment && extra.id !== assessment.id && (extra._count?.attempts || 0) === 0) {
+      await prisma.assessment.delete({ where: { id: extra.id } });
+    }
+  }
+
+  const assessmentTitle = `${moduleTitle} - ${type === 'PRE_TEST' ? 'Pre-Test' : 'Post-Test'}`;
+  const assessmentDesc =
+    type === 'PRE_TEST'
+      ? `Pre-Test (Assessment) for ${moduleTitle}`
+      : `Post-Test for ${moduleTitle}`;
+
+  if (!questions || questions.length === 0) {
+    if (assessment) {
+      const existingQIds = (assessment.questions || []).map((q) => q.id);
+      if (existingQIds.length > 0) {
+        await prisma.answerOption.deleteMany({ where: { questionId: { in: existingQIds } } });
+        await prisma.question.deleteMany({ where: { id: { in: existingQIds } } });
+      }
+    }
+    return;
+  }
+
+  if (!assessment) {
+    assessment = await prisma.assessment.create({
+      data: {
+        moduleId,
+        teacherId,
+        title: assessmentTitle,
+        type,
+        description: assessmentDesc,
+      },
+      include: {
+        questions: {
+          orderBy: { sortOrder: 'asc' },
+          include: { options: { orderBy: { sortOrder: 'asc' } } },
+        },
+      },
+    });
+  } else {
+    await prisma.assessment.update({
+      where: { id: assessment.id },
+      data: {
+        title: assessmentTitle,
+        description: assessmentDesc,
+      },
+    });
+  }
+
+  const existingQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
+  const existingQMap = new Map(existingQuestions.map((eq) => [eq.id, eq]));
+  const keptQuestionIds = new Set();
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    let targetExistingQ = null;
+
+    if (q.id && existingQMap.has(q.id) && !keptQuestionIds.has(q.id)) {
+      targetExistingQ = existingQMap.get(q.id);
+    } else if (!q.id && existingQuestions[i] && !keptQuestionIds.has(existingQuestions[i].id)) {
+      // Fallback positional match if editing without explicit question IDs
+      const positionalCandidate = existingQuestions[i];
+      const isReferencedExplicitlyLater = questions
+        .slice(i + 1)
+        .some((laterQ) => laterQ.id === positionalCandidate.id);
+      if (!isReferencedExplicitlyLater) {
+        targetExistingQ = positionalCandidate;
+      }
+    }
+
+    if (targetExistingQ) {
+      keptQuestionIds.add(targetExistingQ.id);
+      await prisma.question.update({
+        where: { id: targetExistingQ.id },
+        data: {
+          questionText: q.questionText,
+          questionType: 'MULTIPLE_CHOICE',
+          points: 1,
+          explanation: q.hasExplanation ? q.explanation : (targetExistingQ.explanation ?? null),
+          correctFeedback: q.hasCorrectFeedback ? q.correctFeedback : (targetExistingQ.correctFeedback ?? null),
+          incorrectFeedback: q.hasIncorrectFeedback ? q.incorrectFeedback : (targetExistingQ.incorrectFeedback ?? null),
+          sortOrder: i + 1,
+        },
+      });
+
+      const existingOpts = Array.isArray(targetExistingQ.options) ? targetExistingQ.options : [];
+      const existingOptMap = new Map(existingOpts.map((eo) => [eo.id, eo]));
+      const keptOptionIds = new Set();
+
+      for (let j = 0; j < q.options.length; j++) {
+        const opt = q.options[j];
+        let targetExistingOpt = null;
+
+        if (opt.id && existingOptMap.has(opt.id) && !keptOptionIds.has(opt.id)) {
+          targetExistingOpt = existingOptMap.get(opt.id);
+        } else if (!opt.id && existingOpts[j] && !keptOptionIds.has(existingOpts[j].id)) {
+          const posOpt = existingOpts[j];
+          const isOptReferencedLater = q.options
+            .slice(j + 1)
+            .some((laterO) => laterO.id === posOpt.id);
+          if (!isOptReferencedLater) {
+            targetExistingOpt = posOpt;
+          }
+        }
+
+        if (targetExistingOpt) {
+          keptOptionIds.add(targetExistingOpt.id);
+          await prisma.answerOption.update({
+            where: { id: targetExistingOpt.id },
+            data: {
+              optionText: opt.optionText,
+              isCorrect: Boolean(opt.isCorrect),
+              sortOrder: j + 1,
+            },
+          });
+        } else {
+          const createdOpt = await prisma.answerOption.create({
+            data: {
+              questionId: targetExistingQ.id,
+              optionText: opt.optionText,
+              isCorrect: Boolean(opt.isCorrect),
+              sortOrder: j + 1,
+            },
+          });
+          keptOptionIds.add(createdOpt.id);
+        }
+      }
+
+      const optIdsToRemove = existingOpts
+        .filter((eo) => !keptOptionIds.has(eo.id))
+        .map((eo) => eo.id);
+      if (optIdsToRemove.length > 0) {
+        await prisma.answerOption.deleteMany({
+          where: { id: { in: optIdsToRemove } },
+        });
+      }
+    } else {
+      const createdQ = await prisma.question.create({
+        data: {
+          assessmentId: assessment.id,
+          questionText: q.questionText,
+          questionType: 'MULTIPLE_CHOICE',
+          points: 1,
+          explanation: q.explanation || null,
+          correctFeedback: q.correctFeedback || null,
+          incorrectFeedback: q.incorrectFeedback || null,
+          sortOrder: i + 1,
+        },
+      });
+      keptQuestionIds.add(createdQ.id);
+
+      for (let j = 0; j < q.options.length; j++) {
+        const opt = q.options[j];
+        await prisma.answerOption.create({
+          data: {
+            questionId: createdQ.id,
+            optionText: opt.optionText,
+            isCorrect: Boolean(opt.isCorrect),
+            sortOrder: j + 1,
+          },
+        });
+      }
+    }
+  }
+
+  const questionIdsToRemove = existingQuestions
+    .filter((eq) => !keptQuestionIds.has(eq.id))
+    .map((eq) => eq.id);
+  if (questionIdsToRemove.length > 0) {
+    await prisma.answerOption.deleteMany({
+      where: { questionId: { in: questionIdsToRemove } },
+    });
+    await prisma.question.deleteMany({
+      where: { id: { in: questionIdsToRemove } },
+    });
+  }
+}
 function formatModule(m, reqUser) {
   let displayLevel = m.targetLevel === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
   if (m.targetLevel === 'ELEMENTARY' || m.targetLevel === 'A&E Elementary') {
@@ -29,39 +375,50 @@ function formatModule(m, reqUser) {
     : false;
 
   const formattedAssessments = Array.isArray(m.assessments)
-    ? m.assessments.map((ass) => ({
-        id: ass.id,
-        title: ass.title,
-        type: ass.type,
-        description: ass.description || '',
-        questionsCount: Array.isArray(ass.questions) ? ass.questions.length : 0,
-        attempts: ass.attempts || [],
-        questions: Array.isArray(ass.questions)
-          ? ass.questions.map((q) => {
-              const opts = Array.isArray(q.options)
-                ? q.options.map((opt) => ({
-                    id: opt.id,
-                    optionText: opt.optionText,
-                    isCorrect: Boolean(opt.isCorrect),
-                    sortOrder: opt.sortOrder,
-                  }))
-                : [];
-              const correctOpt = opts.find((o) => o.isCorrect);
-              return {
-                id: q.id,
-                prompt: q.questionText,
-                questionText: q.questionText,
-                questionType: q.questionType,
-                points: q.points,
-                explanation: q.explanation || '',
-                options: opts,
-                choices: opts.map((o) => o.optionText),
-                correctAnswer: opts.findIndex((o) => o.isCorrect),
-                correctAnswerText: correctOpt?.optionText || '',
-              };
-            })
-          : [],
-      }))
+    ? m.assessments.map((ass) => {
+        const sortedQuestions = Array.isArray(ass.questions)
+          ? [...ass.questions].sort(
+              (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0)
+            )
+          : [];
+        return {
+          id: ass.id,
+          title: ass.title,
+          type: ass.type,
+          description: ass.description || '',
+          questionsCount: sortedQuestions.length,
+          attempts: ass.attempts || [],
+          questions: sortedQuestions.map((q) => {
+            const sortedOpts = Array.isArray(q.options)
+              ? [...q.options].sort(
+                  (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0)
+                )
+              : [];
+            const opts = sortedOpts.map((opt) => ({
+              id: opt.id,
+              optionText: opt.optionText,
+              isCorrect: Boolean(opt.isCorrect),
+              sortOrder: opt.sortOrder,
+            }));
+            const correctOpt = opts.find((o) => o.isCorrect);
+            return {
+              id: q.id,
+              prompt: q.questionText,
+              questionText: q.questionText,
+              questionType: q.questionType,
+              points: q.points,
+              explanation: q.explanation || '',
+              correctFeedback: q.correctFeedback || '',
+              incorrectFeedback: q.incorrectFeedback || '',
+              sortOrder: q.sortOrder,
+              options: opts,
+              choices: opts.map((o) => o.optionText),
+              correctAnswer: opts.findIndex((o) => o.isCorrect),
+              correctAnswerText: correctOpt?.optionText || '',
+            };
+          }),
+        };
+      })
     : [];
 
   const preTest = formattedAssessments.find((a) => a.type === 'PRE_TEST') || null;
@@ -97,22 +454,18 @@ function formatModule(m, reqUser) {
 
   // Learner Progress details if available
   const progressRecord = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
-  const isCompleted = progressRecord?.status === 'COMPLETED' || progressRecord?.masteryStatus === 'MASTERED';
-  const isInProgress = !isCompleted && (
-    progressRecord?.status === 'IN_PROGRESS' ||
-    progressRecord?.preTestScore != null ||
-    (progressRecord?.completedPages || 0) > 0
-  );
-  let progressPct = 0;
-  if (isCompleted) {
-    progressPct = 100;
-  } else if (progressRecord) {
-    if (progressRecord.totalPages > 0 && progressRecord.completedPages > 0) {
-      progressPct = Math.round((progressRecord.completedPages / progressRecord.totalPages) * 100);
-    } else if (isInProgress) {
-      progressPct = 50;
-    }
-  }
+  const attempts = (m.assessments || []).flatMap((a) => a.attempts || []);
+  const submissions = m.submissions || [];
+  const progressCalc = calculateModuleProgress({
+    module: m,
+    learnerProgress: progressRecord,
+    attempts,
+    submissions,
+  });
+
+  const isCompleted = progressCalc.completed;
+  const isInProgress = progressCalc.progressStatus === 'IN_PROGRESS';
+  const progressPct = progressCalc.progress;
 
   let extractedModuleNumber = null;
   const numMatch = (m.code || '').match(/\d+$/) || (m.title || '').match(/Module\s*(\d+)/i) || (m.code || '').match(/(?:MOD|M)[-_]?(\d+)/i);
@@ -144,6 +497,7 @@ function formatModule(m, reqUser) {
     fileUrl: m.fileUrl || '',
     fileName,
     fileType,
+    downloadFileName: buildReadablePdfFilename(m),
     coverImageUrl: m.coverImageUrl || '',
     status: m.status || 'PUBLISHED',
     pagesCount: m._count?.pages ?? (Array.isArray(m.pages) ? m.pages.length : 0),
@@ -288,6 +642,18 @@ router.get('/', optionalAuth, async (req, res, next) => {
         learnerProgress: learnerProfileId ? {
           where: { learnerId: learnerProfileId },
         } : false,
+        submissions: learnerProfileId ? {
+          where: { learnerId: learnerProfileId },
+          select: { id: true, status: true, submittedAt: true },
+        } : false,
+        assessments: {
+          include: {
+            questions: { select: { id: true } },
+            attempts: learnerProfileId ? {
+              where: { learnerId: learnerProfileId, status: 'SUBMITTED' },
+            } : false,
+          },
+        },
         _count: {
           select: { pages: true, assessments: true, assignments: true },
         },
@@ -338,7 +704,12 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
         assessments: {
           include: {
             questions: {
-              include: { options: true },
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                options: {
+                  orderBy: { sortOrder: 'asc' },
+                },
+              },
             },
             attempts: learnerProfileId ? {
               where: { learnerId: learnerProfileId },
@@ -352,6 +723,10 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
         assignments: true,
         learnerProgress: learnerProfileId ? {
           where: { learnerId: learnerProfileId },
+        } : false,
+        submissions: learnerProfileId ? {
+          where: { learnerId: learnerProfileId },
+          select: { id: true, status: true, submittedAt: true },
         } : false,
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
@@ -396,6 +771,149 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 });
 
 // ---------------------
+// GET /api/modules/:id/download
+// Download the original uploaded PDF module for authorized users
+// ---------------------
+router.get('/:id/download', authenticate, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid module ID.' });
+    }
+
+    const mod = await prisma.module.findUnique({
+      where: { id },
+      include: {
+        learningArea: true,
+        assignments: true,
+        pages: { orderBy: { pageNumber: 'asc' }, take: 1 },
+      },
+    });
+
+    if (!mod) {
+      return res.status(404).json({ error: 'Module not found.' });
+    }
+
+    // Strict Role & Authorization Verification
+    if (req.user.role === 'LEARNER') {
+      let learner = req.user.learnerProfile;
+      if (!learner) {
+        learner = await prisma.learner.findUnique({
+          where: { userId: req.user.id },
+          include: { learningCenter: true, assignedTeacher: true },
+        });
+      }
+
+      const isAssignedOrAll =
+        !mod.assignments ||
+        mod.assignments.length === 0 ||
+        mod.assignments.some((a) => a.learnerId === learner?.id);
+
+      const isAuthorized =
+        Boolean(learner) &&
+        mod.status === 'PUBLISHED' &&
+        Boolean(learner.learningCenterId) &&
+        mod.learningCenterId === learner.learningCenterId &&
+        mod.targetLevel === learner.level &&
+        isAssignedOrAll;
+
+      if (!isAuthorized) {
+        return res.status(403).json({
+          error: 'You are not authorized to download this learning module.',
+        });
+      }
+    } else if (req.user.role === 'TEACHER') {
+      if (mod.teacherId !== req.user.profileId) {
+        return res.status(403).json({
+          error: 'You are not authorized to download this learning module.',
+        });
+      }
+    }
+
+    const rawFileUrl = String(mod.fileUrl || mod.pages?.[0]?.mediaUrl || '').trim();
+    if (!rawFileUrl) {
+      return res.status(404).json({
+        error: 'No PDF file is attached to this learning module.',
+      });
+    }
+
+    const cleanUrlPath = rawFileUrl.split('?')[0].split('#')[0];
+    const safeBasename = path.basename(cleanUrlPath);
+
+    if (!safeBasename || !safeBasename.toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({
+        error: 'The learning material for this module is not a PDF document.',
+      });
+    }
+
+    const uploadsModulesDir = path.resolve(process.cwd(), 'uploads', 'modules');
+    const publicModulesDir = path.resolve(process.cwd(), '..', 'learner-portal', 'public', 'modules');
+
+    const candidateUploadsPath = path.resolve(uploadsModulesDir, safeBasename);
+    const candidatePublicPath = path.resolve(publicModulesDir, safeBasename);
+
+    let resolvedFilePath = null;
+    if (
+      candidateUploadsPath.startsWith(uploadsModulesDir + path.sep) &&
+      fs.existsSync(candidateUploadsPath) &&
+      fs.statSync(candidateUploadsPath).isFile()
+    ) {
+      resolvedFilePath = candidateUploadsPath;
+    } else if (
+      (cleanUrlPath.startsWith('/modules/') || cleanUrlPath.startsWith('modules/')) &&
+      candidatePublicPath.startsWith(publicModulesDir + path.sep) &&
+      fs.existsSync(candidatePublicPath) &&
+      fs.statSync(candidatePublicPath).isFile()
+    ) {
+      resolvedFilePath = candidatePublicPath;
+    }
+
+    if (!resolvedFilePath) {
+      return res.status(404).json({
+        error: 'The PDF file for this module could not be found on the server.',
+      });
+    }
+
+    // Verify the file is a valid PDF document (%PDF- header)
+    const fd = fs.openSync(resolvedFilePath, 'r');
+    const headerBuf = Buffer.alloc(5);
+    const bytesRead = fs.readSync(fd, headerBuf, 0, 5, 0);
+    fs.closeSync(fd);
+
+    if (bytesRead < 5 || headerBuf.toString('ascii') !== '%PDF-') {
+      return res.status(422).json({
+        error: 'The stored module file is not a valid PDF document.',
+      });
+    }
+
+    const stat = fs.statSync(resolvedFilePath);
+    const downloadFileName = buildReadablePdfFilename(mod);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${downloadFileName}"; filename*=UTF-8''${encodeURIComponent(downloadFileName)}`
+    );
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
+    res.setHeader('Cache-Control', 'private, no-transform');
+
+    const fileStream = fs.createReadStream(resolvedFilePath);
+    fileStream.on('error', (streamErr) => {
+      console.error('[Module PDF Download Stream Error]:', streamErr);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download PDF file.' });
+      } else {
+        res.destroy();
+      }
+    });
+    fileStream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
 // ---------------------
 // POST /api/modules/upload
 // Upload module learning material (PDF, DOCX, JPG, PNG)
@@ -412,6 +930,21 @@ router.post('/upload', optionalAuth, handleModuleFileUpload, (req, res) => {
     fileType: req.file.mimetype,
   });
 });
+
+export function getExpectedModuleCodeForStrand(strandName, areaCode) {
+  if (areaCode) {
+    const m = String(areaCode).match(/^LS\s*(\d+)/i);
+    if (m) return `LS${m[1]}`;
+  }
+  const s = String(strandName || '').toLowerCase();
+  if (s.includes('english') || s.includes('filipino') || s.includes('communication')) return 'LS1';
+  if (s.includes('scient') || s.includes('science')) return 'LS2';
+  if (s.includes('math') || s.includes('problem solving')) return 'LS3';
+  if (s.includes('life') || s.includes('career')) return 'LS4';
+  if (s.includes('self') || s.includes('society')) return 'LS5';
+  if (s.includes('digital') || s.includes('citizenship')) return 'LS6';
+  return null;
+}
 
 // ---------------------
 // POST /api/modules
@@ -524,12 +1057,39 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       }
     }
 
+    // Validate Pre-Test and Post-Test questions before creating the module
+    let normalizedPreQuestions = [];
+    if (Array.isArray(preTest) && preTest.length > 0) {
+      const preCheck = validateAndNormalizeAssessmentQuestions(preTest, 'Pre-Test');
+      if (!preCheck.valid) {
+        return res.status(400).json({ error: preCheck.error });
+      }
+      normalizedPreQuestions = preCheck.questions;
+    }
+
+    let normalizedPostQuestions = [];
+    if (Array.isArray(postTest) && postTest.length > 0) {
+      const postCheck = validateAndNormalizeAssessmentQuestions(postTest, 'Post-Test');
+      if (!postCheck.valid) {
+        return res.status(400).json({ error: postCheck.error });
+      }
+      normalizedPostQuestions = postCheck.questions;
+    }
+
+    // Validate Module Code against Learning Strand
+    const areaObj = await prisma.learningArea.findUnique({ where: { id: resolvedAreaId } });
+    const expectedModuleCode = getExpectedModuleCodeForStrand(strand || strandName || areaObj?.name, areaObj?.code);
+    if (!expectedModuleCode) {
+      return res.status(400).json({ error: 'No valid Module Code is configured for the selected Learning Strand.' });
+    }
+    const finalModuleCode = expectedModuleCode;
+
     // Create the Module record
     const resolvedInstructions = (instructions || description)?.trim() || null;
     const newModule = await prisma.module.create({
       data: {
         title: title.trim(),
-        code: (code || moduleCode)?.trim() || null,
+        code: finalModuleCode,
         description: resolvedInstructions,
         instructions: resolvedInstructions,
         activitiesRelated: activitiesRelated?.trim() || null,
@@ -558,100 +1118,26 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       });
     }
 
-    const choiceLetters = ['A', 'B', 'C', 'D'];
-
     // 2. Save Pre-Test Questions & Options
-    if (Array.isArray(preTest) && preTest.length > 0) {
-      const preAssessment = await prisma.assessment.create({
-        data: {
-          moduleId: newModule.id,
-          teacherId: resolvedTeacherId,
-          title: `${title.trim()} - Pre-Test`,
-          type: 'PRE_TEST',
-          description: `Diagnostic Pre-Test for ${title.trim()}`,
-        },
+    if (normalizedPreQuestions.length > 0) {
+      await syncModuleAssessment({
+        moduleId: newModule.id,
+        teacherId: resolvedTeacherId,
+        moduleTitle: title.trim(),
+        type: 'PRE_TEST',
+        questions: normalizedPreQuestions,
       });
-
-      for (let i = 0; i < preTest.length; i++) {
-        const q = preTest[i];
-        const qText = q.question?.trim() || q.questionText?.trim() || `Question ${i + 1}`;
-        const createdQ = await prisma.question.create({
-          data: {
-            assessmentId: preAssessment.id,
-            questionText: qText,
-            questionType: 'MULTIPLE_CHOICE',
-            points: 1,
-            sortOrder: i + 1,
-          },
-        });
-
-        const opts = Array.isArray(q.options) ? q.options : [];
-        for (let j = 0; j < opts.length; j++) {
-          const opt = opts[j];
-          const optText = typeof opt === 'string' ? opt.trim() : (opt.text || opt.optionText || '').trim();
-          const isCorrect = typeof opt === 'object' && opt.isCorrect !== undefined
-            ? opt.isCorrect
-            : (q.correctOptionIndex !== undefined ? q.correctOptionIndex === j : (q.correctAnswer === choiceLetters[j] || q.correctAnswer === j));
-
-          if (optText) {
-            await prisma.answerOption.create({
-              data: {
-                questionId: createdQ.id,
-                optionText: optText,
-                isCorrect: Boolean(isCorrect),
-                sortOrder: j + 1,
-              },
-            });
-          }
-        }
-      }
     }
 
     // 3. Save Post-Test Questions & Options
-    if (Array.isArray(postTest) && postTest.length > 0) {
-      const postAssessment = await prisma.assessment.create({
-        data: {
-          moduleId: newModule.id,
-          teacherId: resolvedTeacherId,
-          title: `${title.trim()} - Post-Test`,
-          type: 'POST_TEST',
-          description: `Mastery Post-Test for ${title.trim()}`,
-        },
+    if (normalizedPostQuestions.length > 0) {
+      await syncModuleAssessment({
+        moduleId: newModule.id,
+        teacherId: resolvedTeacherId,
+        moduleTitle: title.trim(),
+        type: 'POST_TEST',
+        questions: normalizedPostQuestions,
       });
-
-      for (let i = 0; i < postTest.length; i++) {
-        const q = postTest[i];
-        const qText = q.question?.trim() || q.questionText?.trim() || `Question ${i + 1}`;
-        const createdQ = await prisma.question.create({
-          data: {
-            assessmentId: postAssessment.id,
-            questionText: qText,
-            questionType: 'MULTIPLE_CHOICE',
-            points: 1,
-            sortOrder: i + 1,
-          },
-        });
-
-        const opts = Array.isArray(q.options) ? q.options : [];
-        for (let j = 0; j < opts.length; j++) {
-          const opt = opts[j];
-          const optText = typeof opt === 'string' ? opt.trim() : (opt.text || opt.optionText || '').trim();
-          const isCorrect = typeof opt === 'object' && opt.isCorrect !== undefined
-            ? opt.isCorrect
-            : (q.correctOptionIndex !== undefined ? q.correctOptionIndex === j : (q.correctAnswer === choiceLetters[j] || q.correctAnswer === j));
-
-          if (optText) {
-            await prisma.answerOption.create({
-              data: {
-                questionId: createdQ.id,
-                optionText: optText,
-                isCorrect: Boolean(isCorrect),
-                sortOrder: j + 1,
-              },
-            });
-          }
-        }
-      }
     }
 
     // 4. Save Learner Assignment Recipients
@@ -662,16 +1148,14 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       } catch (e) {
         // ignore
       }
-      for (const lId of assignedLearnerIds) {
-        const parsedLId = parseInt(lId, 10);
-        if (!isNaN(parsedLId)) {
-          await prisma.moduleAssignment.create({
-            data: {
-              moduleId: newModule.id,
-              learnerId: parsedLId,
-            },
-          });
-        }
+      const uniqueLIds = [...new Set(assignedLearnerIds.map((x) => parseInt(x, 10)).filter((x) => !isNaN(x)))];
+      for (const lId of uniqueLIds) {
+        await prisma.moduleAssignment.create({
+          data: {
+            moduleId: newModule.id,
+            learnerId: lId,
+          },
+        });
       }
     } else {
       try {
@@ -700,6 +1184,10 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
     });
+
+    if (completeModule.status === 'PUBLISHED') {
+      notifyModulePublished(completeModule.id).catch((e) => console.error('[Modules] notifyModulePublished error:', e));
+    }
 
     res.status(201).json(formatModule(completeModule, req.user));
   } catch (err) {
@@ -765,6 +1253,8 @@ router.post('/:id/assign', authenticate, requireRole(['TEACHER', 'ADMIN']), asyn
       assignedRecords.push(record);
     }
 
+    notifyModulePublished(moduleId).catch((e) => console.error('[Modules] notifyModulePublished error:', e));
+
     res.status(201).json({
       message: `Successfully assigned module to ${assignedRecords.length} learner(s)`,
       assignments: assignedRecords,
@@ -806,16 +1296,41 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
       dateEnded,
       isAllLearners,
       assignedLearnerIds,
+      preTest,
+      postTest,
     } = req.body;
+
+    // Validate Pre-Test and Post-Test questions if provided in the update payload
+    let normalizedPreQuestions = null;
+    if (preTest !== undefined) {
+      if (!Array.isArray(preTest)) {
+        return res.status(400).json({ error: 'Pre-Test must be an array of questions.' });
+      }
+      const preCheck = validateAndNormalizeAssessmentQuestions(preTest, 'Pre-Test');
+      if (!preCheck.valid) {
+        return res.status(400).json({ error: preCheck.error });
+      }
+      normalizedPreQuestions = preCheck.questions;
+    }
+
+    let normalizedPostQuestions = null;
+    if (postTest !== undefined) {
+      if (!Array.isArray(postTest)) {
+        return res.status(400).json({ error: 'Post-Test must be an array of questions.' });
+      }
+      const postCheck = validateAndNormalizeAssessmentQuestions(postTest, 'Post-Test');
+      if (!postCheck.valid) {
+        return res.status(400).json({ error: postCheck.error });
+      }
+      normalizedPostQuestions = postCheck.questions;
+    }
 
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
     if (instructions !== undefined) updateData.instructions = instructions ? instructions.trim() : '';
     if (description !== undefined) updateData.description = description ? description.trim() : '';
     if (activitiesRelated !== undefined) updateData.activitiesRelated = activitiesRelated ? activitiesRelated.trim() : '';
-    if (code !== undefined) updateData.code = code.trim();
-
-    // Map strand
+    // Map strand and module code
     if (strand) {
       const strandStr = strand.trim();
       const matchedArea = await prisma.learningArea.findFirst({
@@ -829,6 +1344,12 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
       if (matchedArea) {
         updateData.learningAreaId = matchedArea.id;
       }
+      const expectedCode = getExpectedModuleCodeForStrand(strandStr, matchedArea?.code);
+      if (expectedCode) {
+        updateData.code = expectedCode;
+      }
+    } else if (code !== undefined) {
+      updateData.code = code.trim();
     }
 
     // Map level
@@ -867,10 +1388,31 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
     if (dateEnded) updateData.dateEnded = new Date(dateEnded);
 
     // Update module record
-    await prisma.module.update({
+    const updatedBaseMod = await prisma.module.update({
       where: { id },
       data: updateData,
     });
+
+    // Update Pre-Test and Post-Test assessments if provided, otherwise preserve existing questions
+    if (normalizedPreQuestions !== null) {
+      await syncModuleAssessment({
+        moduleId: id,
+        teacherId: existingMod.teacherId,
+        moduleTitle: updatedBaseMod.title || existingMod.title,
+        type: 'PRE_TEST',
+        questions: normalizedPreQuestions,
+      });
+    }
+
+    if (normalizedPostQuestions !== null) {
+      await syncModuleAssessment({
+        moduleId: id,
+        teacherId: existingMod.teacherId,
+        moduleTitle: updatedBaseMod.title || existingMod.title,
+        type: 'POST_TEST',
+        questions: normalizedPostQuestions,
+      });
+    }
 
     // Update learner assignments if provided
     if (isAllLearners !== undefined) {
@@ -882,16 +1424,14 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           await prisma.$executeRawUnsafe('UPDATE modules SET assigned_to_all = 0 WHERE id = ?', id);
         } catch (e) {}
 
-        for (const lId of assignedLearnerIds) {
-          const parsedLId = parseInt(lId, 10);
-          if (!isNaN(parsedLId)) {
-            await prisma.moduleAssignment.create({
-              data: {
-                moduleId: id,
-                learnerId: parsedLId,
-              },
-            });
-          }
+        const uniqueLIds = [...new Set(assignedLearnerIds.map((x) => parseInt(x, 10)).filter((x) => !isNaN(x)))];
+        for (const lId of uniqueLIds) {
+          await prisma.moduleAssignment.create({
+            data: {
+              moduleId: id,
+              learnerId: lId,
+            },
+          });
         }
       } else {
         try {
@@ -919,6 +1459,10 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
     });
+
+    if (updatedModule.status === 'PUBLISHED') {
+      notifyModulePublished(updatedModule.id).catch((e) => console.error('[Modules] notifyModulePublished error:', e));
+    }
 
     res.json(formatModule(updatedModule, req.user));
   } catch (err) {
@@ -995,7 +1539,12 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       where: { id: parsedAssessmentId },
       include: {
         questions: {
-          include: { options: true },
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            options: {
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
         },
       },
     });
@@ -1041,15 +1590,23 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
 
     for (const q of assessment.questions) {
       totalPoints += q.points || 1;
-      const selectedId = answerMap.get(q.id);
-      const chosenOption = q.options.find((o) => o.id === selectedId);
+      const selectedVal = answerMap.get(q.id);
+      let chosenOption = null;
+      if (selectedVal !== undefined && selectedVal !== null && selectedVal !== '') {
+        chosenOption = q.options.find((o) => o.id === Number(selectedVal));
+        if (!chosenOption && typeof selectedVal === 'string') {
+          chosenOption = q.options.find(
+            (o) => o.optionText.trim().toLowerCase() === selectedVal.trim().toLowerCase()
+          );
+        }
+      }
       const isCorrect = Boolean(chosenOption?.isCorrect);
       const scoreAwarded = isCorrect ? (q.points || 1) : 0;
       earnedPoints += scoreAwarded;
 
       answerRecords.push({
         questionId: q.id,
-        selectedOptionId: selectedId ? Number(selectedId) : null,
+        selectedOptionId: chosenOption ? chosenOption.id : null,
         isCorrect,
         scoreAwarded,
       });
@@ -1084,15 +1641,12 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       progressUpdate.postTestScore = earnedPoints;
       if (isPassed) {
         progressUpdate.masteryStatus = 'MASTERED';
-        progressUpdate.status = 'COMPLETED';
-        progressUpdate.completedAt = new Date();
       } else {
         progressUpdate.masteryStatus = 'NOT_MASTERED';
-        progressUpdate.status = 'IN_PROGRESS';
       }
     }
 
-    const updatedProgress = await prisma.learnerProgress.upsert({
+    await prisma.learnerProgress.upsert({
       where: {
         learnerId_moduleId: {
           learnerId,
@@ -1106,6 +1660,8 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       },
       update: progressUpdate,
     });
+
+    const updatedProgress = await syncLearnerModuleProgress(learnerId, moduleId);
 
     res.json({
       attemptId: attempt.id,
@@ -1156,7 +1712,9 @@ router.post('/:id/progress', authenticate, requireRole(['LEARNER']), async (req,
       update: updateData,
     });
 
-    res.json(prog);
+    const synced = await syncLearnerModuleProgress(learnerId, moduleId);
+
+    res.json(synced || prog);
   } catch (err) {
     next(err);
   }

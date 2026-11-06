@@ -65,6 +65,7 @@ function formatAuthResponse(user) {
 
     profile = {
       id: user.teacherProfile.id,
+      teacherId: user.teacherProfile.id,
       userId: user.id,
       name: user.teacherProfile.fullName,
       fullName: user.teacherProfile.fullName,

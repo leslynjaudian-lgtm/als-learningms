@@ -130,7 +130,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
 
 // 8 Learning Strand Categories
@@ -339,6 +339,13 @@ async function loadModules() {
 
 onMounted(() => {
   loadModules();
+  window.addEventListener('als-progress-updated', loadModules);
+  window.addEventListener('focus', loadModules);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('als-progress-updated', loadModules);
+  window.removeEventListener('focus', loadModules);
 });
 </script>
 

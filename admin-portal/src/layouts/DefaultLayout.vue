@@ -266,7 +266,14 @@
 
               <div class="notif-panel-body">
                 <div v-if="notifications.length === 0" class="notif-empty-state">
-                  No notifications at this time.
+                  <div class="notif-empty-icon-wrap">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  </div>
+                  <div class="notif-empty-title">You're All Caught Up!</div>
+                  <p class="notif-empty-desc">You have no new notifications.</p>
                 </div>
                 <div
                   v-for="item in notifications"
@@ -277,7 +284,7 @@
                 >
                   <div class="notif-item-top">
                     <div class="notif-badges">
-                      <span class="notif-type-badge" :class="'type-' + (item.type || 'ANNOUNCEMENT').toLowerCase()">
+                      <span class="notif-type-badge" :class="'type-' + (item.type || 'REMINDER').toLowerCase()">
                         {{ formatNotifType(item.type) }}
                       </span>
                       <span v-if="item.isImportant" class="notif-important-badge">Important</span>
@@ -304,12 +311,12 @@
               </div>
 
               <div class="notif-panel-footer">
-                <router-link to="/dashboard/announcements" class="notif-view-all-link" @click="notifPanelOpen = false">
-                  View Announcements
-                </router-link>
-                <span class="notif-footer-sep">•</span>
                 <router-link to="/dashboard/schedule" class="notif-view-all-link" @click="notifPanelOpen = false">
                   View Schedule
+                </router-link>
+                <span class="notif-footer-sep">•</span>
+                <router-link to="/dashboard/reports/module-progress" class="notif-view-all-link" @click="notifPanelOpen = false">
+                  View Reports
                 </router-link>
               </div>
             </div>
@@ -389,10 +396,12 @@ function toggleNotifPanel() {
 }
 
 function formatNotifType(type) {
-  const t = String(type || 'ANNOUNCEMENT').toUpperCase();
+  const t = String(type || '').toUpperCase();
+  if (t === 'RECORD') return 'Record';
   if (t === 'SCHEDULE') return 'Schedule';
   if (t === 'REMINDER') return 'Reminder';
-  return 'Announcement';
+  if (t === 'ANNOUNCEMENT') return 'Announcement';
+  return t ? t.charAt(0) + t.slice(1).toLowerCase() : 'Notification';
 }
 
 async function handleNotificationClick(item) {
@@ -400,8 +409,8 @@ async function handleNotificationClick(item) {
     await markAsRead(item.notificationKey);
   }
   notifPanelOpen.value = false;
-  const targetUrl = item?.actionUrl || '/dashboard/announcements';
-  if (route.path !== targetUrl) {
+  const targetUrl = item?.actionUrl || '/dashboard/schedule';
+  if (route.fullPath !== targetUrl) {
     router.push(targetUrl);
   }
 }
@@ -635,10 +644,36 @@ function confirmSignout() {
 }
 
 .notif-empty-state {
-  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
   text-align: center;
-  font-size: 0.84rem;
+}
+
+.notif-empty-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.notif-empty-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.notif-empty-desc {
+  font-size: 0.8rem;
   color: #64748b;
+  margin: 0;
 }
 
 .notif-item {
@@ -700,6 +735,21 @@ function confirmSignout() {
   color: #166534;
 }
 
+.notif-type-badge.type-record {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+
+.notif-type-badge.type-submission {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.notif-type-badge.type-module {
+  background: #ecfdf5;
+  color: #047857;
+}
+
 .notif-important-badge {
   font-size: 0.65rem;
   font-weight: 700;
@@ -736,6 +786,8 @@ function confirmSignout() {
   font-weight: 700;
   color: #0f172a;
   line-height: 1.3;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .notif-item-message {
@@ -743,6 +795,8 @@ function confirmSignout() {
   color: #475569;
   margin: 0 0 6px 0;
   line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -801,6 +855,17 @@ function confirmSignout() {
 
 .notif-view-all-link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .notif-dropdown-panel {
+    position: fixed;
+    top: 60px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100vh - 120px);
+  }
 }
 .nav-dropdown-item {
   display: flex;

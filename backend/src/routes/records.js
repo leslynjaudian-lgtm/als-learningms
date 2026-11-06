@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
+import { notifyLearnerRecordCreated } from '../services/notificationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,7 +110,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Ensure the specifically requested learner is always included if valid
+    // Ensure the specifically requested learner is only included if assigned to this teacher (or if admin)
     if (targetLearnerId && !isNaN(targetLearnerId) && !assignedLearners.some((l) => l.id === targetLearnerId)) {
       const extraLearner = await prisma.learner.findUnique({
         where: { id: targetLearnerId },
@@ -118,7 +119,11 @@ router.get('/', optionalAuth, async (req, res, next) => {
         },
       });
       if (extraLearner) {
-        if (!req.user || req.user.role !== 'TEACHER' || extraLearner.assignedTeacherId === req.user.profileId) {
+        const isAuthorizedForLearner =
+          isAdmin ||
+          (!teacherId && (!req.user || req.user.role !== 'TEACHER')) ||
+          (teacherId && extraLearner.assignedTeacherId === teacherId);
+        if (isAuthorizedForLearner) {
           assignedLearners.push(extraLearner);
         }
       }
@@ -129,6 +134,9 @@ router.get('/', optionalAuth, async (req, res, next) => {
     }
 
     const assignedLearnerIds = assignedLearners.map((l) => l.id);
+    if (targetLearnerId && !isNaN(targetLearnerId) && !assignedLearnerIds.includes(targetLearnerId)) {
+      return res.json([]);
+    }
     const assignedMap = new Map(assignedLearners.map((l) => [l.id, l]));
 
     // 3. Fetch actual LearnerProgress records for these assigned learners from the database
@@ -237,17 +245,18 @@ router.get('/', optionalAuth, async (req, res, next) => {
         centerName: learner.learningCenter?.name || '',
         moduleId: mod.id,
         moduleTitle: mod.title,
-        strandName: mod.learningArea?.name || '',
+        strandName: mod.learningArea?.name || matchedAf?.strandName || '',
         preTestScore: p.preTestScore != null ? Number(p.preTestScore) : (matchedAf?.preTestScore != null ? Number(matchedAf.preTestScore) : null),
-        preTestTotal: preTotal,
+        preTestTotal: matchedAf?.preTestTotal != null && matchedAf?.preTestTotal !== '' ? Number(matchedAf.preTestTotal) : preTotal,
         postTestScore: p.postTestScore != null ? Number(p.postTestScore) : (matchedAf?.postTestScore != null ? Number(matchedAf.postTestScore) : null),
-        postTestTotal: postTotal,
+        postTestTotal: matchedAf?.postTestTotal != null && matchedAf?.postTestTotal !== '' ? Number(matchedAf.postTestTotal) : postTotal,
         assessment: finalStatus,
         moduleStatus: finalStatus,
         dateStarted: recDateStarted,
         dateFinished: recDateCompleted,
         dateCompleted: recDateCompleted,
         otherActivities: finalOtherActivities,
+        uploadedOutputs: matchedAf?.uploadedOutputs || '',
         selfAssessment: finalSelfAssessment,
         remarks: finalRemarks,
       });
@@ -278,11 +287,12 @@ router.get('/', optionalAuth, async (req, res, next) => {
           id: af.id || `af2_${Date.now()}`,
           source: 'af2',
           learnerId: lid || learner?.id,
-          learnerName: af.learnerName || learner?.fullName || '',
+          learnerName: af.learnerName || (learner ? formatLearnerName(learner) : ''),
           lrn: af.lrn || learner?.lrn || '',
           level: displayLevel || 'A&E Elementary',
           learningCenterId: cid,
           learningCenter: centerName,
+          centerName: centerName,
           moduleId: af.moduleId || null,
           moduleTitle: af.moduleTitle || 'Learning Module',
           strandName: af.strandName || '',
@@ -296,6 +306,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
           dateFinished: af.dateFinished || af.dateCompleted || '',
           dateCompleted: af.dateFinished || af.dateCompleted || '',
           otherActivities: af.otherActivities || '',
+          uploadedOutputs: af.uploadedOutputs || '',
           selfAssessment: af.selfAssessment || '',
           remarks: af.remarks || '',
         });
@@ -514,6 +525,16 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       console.warn('Could not sync progress to database table:', dbErr);
     }
 
+    // 3. Notify Admin that Teacher added a learner record
+    if (req.user?.role === 'TEACHER' || teacherId) {
+      notifyLearnerRecordCreated({
+        teacherId,
+        learnerId: parsedLearnerId,
+        moduleTitle: moduleTitle.trim(),
+        recordId: newRecordId,
+      }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
+    }
+
     res.status(201).json(newAf2);
   } catch (err) {
     next(err);
@@ -530,10 +551,20 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
     const teacherId = req.user.role === 'TEACHER' ? req.user.profileId : null;
     const updates = req.body;
 
-    // Update in AF2 records JSON
+    // Update in AF2 records JSON if matched directly by id
     const records = readAf2Records();
     const idx = records.findIndex((r) => String(r.id) === String(recordId));
     if (idx !== -1) {
+      if (teacherId && records[idx].learnerId) {
+        const targetLearner = await prisma.learner.findUnique({
+          where: { id: Number(records[idx].learnerId) },
+          select: { assignedTeacherId: true },
+        });
+        if (targetLearner && targetLearner.assignedTeacherId !== teacherId) {
+          return res.status(403).json({ error: 'Learner is not assigned to you' });
+        }
+      }
+
       records[idx] = {
         ...records[idx],
         ...updates,
@@ -541,6 +572,31 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         updatedAt: new Date().toISOString(),
       };
       writeAf2Records(records);
+
+      // Also sync to LearnerProgress if moduleId is present
+      const rec = records[idx];
+      if (rec.learnerId && rec.moduleId) {
+        try {
+          await prisma.learnerProgress.update({
+            where: {
+              learnerId_moduleId: {
+                learnerId: Number(rec.learnerId),
+                moduleId: Number(rec.moduleId),
+              },
+            },
+            data: {
+              preTestScore: rec.preTestScore != null && rec.preTestScore !== '' ? Number(rec.preTestScore) : null,
+              postTestScore: rec.postTestScore != null && rec.postTestScore !== '' ? Number(rec.postTestScore) : null,
+              masteryStatus: rec.assessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
+              status: rec.assessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
+              completedAt: rec.dateFinished ? new Date(rec.dateFinished) : undefined,
+            },
+          });
+        } catch {
+          // Ignore if no matching progress row
+        }
+      }
+
       return res.json(records[idx]);
     }
 
@@ -548,6 +604,22 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
     if (String(recordId).startsWith('prog_')) {
       const pId = parseInt(recordId.replace('prog_', ''), 10);
       if (!isNaN(pId)) {
+        const existingProgress = await prisma.learnerProgress.findUnique({
+          where: { id: pId },
+          include: {
+            learner: { include: { learningCenter: true } },
+            module: { include: { learningArea: true } },
+          },
+        });
+
+        if (!existingProgress) {
+          return res.status(404).json({ error: 'Record not found' });
+        }
+
+        if (teacherId && existingProgress.learner?.assignedTeacherId !== teacherId) {
+          return res.status(403).json({ error: 'Learner is not assigned to you' });
+        }
+
         const updateData = {};
         if (updates.preTestScore !== undefined) {
           updateData.preTestScore = updates.preTestScore != null && updates.preTestScore !== '' ? Number(updates.preTestScore) : null;
@@ -567,7 +639,66 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           where: { id: pId },
           data: updateData,
         });
-        return res.json({ id: recordId, ...updatedProgress });
+
+        // Also sync/upsert in af2_records.json so remarks, otherActivities, dateStarted, dateFinished, preTestTotal, postTestTotal persist
+        const afIdx = records.findIndex(
+          (r) =>
+            Number(r.learnerId) === existingProgress.learnerId &&
+            (Number(r.moduleId) === existingProgress.moduleId ||
+              (r.moduleTitle &&
+                existingProgress.module?.title &&
+                r.moduleTitle.trim().toLowerCase() === existingProgress.module.title.trim().toLowerCase()))
+        );
+
+        const finalAssessment =
+          updates.assessment ||
+          updates.moduleStatus ||
+          (updatedProgress.masteryStatus === 'MASTERED' ? 'Mastered' : 'Not Mastered');
+
+        if (afIdx !== -1) {
+          records[afIdx] = {
+            ...records[afIdx],
+            ...updates,
+            assessment: finalAssessment,
+            moduleStatus: finalAssessment,
+            selfAssessment: '',
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          const lrnObj = existingProgress.learner;
+          const modObj = existingProgress.module;
+          records.unshift({
+            id: `af2_prog_${pId}`,
+            teacherId: teacherId || lrnObj?.assignedTeacherId || null,
+            learnerId: existingProgress.learnerId,
+            learnerName: lrnObj ? formatLearnerName(lrnObj) : '',
+            lrn: lrnObj?.lrn || '',
+            level: lrnObj?.level === 'JUNIOR' ? 'A&E Junior High' : 'A&E Elementary',
+            learningCenterId: lrnObj?.learningCenterId || null,
+            learningCenter: lrnObj?.learningCenter?.name || '',
+            centerName: lrnObj?.learningCenter?.name || '',
+            moduleId: existingProgress.moduleId,
+            moduleTitle: modObj?.title || 'Learning Module',
+            strandName: updates.strandName || modObj?.learningArea?.name || '',
+            dateStarted: updates.dateStarted || '',
+            dateFinished: updates.dateFinished || '',
+            dateCompleted: updates.dateFinished || updates.dateCompleted || '',
+            preTestScore: updatedProgress.preTestScore,
+            preTestTotal: updates.preTestTotal != null && updates.preTestTotal !== '' ? Number(updates.preTestTotal) : 10,
+            postTestScore: updatedProgress.postTestScore,
+            postTestTotal: updates.postTestTotal != null && updates.postTestTotal !== '' ? Number(updates.postTestTotal) : 10,
+            otherActivities: updates.otherActivities || '',
+            selfAssessment: '',
+            assessment: finalAssessment,
+            moduleStatus: finalAssessment,
+            remarks: updates.remarks || '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        writeAf2Records(records);
+
+        return res.json({ id: recordId, ...updatedProgress, ...updates });
       }
     }
 
@@ -584,11 +715,22 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
 router.delete('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, res, next) => {
   try {
     const recordId = req.params.id;
+    const teacherId = req.user.role === 'TEACHER' ? req.user.profileId : null;
 
     // Check AF2 records
     const records = readAf2Records();
-    const filtered = records.filter((r) => String(r.id) !== String(recordId));
-    if (filtered.length !== records.length) {
+    const targetAf = records.find((r) => String(r.id) === String(recordId));
+    if (targetAf) {
+      if (teacherId && targetAf.learnerId) {
+        const targetLearner = await prisma.learner.findUnique({
+          where: { id: Number(targetAf.learnerId) },
+          select: { assignedTeacherId: true },
+        });
+        if (targetLearner && targetLearner.assignedTeacherId !== teacherId) {
+          return res.status(403).json({ error: 'Learner is not assigned to you' });
+        }
+      }
+      const filtered = records.filter((r) => String(r.id) !== String(recordId));
       writeAf2Records(filtered);
       return res.status(204).send();
     }
@@ -597,7 +739,35 @@ router.delete('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (re
     if (String(recordId).startsWith('prog_')) {
       const pId = parseInt(recordId.replace('prog_', ''), 10);
       if (!isNaN(pId)) {
+        const existingProgress = await prisma.learnerProgress.findUnique({
+          where: { id: pId },
+          include: {
+            learner: { select: { assignedTeacherId: true } },
+            module: { select: { title: true } },
+          },
+        });
+        if (existingProgress && teacherId && existingProgress.learner?.assignedTeacherId !== teacherId) {
+          return res.status(403).json({ error: 'Learner is not assigned to you' });
+        }
+
         await prisma.learnerProgress.delete({ where: { id: pId } }).catch(() => {});
+
+        // Also remove any corresponding AF2 record so it does not reappear
+        if (existingProgress) {
+          const cleaned = records.filter(
+            (r) =>
+              !(
+                Number(r.learnerId) === existingProgress.learnerId &&
+                (Number(r.moduleId) === existingProgress.moduleId ||
+                  (r.moduleTitle &&
+                    existingProgress.module?.title &&
+                    r.moduleTitle.trim().toLowerCase() === existingProgress.module.title.trim().toLowerCase()))
+              )
+          );
+          if (cleaned.length !== records.length) {
+            writeAf2Records(cleaned);
+          }
+        }
         return res.status(204).send();
       }
     }

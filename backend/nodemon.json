@@ -1,0 +1,7 @@
+{
+  "watch": ["src", "prisma/schema.prisma"],
+  "ext": "js,mjs,json",
+  "ignore": ["scratch/*", "scripts/*", "uploads/*", "data/*", "*.test.js"],
+  "delay": "400"
+}
+

@@ -1,0 +1,897 @@
+import prisma from '../config/prisma.js';
+import { calculateModuleProgress } from '../utils/progressCalculator.js';
+
+/**
+ * Parse schedule date & time into a Date object representing Asia/Manila (+08:00)
+ */
+export function parseScheduleDateTime(dateVal, timeStr) {
+  if (!dateVal) return null;
+  const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+  if (isNaN(d.getTime())) return null;
+
+  let yyyy, mm, dd;
+  if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+    [yyyy, mm, dd] = dateVal.slice(0, 10).split('-');
+  } else {
+    const iso = d.toISOString().slice(0, 10);
+    [yyyy, mm, dd] = iso.split('-');
+  }
+
+  let hours = 9;
+  let minutes = 0;
+  if (timeStr) {
+    const s = String(timeStr).trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (m) {
+      hours = parseInt(m[1], 10);
+      minutes = parseInt(m[2], 10);
+      const ampm = m[4] ? m[4].toUpperCase() : null;
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+    }
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const manilaIso = `${yyyy}-${pad(mm)}-${pad(dd)}T${pad(hours)}:${pad(minutes)}:00+08:00`;
+  const res = new Date(manilaIso);
+  return isNaN(res.getTime()) ? null : res;
+}
+
+/**
+ * Format a time string into 12-hour AM/PM format (e.g. 9:00 AM)
+ */
+export function formatTime12h(timeStr) {
+  if (!timeStr) return '';
+  const s = String(timeStr).trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if (!m) return s;
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  let ampm = m[4] ? m[4].toUpperCase() : null;
+  if (!ampm) {
+    ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+  }
+  return `${h}:${min} ${ampm}`;
+}
+
+/**
+ * Format relative time (e.g. 5m ago, 2h ago, Just now)
+ */
+export function formatRelativeTime(dateInput) {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Parse module End Date to the end of that day in Asia/Manila (+08:00)
+ */
+export function parseEndOfDayManila(dateVal) {
+  if (!dateVal) return null;
+  const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+  if (isNaN(d.getTime())) return null;
+
+  let yyyy, mm, dd;
+  if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+    [yyyy, mm, dd] = dateVal.slice(0, 10).split('-');
+  } else {
+    const iso = d.toISOString().slice(0, 10);
+    [yyyy, mm, dd] = iso.split('-');
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const manilaIso = `${yyyy}-${pad(mm)}-${pad(dd)}T23:59:59+08:00`;
+  const res = new Date(manilaIso);
+  return isNaN(res.getTime()) ? null : res;
+}
+
+/**
+ * Create a persistent notification record in MySQL with deduplication.
+ */
+export async function createNotification({
+  notificationKey,
+  title,
+  message,
+  type = 'ANNOUNCEMENT',
+  priority = 'NORMAL',
+  isImportant = false,
+  targetRole,
+  targetUserId = null,
+  targetTeacherId = null,
+  targetLearnerId = null,
+  learningCenterId = null,
+  programLevel = null,
+  sourceType = null,
+  sourceId = null,
+  linkUrl = null,
+  deadlineAt = null,
+  createdByRole = null,
+  createdByName = null,
+  createdAt = new Date(),
+}) {
+  if (!title || !message || !targetRole || !targetUserId) {
+    return null;
+  }
+
+  try {
+    if (notificationKey) {
+      const existing = await prisma.notification.findUnique({
+        where: { notificationKey },
+      });
+      if (existing) return existing;
+    }
+
+    const item = await prisma.notification.create({
+      data: {
+        notificationKey: notificationKey || null,
+        title: title.trim(),
+        message: message.trim(),
+        type: String(type).toUpperCase(),
+        priority: String(priority).toUpperCase(),
+        isImportant: Boolean(isImportant),
+        targetRole,
+        targetUserId: Number(targetUserId),
+        targetTeacherId: targetTeacherId ? Number(targetTeacherId) : null,
+        targetLearnerId: targetLearnerId ? Number(targetLearnerId) : null,
+        learningCenterId: learningCenterId ? Number(learningCenterId) : null,
+        programLevel: programLevel ? String(programLevel).trim() : null,
+        sourceType: sourceType ? String(sourceType).trim() : null,
+        sourceId: sourceId ? Number(sourceId) : null,
+        linkUrl: linkUrl ? String(linkUrl).trim() : null,
+        deadlineAt: deadlineAt || null,
+        createdByRole: createdByRole || null,
+        createdByName: createdByName || null,
+        createdAt: createdAt || new Date(),
+      },
+    });
+    return item;
+  } catch (err) {
+    // If unique constraint collided, return existing
+    if (err.code === 'P2002' && notificationKey) {
+      return await prisma.notification.findUnique({ where: { notificationKey } }).catch(() => null);
+    }
+    console.error('[NotificationService] createNotification failed:', err.message);
+    return null;
+  }
+}
+
+/**
+ * EVENT 1: Learner Activity Submission
+ * Notifies the teacher managing the module. Group multiple files into 1 notification per submission.
+ */
+export async function notifyActivitySubmitted({ submissionId, isUpdate = false }) {
+  if (!submissionId) return;
+
+  try {
+    const sub = await prisma.submission.findUnique({
+      where: { id: Number(submissionId) },
+      include: {
+        module: {
+          include: {
+            teacher: {
+              include: { user: true },
+            },
+          },
+        },
+        learner: {
+          select: { id: true, fullName: true, lrn: true },
+        },
+      },
+    });
+
+    if (!sub || !sub.module || !sub.module.teacher?.user) return;
+
+    const teacher = sub.module.teacher;
+    const learner = sub.learner;
+    const mod = sub.module;
+
+    const notifKey = isUpdate
+      ? `submission_update:${sub.id}:${Math.floor(Date.now() / 60000)}`
+      : `submission:${sub.id}`;
+
+    const title = isUpdate ? 'Activity Submission Updated' : 'New Activity Submission';
+    const message = isUpdate
+      ? `${learner.fullName} updated their activity submission for ${mod.title}.`
+      : `${learner.fullName} submitted an activity for ${mod.title}.`;
+
+    await createNotification({
+      notificationKey: notifKey,
+      title,
+      message,
+      type: 'SUBMISSION',
+      priority: 'NORMAL',
+      isImportant: false,
+      targetRole: 'TEACHER',
+      targetUserId: teacher.user.id,
+      targetTeacherId: teacher.id,
+      targetLearnerId: learner.id,
+      learningCenterId: mod.learningCenterId,
+      sourceType: 'submission',
+      sourceId: sub.id,
+      linkUrl: `/dashboard/modules/${mod.id}?tab=submissions`,
+      createdByName: learner.fullName,
+      createdByRole: 'LEARNER',
+    });
+  } catch (err) {
+    console.error('[NotificationService] notifyActivitySubmitted error:', err);
+  }
+}
+
+/**
+ * EVENT 2: Teacher Added a Learner Record
+ * Notifies the Admin portal when a teacher records learner performance.
+ */
+export async function notifyLearnerRecordCreated({ teacherId, learnerId, moduleTitle, recordId }) {
+  try {
+    let teacherName = 'ALS Teacher';
+    if (teacherId) {
+      const t = await prisma.teacher.findUnique({
+        where: { id: Number(teacherId) },
+        select: { fullName: true },
+      });
+      if (t?.fullName) teacherName = t.fullName;
+    }
+
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', status: 'ACTIVE' },
+      select: { id: true },
+    });
+
+    for (const admin of admins) {
+      const notifKey = `record_added:${recordId || Date.now()}:admin:${admin.id}`;
+      await createNotification({
+        notificationKey: notifKey,
+        title: 'New Learner Record',
+        message: `${teacherName} added a performance record for a learner.`,
+        type: 'RECORD',
+        priority: 'NORMAL',
+        isImportant: false,
+        targetRole: 'ADMIN',
+        targetUserId: admin.id,
+        sourceType: 'record',
+        sourceId: null,
+        linkUrl: '/dashboard/reports/module-progress',
+        createdByName: teacherName,
+        createdByRole: 'TEACHER',
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyLearnerRecordCreated error:', err);
+  }
+}
+
+/**
+ * EVENT 3: Announcement Published
+ * Delivers recipient-specific notifications based on audience:
+ * - Admin announcement -> eligible Teachers and/or Learners (never Admin themselves!)
+ * - Teacher announcement -> intended Learners (never Admin, never other Teachers!)
+ */
+export async function notifyAnnouncementPublished(announcementId) {
+  if (!announcementId) return;
+
+  try {
+    const ann = await prisma.announcement.findUnique({
+      where: { id: Number(announcementId) },
+      include: {
+        author: true,
+      },
+    });
+
+    if (!ann || ann.status !== 'PUBLISHED') return;
+
+    const isAuthorAdmin = ann.creatorRole === 'ADMIN' || ann.author?.role === 'ADMIN';
+    const isAuthorTeacher = ann.creatorRole === 'TEACHER' || ann.author?.role === 'TEACHER' || ann.teacherId != null;
+
+    // 1. Admin Announcement:
+    if (isAuthorAdmin) {
+      const audience = String(ann.audience || '').toUpperCase();
+      const includesTeachers = ['ALL_TEACHERS', 'TEACHERS', 'ALL'].includes(audience);
+      const includesLearners = ['ALL_LEARNERS', 'LEARNERS', 'ALL', 'SPECIFIC_LEARNER', 'INDIVIDUAL_LEARNER'].includes(audience);
+
+      // A. Deliver to Teachers
+      if (includesTeachers) {
+        const teacherWhere = { status: 'Active' };
+        if (ann.learningCenterId) {
+          teacherWhere.learningCenterId = ann.learningCenterId;
+        }
+
+        const teachers = await prisma.teacher.findMany({
+          where: teacherWhere,
+          select: { id: true, userId: true },
+        });
+
+        for (const t of teachers) {
+          if (!t.userId) continue;
+          await createNotification({
+            notificationKey: `announcement:${ann.id}:teacher:${t.userId}`,
+            title: 'New Announcement',
+            message: 'The District Coordinator posted a new announcement for Teachers.',
+            type: 'ANNOUNCEMENT',
+            priority: ann.priority || 'NORMAL',
+            isImportant: Boolean(ann.isImportant || ann.isPinned),
+            targetRole: 'TEACHER',
+            targetUserId: t.userId,
+            targetTeacherId: t.id,
+            learningCenterId: ann.learningCenterId,
+            sourceType: 'announcement',
+            sourceId: ann.id,
+            linkUrl: '/dashboard/announcements',
+            createdByName: 'District Coordinator',
+            createdByRole: 'ADMIN',
+            createdAt: ann.createdAt,
+          });
+        }
+      }
+
+      // B. Deliver to Learners
+      if (includesLearners) {
+        const learnerWhere = { status: 'Active' };
+        if (ann.targetLearnerId) {
+          learnerWhere.id = ann.targetLearnerId;
+        } else {
+          if (ann.learningCenterId) {
+            learnerWhere.learningCenterId = ann.learningCenterId;
+          }
+          if (ann.programLevel) {
+            const pUpper = String(ann.programLevel).toUpperCase();
+            if (pUpper.includes('ELEM')) learnerWhere.level = 'ELEMENTARY';
+            else if (pUpper.includes('JUN')) learnerWhere.level = 'JUNIOR';
+          }
+        }
+
+        const learners = await prisma.learner.findMany({
+          where: learnerWhere,
+          select: { id: true, userId: true },
+        });
+
+        for (const l of learners) {
+          if (!l.userId) continue;
+          await createNotification({
+            notificationKey: `announcement:${ann.id}:learner:${l.userId}`,
+            title: 'New Announcement',
+            message: 'The District Coordinator posted a new announcement.',
+            type: 'ANNOUNCEMENT',
+            priority: ann.priority || 'NORMAL',
+            isImportant: Boolean(ann.isImportant || ann.isPinned),
+            targetRole: 'LEARNER',
+            targetUserId: l.userId,
+            targetLearnerId: l.id,
+            learningCenterId: ann.learningCenterId,
+            sourceType: 'announcement',
+            sourceId: ann.id,
+            linkUrl: '/announcements',
+            createdByName: 'District Coordinator',
+            createdByRole: 'ADMIN',
+            createdAt: ann.createdAt,
+          });
+        }
+      }
+    }
+
+    // 2. Teacher Announcement (to assigned learners only):
+    else if (isAuthorTeacher && ann.teacherId) {
+      const learnerWhere = {
+        assignedTeacherId: ann.teacherId,
+        status: 'Active',
+      };
+
+      if (ann.targetLearnerId) {
+        learnerWhere.id = ann.targetLearnerId;
+      } else {
+        if (ann.learningCenterId) {
+          learnerWhere.learningCenterId = ann.learningCenterId;
+        }
+        if (ann.programLevel) {
+          const pUpper = String(ann.programLevel).toUpperCase();
+          if (pUpper.includes('ELEM')) learnerWhere.level = 'ELEMENTARY';
+          else if (pUpper.includes('JUN')) learnerWhere.level = 'JUNIOR';
+        }
+      }
+
+      const learners = await prisma.learner.findMany({
+        where: learnerWhere,
+        select: { id: true, userId: true },
+      });
+
+      for (const l of learners) {
+        if (!l.userId) continue;
+        await createNotification({
+          notificationKey: `announcement:${ann.id}:learner:${l.userId}`,
+          title: 'Message from Your Teacher',
+          message: 'Your teacher posted a new announcement.',
+          type: 'ANNOUNCEMENT',
+          priority: ann.priority || 'NORMAL',
+          isImportant: Boolean(ann.isImportant || ann.isPinned),
+          targetRole: 'LEARNER',
+          targetUserId: l.userId,
+          targetLearnerId: l.id,
+          learningCenterId: ann.learningCenterId,
+          sourceType: 'announcement',
+          sourceId: ann.id,
+          linkUrl: '/announcements',
+          createdByName: 'Assigned Teacher',
+          createdByRole: 'TEACHER',
+          createdAt: ann.createdAt,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyAnnouncementPublished error:', err);
+  }
+}
+
+/**
+ * EVENT 4: New Module Available
+ * When an assigned teacher publishes a module, notify the eligible learners.
+ */
+export async function notifyModulePublished(moduleId) {
+  if (!moduleId) return;
+
+  try {
+    const mod = await prisma.module.findUnique({
+      where: { id: Number(moduleId) },
+      include: {
+        teacher: true,
+        assignments: { select: { learnerId: true } },
+      },
+    });
+
+    if (!mod || mod.status !== 'PUBLISHED' || !mod.teacherId) return;
+
+    // Determine target learners
+    let targetLearnerIds = [];
+    if (mod.assignments && mod.assignments.length > 0) {
+      targetLearnerIds = mod.assignments.map((a) => a.learnerId);
+    } else {
+      const learnerWhere = {
+        assignedTeacherId: mod.teacherId,
+        level: mod.targetLevel,
+        status: 'Active',
+      };
+      if (mod.learningCenterId) {
+        learnerWhere.learningCenterId = mod.learningCenterId;
+      }
+      const candidates = await prisma.learner.findMany({
+        where: learnerWhere,
+        select: { id: true },
+      });
+      targetLearnerIds = candidates.map((c) => c.id);
+    }
+
+    if (targetLearnerIds.length === 0) return;
+
+    const learners = await prisma.learner.findMany({
+      where: { id: { in: targetLearnerIds } },
+      select: { id: true, userId: true },
+    });
+
+    for (const l of learners) {
+      if (!l.userId) continue;
+      await createNotification({
+        notificationKey: `module_published:${mod.id}:user:${l.userId}`,
+        title: 'New Module Available',
+        message: `Your teacher added a new module: ${mod.title}. You can start learning now.`,
+        type: 'MODULE',
+        priority: 'NORMAL',
+        isImportant: false,
+        targetRole: 'LEARNER',
+        targetUserId: l.userId,
+        targetLearnerId: l.id,
+        learningCenterId: mod.learningCenterId,
+        sourceType: 'module',
+        sourceId: mod.id,
+        linkUrl: `/modules/${mod.id}`,
+        createdByName: mod.teacher?.fullName || 'Assigned Teacher',
+        createdByRole: 'TEACHER',
+        createdAt: mod.createdAt,
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyModulePublished error:', err);
+  }
+}
+
+/**
+ * CHECK 1: Schedule Reminders (Admin & Teacher)
+ * Generates 1-day and 1-hour reminders before upcoming learning sessions.
+ */
+export async function checkScheduleReminders() {
+  const now = new Date();
+  const pastCutoff = new Date(now.getTime() - 24 * 3600 * 1000);
+  const futureHorizon = new Date(now.getTime() + 48 * 3600 * 1000);
+
+  try {
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        date: { gte: pastCutoff, lte: futureHorizon },
+        status: { not: 'Cancelled' },
+      },
+      include: {
+        learningCenter: { select: { id: true, name: true } },
+        teacher: { select: { id: true, userId: true, fullName: true } },
+      },
+    });
+
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', status: 'ACTIVE' },
+      select: { id: true },
+    });
+
+    for (const s of schedules) {
+      const schedStart = parseScheduleDateTime(s.date, s.startTime);
+      if (!schedStart) continue;
+
+      const diffMs = schedStart.getTime() - now.getTime();
+      const diffHours = diffMs / (3600 * 1000);
+
+      const centerName = s.learningCenter?.name || 'Assigned Learning Center';
+      const time12h = formatTime12h(s.startTime);
+
+      // --- 1 DAY BEFORE (within 24 hours and > 1 hour remaining) ---
+      if (diffHours <= 24 && diffHours > 1) {
+        // A. For Admin
+        for (const admin of admins) {
+          const key = `schedule_reminder_1d:${s.id}:admin:${admin.id}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Upcoming Schedule',
+            message: `Your scheduled learning session at ${centerName} starts tomorrow at ${time12h}.`,
+            type: 'SCHEDULE',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'ADMIN',
+            targetUserId: admin.id,
+            learningCenterId: s.learningCenterId,
+            sourceType: 'schedule',
+            sourceId: s.id,
+            linkUrl: '/dashboard/schedule',
+            deadlineAt: schedStart,
+          });
+        }
+
+        // B. For Teacher (if assigned)
+        if (s.teacher?.userId) {
+          const key = `schedule_reminder_1d:${s.id}:teacher:${s.teacher.userId}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Upcoming Schedule',
+            message: `You have a learning session tomorrow at ${time12h} at ${centerName}.`,
+            type: 'SCHEDULE',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'TEACHER',
+            targetUserId: s.teacher.userId,
+            targetTeacherId: s.teacher.id,
+            learningCenterId: s.learningCenterId,
+            sourceType: 'schedule',
+            sourceId: s.id,
+            linkUrl: '/dashboard/schedule',
+            deadlineAt: schedStart,
+          });
+        }
+      }
+
+      // --- 1 HOUR BEFORE (within 1 hour and > 0 minutes remaining) ---
+      if (diffHours <= 1 && diffHours > 0) {
+        // A. For Admin
+        for (const admin of admins) {
+          const key = `schedule_reminder_1h:${s.id}:admin:${admin.id}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Upcoming Schedule',
+            message: `Your scheduled learning session at ${centerName} starts in 1 hour at ${time12h}.`,
+            type: 'SCHEDULE',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'ADMIN',
+            targetUserId: admin.id,
+            learningCenterId: s.learningCenterId,
+            sourceType: 'schedule',
+            sourceId: s.id,
+            linkUrl: '/dashboard/schedule',
+            deadlineAt: schedStart,
+          });
+        }
+
+        // B. For Teacher (if assigned)
+        if (s.teacher?.userId) {
+          const key = `schedule_reminder_1h:${s.id}:teacher:${s.teacher.userId}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Upcoming Schedule',
+            message: `You have a learning session starting in 1 hour at ${time12h} at ${centerName}.`,
+            type: 'SCHEDULE',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'TEACHER',
+            targetUserId: s.teacher.userId,
+            targetTeacherId: s.teacher.id,
+            learningCenterId: s.learningCenterId,
+            sourceType: 'schedule',
+            sourceId: s.id,
+            linkUrl: '/dashboard/schedule',
+            deadlineAt: schedStart,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[NotificationService] checkScheduleReminders error:', err);
+  }
+}
+
+/**
+ * CHECK 2: Module End Date Reminders (Teacher & Learner)
+ * - Teacher: Notifies when module ends in 2 days and assigned learners have unsubmitted activities.
+ * - Learner: Notifies 2 days before and on the End Date if learner still has incomplete activities.
+ */
+export async function checkModuleDeadlineReminders() {
+  const now = new Date();
+  const pastCutoff = new Date(now.getTime() - 24 * 3600 * 1000);
+  const futureHorizon = new Date(now.getTime() + 72 * 3600 * 1000);
+
+  try {
+    const modules = await prisma.module.findMany({
+      where: {
+        status: 'PUBLISHED',
+        dateEnded: { gte: pastCutoff, lte: futureHorizon },
+      },
+      include: {
+        teacher: { select: { id: true, userId: true } },
+        assignments: { select: { learnerId: true } },
+        assessments: {
+          include: {
+            questions: { select: { id: true } },
+            attempts: { where: { status: 'SUBMITTED' } },
+          },
+        },
+        learnerProgress: true,
+        submissions: { select: { id: true, learnerId: true, status: true } },
+      },
+    });
+
+    for (const m of modules) {
+      if (!m.dateEnded) continue;
+      const deadline = parseEndOfDayManila(m.dateEnded);
+      if (!deadline) continue;
+
+      const diffMs = deadline.getTime() - now.getTime();
+      const diffHours = diffMs / (3600 * 1000);
+
+      // Resolve assigned learners
+      let learnerIds = [];
+      if (m.assignments && m.assignments.length > 0) {
+        learnerIds = m.assignments.map((a) => a.learnerId);
+      } else if (m.teacherId) {
+        const candidates = await prisma.learner.findMany({
+          where: {
+            assignedTeacherId: m.teacherId,
+            level: m.targetLevel,
+            status: 'Active',
+            ...(m.learningCenterId ? { learningCenterId: m.learningCenterId } : {}),
+          },
+          select: { id: true },
+        });
+        learnerIds = candidates.map((c) => c.id);
+      }
+
+      if (learnerIds.length === 0) continue;
+
+      const learners = await prisma.learner.findMany({
+        where: { id: { in: learnerIds } },
+        select: { id: true, userId: true, fullName: true },
+      });
+
+      // Filter unsubmitted learners
+      const unsubmittedLearners = learners.filter((l) => {
+        return !m.submissions.some((s) => s.learnerId === l.id);
+      });
+
+      // --- TEACHER MISSING SUBMISSION REMINDER (2 Days Before) ---
+      if (diffHours <= 48 && diffHours > 0 && m.teacher?.userId && unsubmittedLearners.length > 0) {
+        const key = `missing_submissions_2d:${m.id}:${m.teacher.id}`;
+        await createNotification({
+          notificationKey: key,
+          title: 'Activity Due Soon',
+          message: `${unsubmittedLearners.length} ${unsubmittedLearners.length === 1 ? 'learner has' : 'learners have'} not submitted their activities for ${m.title}. The module ends in 2 days.`,
+          type: 'REMINDER',
+          priority: 'IMPORTANT',
+          isImportant: true,
+          targetRole: 'TEACHER',
+          targetUserId: m.teacher.userId,
+          targetTeacherId: m.teacher.id,
+          learningCenterId: m.learningCenterId,
+          sourceType: 'missing_submissions',
+          sourceId: m.id,
+          linkUrl: `/dashboard/modules/${m.id}?tab=submissions`,
+          deadlineAt: deadline,
+        });
+      }
+
+      // --- LEARNER REMINDERS (Only if learner has NOT completed all 4 activities!) ---
+      for (const learner of learners) {
+        if (!learner.userId) continue;
+
+        // Check real progress:
+        const lp = m.learnerProgress.find((p) => p.learnerId === learner.id);
+        const learnerAttempts = m.assessments.flatMap((a) => (a.attempts || []).filter((att) => att.learnerId === learner.id));
+        const learnerSubs = m.submissions.filter((s) => s.learnerId === learner.id);
+
+        const progressResult = calculateModuleProgress({
+          module: m,
+          learnerProgress: lp,
+          attempts: learnerAttempts,
+          submissions: learnerSubs,
+        });
+
+        // If learner has completely finished module workflow, do NOT send reminder!
+        if (progressResult.completed) continue;
+
+        // 2 Days Before (between 24h and 48h)
+        if (diffHours <= 48 && diffHours > 24) {
+          const key = `module_deadline_2d:${m.id}:user:${learner.userId}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Module Ending Soon',
+            message: `Your module "${m.title}" ends in 2 days. Please finish your remaining activities.`,
+            type: 'REMINDER',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'LEARNER',
+            targetUserId: learner.userId,
+            targetLearnerId: learner.id,
+            learningCenterId: m.learningCenterId,
+            sourceType: 'module_deadline',
+            sourceId: m.id,
+            linkUrl: `/modules/${m.id}`,
+            deadlineAt: deadline,
+          });
+        }
+
+        // On End Date (between 0h and 24h)
+        if (diffHours <= 24 && diffHours > 0) {
+          const key = `module_deadline_0d:${m.id}:user:${learner.userId}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Module Ending Soon',
+            message: `Your module "${m.title}" ends today. Please finish your remaining activities.`,
+            type: 'REMINDER',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'LEARNER',
+            targetUserId: learner.userId,
+            targetLearnerId: learner.id,
+            learningCenterId: m.learningCenterId,
+            sourceType: 'module_deadline',
+            sourceId: m.id,
+            linkUrl: `/modules/${m.id}`,
+            deadlineAt: deadline,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[NotificationService] checkModuleDeadlineReminders error:', err);
+  }
+}
+
+/**
+ * Backfill existing events on system startup (announcements, modules, submissions, schedules)
+ * Idempotent: checks unique notificationKey before inserting.
+ */
+export async function backfillExistingNotifications() {
+  try {
+    // 1. Backfill published announcements
+    const publishedAnnouncements = await prisma.announcement.findMany({
+      where: { status: 'PUBLISHED' },
+      select: { id: true },
+      take: 20,
+    });
+    for (const a of publishedAnnouncements) {
+      await notifyAnnouncementPublished(a.id);
+    }
+
+    // 2. Backfill published modules
+    const publishedModules = await prisma.module.findMany({
+      where: { status: 'PUBLISHED' },
+      select: { id: true },
+      take: 20,
+    });
+    for (const m of publishedModules) {
+      await notifyModulePublished(m.id);
+    }
+
+    // 3. Backfill submissions
+    const recentSubmissions = await prisma.submission.findMany({
+      select: { id: true },
+      take: 30,
+      orderBy: { submittedAt: 'desc' },
+    });
+    for (const s of recentSubmissions) {
+      await notifyActivitySubmitted({ submissionId: s.id, isUpdate: false });
+    }
+
+    // 4. Run reminder checks
+    await checkScheduleReminders();
+    await checkModuleDeadlineReminders();
+  } catch (err) {
+    console.error('[NotificationService] backfillExistingNotifications error:', err);
+  }
+}
+
+let lastCheckTime = 0;
+/**
+ * Run reminder checks (throttled to at most once every 15 seconds)
+ */
+export async function runReminderChecks(force = false) {
+  const now = Date.now();
+  if (!force && now - lastCheckTime < 15000) {
+    return;
+  }
+  lastCheckTime = now;
+  await checkScheduleReminders();
+  await checkModuleDeadlineReminders();
+}
+
+/**
+ * Automatically publish scheduled announcements whose scheduled_at has arrived
+ */
+export async function publishDueScheduledAnnouncements() {
+  try {
+    const dueAnnouncements = await prisma.$queryRawUnsafe(`
+      SELECT id, scheduled_at 
+      FROM announcements 
+      WHERE status = 'SCHEDULED' 
+        AND scheduled_at IS NOT NULL 
+        AND scheduled_at <= NOW()
+    `);
+
+    if (!dueAnnouncements || dueAnnouncements.length === 0) return;
+
+    for (const ann of dueAnnouncements) {
+      const affected = await prisma.$executeRawUnsafe(
+        `UPDATE announcements 
+         SET status = 'PUBLISHED', updated_at = NOW() 
+         WHERE id = ? AND status = 'SCHEDULED'`,
+        ann.id
+      );
+
+      if (affected > 0) {
+        console.log(`[Announcements] Scheduled announcement #${ann.id} published.`);
+        notifyAnnouncementPublished(ann.id).catch((err) =>
+          console.error(`[Announcements] Notification error for #${ann.id}:`, err)
+        );
+      }
+    }
+  } catch (err) {
+    if (!String(err?.message || '').includes('Unknown column')) {
+      console.error('[Announcements] publishDueScheduledAnnouncements error:', err);
+    }
+  }
+}
+
+/**
+ * Start background timer running reminder checks every 60 seconds
+ * and scheduled announcement checks every 15 seconds
+ */
+export function startNotificationScheduler() {
+  publishDueScheduledAnnouncements().catch(() => {});
+  runReminderChecks(true).catch(() => {});
+  setInterval(() => {
+    publishDueScheduledAnnouncements().catch(() => {});
+  }, 15 * 1000);
+  setInterval(() => {
+    runReminderChecks(true).catch(() => {});
+  }, 60 * 1000);
+}

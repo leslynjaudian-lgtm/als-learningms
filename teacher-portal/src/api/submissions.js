@@ -9,6 +9,14 @@ export function getSubmissions(params = {}) {
 }
 
 /**
+ * Fetch a single submission by ID (includes grouped files and scores).
+ * @param {number|string} id
+ */
+export function getSubmissionById(id) {
+  return api.get(`/submissions/${id}`);
+}
+
+/**
  * Update/review a submission.
  * @param {number|string} id
  * @param {Object} data - { teacherRemarks, status, grade }

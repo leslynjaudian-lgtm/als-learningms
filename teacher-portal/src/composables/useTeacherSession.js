@@ -40,7 +40,11 @@ export function useTeacherSession() {
   });
 
   const teacherId = computed(() => {
-    return currentTeacher.value?.id || null;
+    return currentTeacher.value?.teacherId || currentTeacher.value?.profile?.id || currentTeacher.value?.id || null;
+  });
+
+  const userId = computed(() => {
+    return currentTeacher.value?.userId || currentTeacher.value?.user?.id || null;
   });
 
   const assignedProgramLevel = computed(() => {
@@ -121,13 +125,25 @@ export function useTeacherSession() {
   });
 
   function setSession(teacherData, token) {
-    teacherData.role = 'TEACHER';
-    if (!teacherData.profilePhoto && teacherData.user?.profilePhoto) {
-      teacherData.profilePhoto = teacherData.user.profilePhoto;
+    const normalized = { ...teacherData, role: 'TEACHER' };
+    if (teacherData.profile && teacherData.profile.id && teacherData.userId === undefined) {
+      normalized.id = teacherData.profile.id;
+      normalized.teacherId = teacherData.profile.id;
+      normalized.userId = teacherData.id;
+    } else {
+      normalized.teacherId = teacherData.teacherId || teacherData.id;
+      if (teacherData.userId) {
+        normalized.userId = teacherData.userId;
+      } else if (teacherData.user?.id) {
+        normalized.userId = teacherData.user.id;
+      }
     }
-    currentTeacher.value = teacherData;
+    if (!normalized.profilePhoto && normalized.user?.profilePhoto) {
+      normalized.profilePhoto = normalized.user.profilePhoto;
+    }
+    currentTeacher.value = normalized;
     localStorage.setItem('als_teacher_authenticated', 'true');
-    localStorage.setItem('als_teacher_user', JSON.stringify(teacherData));
+    localStorage.setItem('als_teacher_user', JSON.stringify(normalized));
     if (token) {
       localStorage.setItem('als_teacher_token', token);
     }
@@ -145,9 +161,22 @@ export function useTeacherSession() {
         ? updatedData.teacher.profilePhoto
         : existing.profilePhoto;
 
+    const resolvedTeacherId =
+      updatedData.teacherId ||
+      updatedData.profile?.id ||
+      existing.teacherId ||
+      existing.id;
+    const resolvedUserId =
+      updatedData.userId ||
+      updatedData.user?.id ||
+      existing.userId;
+
     const newTeacher = {
       ...existing,
       ...updatedData,
+      id: resolvedTeacherId,
+      teacherId: resolvedTeacherId,
+      userId: resolvedUserId,
       profilePhoto: photo,
       fullName: updatedData.fullName || updatedData.name || existing.fullName || existing.name,
       name: updatedData.fullName || updatedData.name || existing.fullName || existing.name,
@@ -174,9 +203,10 @@ export function useTeacherSession() {
   }
 
   async function refreshProfile() {
-    if (!currentTeacher.value?.id) return;
+    const idToFetch = teacherId.value || currentTeacher.value?.id;
+    if (!idToFetch) return;
     try {
-      const { data } = await getTeacherProfile(currentTeacher.value.id);
+      const { data } = await getTeacherProfile(idToFetch);
       if (data) {
         setSession({
           ...currentTeacher.value,
@@ -197,6 +227,7 @@ export function useTeacherSession() {
     teacherPosition,
     teacherPhoto,
     teacherId,
+    userId,
     assignedProgramLevel,
     assignedLevels,
     assignedCenters,

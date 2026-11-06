@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `announcements`
+  MODIFY COLUMN `status` ENUM('DRAFT', 'PUBLISHED', 'SCHEDULED') NOT NULL DEFAULT 'PUBLISHED',
+  ADD COLUMN `scheduled_at` DATETIME(3) NULL;
+

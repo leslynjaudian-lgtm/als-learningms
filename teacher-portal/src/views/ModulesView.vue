@@ -248,71 +248,129 @@
 
             <div class="field-item">
               <label class="field-lbl">Module Code <span class="req">*</span></label>
-              <select v-model="newModule.code" class="field-select-box" required>
-                <option value="" disabled>Select Module Code</option>
-                <option value="LS1">LS1</option>
-                <option value="LS2">LS2</option>
-                <option value="LS3">LS3</option>
-                <option value="LS4">LS4</option>
-                <option value="LS5">LS5</option>
-                <option value="LS6">LS6</option>
-              </select>
+              <input
+                type="text"
+                :value="newModule.code"
+                class="field-input-box is-readonly"
+                placeholder="Auto-populated based on Learning Strand"
+                readonly
+                disabled
+              />
             </div>
 
-            <!-- ROW — FULL WIDTH: Learners Selection * -->
-            <div class="field-item full-width learner-select-field">
-              <label class="field-lbl">Learners <span class="req">*</span></label>
-              <div class="learner-dropdown-container">
-                <div v-if="learnerDropdownOpen" class="dropdown-backdrop" @click="learnerDropdownOpen = false"></div>
-                <button
-                  type="button"
-                  class="field-input-box learner-dropdown-trigger"
-                  :class="{ 'dropdown-open': learnerDropdownOpen }"
-                  @click="learnerDropdownOpen = !learnerDropdownOpen"
-                >
-                  <span class="learner-selection-text">{{ learnerSelectionDisplayText }}</span>
-                  <svg
-                    class="dropdown-chevron"
-                    :class="{ 'rotate-180': learnerDropdownOpen }"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
+            <!-- ROW — FULL WIDTH: Learner Assignment Section -->
+            <div class="field-item full-width learner-assignment-section">
+              <label class="field-lbl">Assign Module To <span class="req">*</span></label>
+              
+              <div class="assignment-radio-group">
+                <!-- Option 1: All Learners -->
+                <label class="assignment-radio-card" :class="{ 'is-selected': newModule.isAllLearners }">
+                  <input
+                    type="radio"
+                    name="moduleAssignMode"
+                    :value="true"
+                    v-model="newModule.isAllLearners"
+                    class="custom-radio"
+                    @change="onAssignmentModeChange(true)"
+                  />
+                  <div class="radio-label-group">
+                    <span class="radio-title">All Learners</span>
+                    <span class="radio-desc">Assign the module to all eligible learners under the selected Learning Center and ALS Level.</span>
+                  </div>
+                </label>
+
+                <!-- Option 2: Specific Learners -->
+                <label class="assignment-radio-card" :class="{ 'is-selected': !newModule.isAllLearners }">
+                  <input
+                    type="radio"
+                    name="moduleAssignMode"
+                    :value="false"
+                    v-model="newModule.isAllLearners"
+                    class="custom-radio"
+                    @change="onAssignmentModeChange(false)"
+                  />
+                  <div class="radio-label-group">
+                    <span class="radio-title">Specific Learners</span>
+                    <span class="radio-desc">Allow the teacher to select individual learners who will receive the module.</span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- When All Learners is selected -->
+              <div v-if="newModule.isAllLearners" class="all-learners-summary-card">
+                <div v-if="eligibleLearners.length > 0" class="learners-count-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                   </svg>
-                </button>
+                  <span><strong>{{ eligibleLearners.length }}</strong> {{ eligibleLearners.length === 1 ? 'learner' : 'learners' }} will receive this module.</span>
+                </div>
+                <div v-else class="empty-eligible-box">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
+                </div>
+              </div>
 
-                <!-- Dropdown Menu -->
-                <div v-if="learnerDropdownOpen" class="learner-dropdown-menu">
-                  <!-- All Learners Option -->
-                  <label class="learner-option-item all-learners-option">
+              <!-- When Specific Learners is selected -->
+              <div v-else class="specific-learners-section">
+                <label class="field-sub-lbl">Select Learners <span class="req">*</span></label>
+                
+                <div class="specific-learners-container">
+                  <!-- Search box -->
+                  <div class="learner-search-wrapper">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
                     <input
-                      type="checkbox"
-                      class="learner-checkbox"
-                      :checked="newModule.isAllLearners"
-                      @change="toggleAllLearners"
+                      v-model="learnerSearchQuery"
+                      type="text"
+                      class="field-input-box learner-search-input"
+                      placeholder="Search learner name..."
                     />
-                    <div class="learner-option-info">
-                      <span class="learner-option-name font-bold">All Learners</span>
-                      <span class="learner-option-sub">
-                        Send to all assigned {{ newModule.level }} learners
-                      </span>
-                    </div>
-                  </label>
+                    <button
+                      v-if="learnerSearchQuery"
+                      type="button"
+                      class="clear-search-btn"
+                      @click="learnerSearchQuery = ''"
+                      aria-label="Clear search"
+                    >
+                      &times;
+                    </button>
+                  </div>
 
-                  <div class="dropdown-divider"></div>
-
-                  <!-- Available Learners List -->
-                  <div v-if="availableLearners.length > 0" class="learners-list-scroll">
-                    <label
-                      v-for="l in availableLearners"
+                  <!-- Selected Learners Chips (for quick removal) -->
+                  <div v-if="selectedLearnersList.length > 0" class="selected-chips-row">
+                    <div
+                      v-for="l in selectedLearnersList"
                       :key="l.id"
-                      class="learner-option-item"
+                      class="selected-learner-chip"
+                    >
+                      <span class="chip-name">{{ l.name }}</span>
+                      <button
+                        type="button"
+                        class="chip-close-btn"
+                        @click="toggleLearner(l.id)"
+                        :title="`Remove ${l.name}`"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Multi-select list -->
+                  <div v-if="filteredSpecificLearners.length > 0" class="learners-multi-list">
+                    <label
+                      v-for="l in filteredSpecificLearners"
+                      :key="l.id"
+                      class="learner-check-row"
+                      :class="{ 'is-checked': newModule.selectedLearnerIds.includes(l.id) }"
                     >
                       <input
                         type="checkbox"
@@ -320,14 +378,24 @@
                         :checked="newModule.selectedLearnerIds.includes(l.id)"
                         @change="toggleLearner(l.id)"
                       />
-                      <div class="learner-option-info">
-                        <span class="learner-option-name">{{ l.name }}</span>
-                        <span class="learner-option-sub">{{ l.level }} &bull; {{ l.learningCenter }}</span>
+                      <div class="learner-row-text">
+                        <span class="learner-row-name">{{ l.name }}</span>
+                        <span class="learner-row-sub">{{ l.level }} &bull; {{ l.learningCenter }}</span>
                       </div>
                     </label>
                   </div>
+
+                  <!-- Empty State -->
+                  <div v-else-if="eligibleLearners.length === 0" class="no-learners-box">
+                    <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
+                  </div>
                   <div v-else class="no-learners-box">
-                    <span>No {{ newModule.level }} learners found for the selected Learning Center.</span>
+                    <span>No learners match "{{ learnerSearchQuery }}".</span>
+                  </div>
+
+                  <!-- Selection Count Footer -->
+                  <div class="selection-count-footer">
+                    <span>{{ newModule.selectedLearnerIds.length }} {{ newModule.selectedLearnerIds.length === 1 ? 'learner' : 'learners' }} selected</span>
                   </div>
                 </div>
               </div>
@@ -371,106 +439,216 @@
           </div>
         </div>
 
-        <!-- STEP 2: PRE-TEST (Diagnostic Multiple Choice) -->
+        <!-- STEP 2: PRE-TEST (Assessment) -->
         <div v-else-if="currentStepIndex === 1" class="step-form-pane">
           <div class="pane-header-info">
-            <h3>Step 2: Pre-Test (Diagnostic Evaluation)</h3>
-            <p>Add multiple choice questions to establish diagnostic baseline knowledge before module instruction.</p>
+            <h3>Step 2: Pre-Test (Assessment)</h3>
+            <p>Add multiple choice questions to assess learners' prior knowledge before the module.</p>
           </div>
 
-          <!-- Question Builder Box -->
-          <div class="question-builder-card">
-            <h4>Add Pre-Test Question #{{ newModule.preTest.length + 1 }}</h4>
-
-            <div class="field-item">
-              <label class="field-lbl">Question Prompt <span class="req">*</span></label>
-              <input
-                v-model="currentQuestion.prompt"
-                type="text"
-                class="field-input-box"
-                placeholder="Enter diagnostic question prompt..."
-              />
-            </div>
-
-            <div class="choices-entry-grid">
-              <div
-                v-for="(letter, cIdx) in choiceLetters"
-                :key="letter"
-                class="choice-input-row"
-              >
-                <span class="choice-letter-badge">{{ letter }}</span>
-                <input
-                  v-model="currentQuestion.choices[cIdx]"
-                  type="text"
-                  class="choice-text-field"
-                  :placeholder="`Option ${letter} text`"
-                />
-                <label class="correct-radio-label">
-                  <input
-                    type="radio"
-                    :name="'pre_test_correct'"
-                    :value="cIdx"
-                    v-model="currentQuestion.correctAnswer"
-                  />
-                  <span>Correct</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="field-item" style="margin-top: 1rem;">
-              <label class="field-lbl">Feedback / Explanation Note (Optional)</label>
-              <input
-                v-model="currentQuestion.explanation"
-                type="text"
-                class="field-input-box"
-                placeholder="Brief explanation of why the correct option is right..."
-              />
-            </div>
-
-            <div class="builder-actions-row">
-              <button
-                type="button"
-                class="btn-add-q-to-list"
-                @click="addQuestionToModule('preTest')"
-              >
-                + Add Question to Pre-Test
-              </button>
-            </div>
+          <!-- Step 2 Validation Warning Message -->
+          <div v-if="step2ErrorMessage" class="form-error-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>{{ step2ErrorMessage }}</span>
           </div>
 
-          <!-- Pre-Test Questions Summary List -->
-          <div v-if="newModule.preTest.length > 0" class="questions-added-list">
-            <h4>Configured Pre-Test Questions ({{ newModule.preTest.length }} items &bull; Number Score: {{ newModule.preTest.length }}/{{ newModule.preTest.length }})</h4>
+          <!-- Pre-Test Questions List -->
+          <div class="gf-questions-container">
             <div
               v-for="(q, qIdx) in newModule.preTest"
-              :key="qIdx"
-              class="added-question-card"
+              :key="q.uid || qIdx"
+              :id="`preTest-q-card-${qIdx}`"
+              class="gf-question-card"
             >
-              <div class="q-card-header">
-                <span class="q-card-num">Q{{ qIdx + 1 }}.</span>
-                <span class="q-card-prompt">{{ q.prompt }}</span>
+              <!-- Question Input Row -->
+              <div class="gf-question-row">
+                <span class="gf-question-number">{{ qIdx + 1 }}.</span>
+                <input
+                  v-model="q.prompt"
+                  type="text"
+                  class="gf-question-input"
+                  placeholder="Type question here."
+                  @input="step2ErrorMessage = ''"
+                />
+              </div>
+
+              <!-- Answer Key Selection Banner (when Answer Key is toggled active) -->
+              <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
+                <div class="gf-ak-banner-text">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                  <span>Select the correct option below using the radio button:</span>
+                </div>
                 <button
                   type="button"
-                  class="btn-remove-q"
-                  @click="removeQuestion('preTest', qIdx)"
-                  title="Remove question"
+                  class="gf-ak-done-btn"
+                  @click="q.answerKeyMode = false"
                 >
-                  &times;
+                  Done
                 </button>
               </div>
-              <div class="q-card-choices">
-                <span
-                  v-for="(c, cIdx) in q.choices"
+
+              <!-- Vertical Multiple-Choice Options List -->
+              <div class="gf-options-list">
+                <div
+                  v-for="(choice, cIdx) in q.choices"
                   :key="cIdx"
-                  class="choice-preview-pill"
-                  :class="{ 'is-correct': q.correctAnswer === cIdx }"
+                  class="gf-option-row"
+                  :class="{
+                    'is-correct-choice': q.correctAnswer === cIdx,
+                    'is-ak-mode': q.answerKeyMode
+                  }"
                 >
-                  {{ choiceLetters[cIdx] }}: {{ c }}
-                </span>
+                  <input
+                    type="radio"
+                    class="gf-option-radio"
+                    :name="`pretest-correct-${q.uid || qIdx}`"
+                    :value="cIdx"
+                    :checked="q.correctAnswer === cIdx"
+                    title="Select as correct answer"
+                    @change="selectCorrectAnswer(q, cIdx, 'preTest')"
+                  />
+                  <input
+                    v-model="q.choices[cIdx]"
+                    type="text"
+                    class="gf-option-input"
+                    placeholder="Type option here."
+                    @input="step2ErrorMessage = ''"
+                  />
+                  <span
+                    v-if="q.correctAnswer === cIdx"
+                    class="gf-correct-tag"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Correct</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="gf-remove-option-btn"
+                    title="Remove option"
+                    aria-label="Remove option"
+                    @click="removeOptionFromQuestion(q, cIdx, 'preTest')"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <p v-if="q.explanation" class="q-card-explanation">
-                <strong>Feedback Note:</strong> {{ q.explanation }}
-              </p>
+
+              <!-- Add Option Control -->
+              <div class="gf-add-option-row">
+                <span class="gf-radio-deco" aria-hidden="true"></span>
+                <button
+                  type="button"
+                  class="gf-add-option-btn"
+                  @click="addOptionToQuestion(q, 'preTest')"
+                >
+                  Add option
+                </button>
+              </div>
+
+              <!-- Saved Feedback Summary (if feedback has been added) -->
+              <div
+                v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
+                class="gf-saved-feedback-box"
+              >
+                <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
+                  <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
+                  <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                </div>
+                <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
+                  <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
+                  <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+                </div>
+              </div>
+
+              <!-- Question Card Footer: Answer Key, Add feedback answer & Delete -->
+              <div class="gf-card-footer">
+                <div class="gf-footer-left">
+                  <button
+                    type="button"
+                    class="gf-answer-key-btn"
+                    :class="{
+                      'is-active': q.answerKeyMode,
+                      'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
+                    }"
+                    @click="toggleAnswerKeyMode(q)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    <span>Answer Key</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="gf-add-feedback-btn"
+                    :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
+                    @click="openFeedbackModal('preTest', qIdx)"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>Add feedback answer</span>
+                  </button>
+
+                  <span
+                    v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
+                    class="gf-ak-status is-set"
+                  >
+                    Correct: {{ q.choices[q.correctAnswer] }}
+                  </span>
+                  <span
+                    v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
+                    class="gf-ak-status is-set"
+                  >
+                    Option {{ q.correctAnswer + 1 }} selected
+                  </span>
+                  <span v-else class="gf-ak-status is-empty">
+                    Select correct answer
+                  </span>
+                </div>
+
+                <div class="gf-footer-right">
+                  <button
+                    type="button"
+                    class="gf-delete-q-btn"
+                    title="Delete question"
+                    @click="removeQuestion('preTest', qIdx)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Bar: + Add Question & Total Questions -->
+          <div class="gf-questions-bottom-bar">
+            <button
+              type="button"
+              class="gf-btn-add-question"
+              @click="addBlankQuestion('preTest')"
+            >
+              + Add Question
+            </button>
+            <div class="gf-total-questions">
+              Total Questions: <strong>{{ newModule.preTest.length }}</strong>
             </div>
           </div>
         </div>
@@ -541,116 +719,216 @@
           </div>
         </div>
 
-        <!-- STEP 4: POST-TEST (Mastery Multiple Choice) -->
+        <!-- STEP 4: POST-TEST -->
         <div v-else-if="currentStepIndex === 3" class="step-form-pane">
           <div class="pane-header-info">
-            <h3>Step 4: Post-Test (Mastery Assessment)</h3>
-            <p>Add multiple choice questions to evaluate learner mastery after completing the module.</p>
+            <h3>Step 4: Post-Test</h3>
+            <p>Add multiple choice questions to assess what learners have learned after completing the module.</p>
           </div>
 
-          <!-- Post-Test Builder -->
-          <div class="question-builder-card">
-            <div class="builder-top-row">
-              <h4>Add Post-Test Question #{{ newModule.postTest.length + 1 }}</h4>
-              <button
-                v-if="newModule.preTest.length > 0"
-                type="button"
-                class="btn-copy-pretest"
-                @click="copyQuestionsFromPreTest"
-              >
-                &darr; Copy Questions from Pre-Test
-              </button>
-            </div>
-
-            <div class="field-item">
-              <label class="field-lbl">Question Prompt <span class="req">*</span></label>
-              <input
-                v-model="currentQuestion.prompt"
-                type="text"
-                class="field-input-box"
-                placeholder="Enter mastery assessment question prompt..."
-              />
-            </div>
-
-            <div class="choices-entry-grid">
-              <div
-                v-for="(letter, cIdx) in choiceLetters"
-                :key="letter"
-                class="choice-input-row"
-              >
-                <span class="choice-letter-badge">{{ letter }}</span>
-                <input
-                  v-model="currentQuestion.choices[cIdx]"
-                  type="text"
-                  class="choice-text-field"
-                  :placeholder="`Option ${letter} text`"
-                />
-                <label class="correct-radio-label">
-                  <input
-                    type="radio"
-                    :name="'post_test_correct'"
-                    :value="cIdx"
-                    v-model="currentQuestion.correctAnswer"
-                  />
-                  <span>Correct</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="field-item" style="margin-top: 1rem;">
-              <label class="field-lbl">Feedback / Mastery Note (Optional)</label>
-              <input
-                v-model="currentQuestion.explanation"
-                type="text"
-                class="field-input-box"
-                placeholder="Competency or concept explanation for learner review..."
-              />
-            </div>
-
-            <div class="builder-actions-row">
-              <button
-                type="button"
-                class="btn-add-q-to-list"
-                @click="addQuestionToModule('postTest')"
-              >
-                + Add Question to Post-Test
-              </button>
-            </div>
+          <!-- Step 4 Validation Warning Message -->
+          <div v-if="step4ErrorMessage" class="form-error-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>{{ step4ErrorMessage }}</span>
           </div>
 
-          <!-- Post-Test Questions Summary List -->
-          <div v-if="newModule.postTest.length > 0" class="questions-added-list">
-            <h4>Configured Post-Test Questions ({{ newModule.postTest.length }} items &bull; Number Score: {{ newModule.postTest.length }}/{{ newModule.postTest.length }})</h4>
+          <!-- Post-Test Questions List -->
+          <div class="gf-questions-container">
             <div
               v-for="(q, qIdx) in newModule.postTest"
-              :key="qIdx"
-              class="added-question-card"
+              :key="q.uid || qIdx"
+              :id="`postTest-q-card-${qIdx}`"
+              class="gf-question-card"
             >
-              <div class="q-card-header">
-                <span class="q-card-num">Q{{ qIdx + 1 }}.</span>
-                <span class="q-card-prompt">{{ q.prompt }}</span>
+              <!-- Question Input Row -->
+              <div class="gf-question-row">
+                <span class="gf-question-number">{{ qIdx + 1 }}.</span>
+                <input
+                  v-model="q.prompt"
+                  type="text"
+                  class="gf-question-input"
+                  placeholder="Type question here."
+                  @input="step4ErrorMessage = ''"
+                />
+              </div>
+
+              <!-- Answer Key Selection Banner (when Answer Key is toggled active) -->
+              <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
+                <div class="gf-ak-banner-text">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                  <span>Select the correct option below using the radio button:</span>
+                </div>
                 <button
                   type="button"
-                  class="btn-remove-q"
-                  @click="removeQuestion('postTest', qIdx)"
-                  title="Remove question"
+                  class="gf-ak-done-btn"
+                  @click="q.answerKeyMode = false"
                 >
-                  &times;
+                  Done
                 </button>
               </div>
-              <div class="q-card-choices">
-                <span
-                  v-for="(c, cIdx) in q.choices"
+
+              <!-- Vertical Multiple-Choice Options List -->
+              <div class="gf-options-list">
+                <div
+                  v-for="(choice, cIdx) in q.choices"
                   :key="cIdx"
-                  class="choice-preview-pill"
-                  :class="{ 'is-correct': q.correctAnswer === cIdx }"
+                  class="gf-option-row"
+                  :class="{
+                    'is-correct-choice': q.correctAnswer === cIdx,
+                    'is-ak-mode': q.answerKeyMode
+                  }"
                 >
-                  {{ choiceLetters[cIdx] }}: {{ c }}
-                </span>
+                  <input
+                    type="radio"
+                    class="gf-option-radio"
+                    :name="`posttest-correct-${q.uid || qIdx}`"
+                    :value="cIdx"
+                    :checked="q.correctAnswer === cIdx"
+                    title="Select as correct answer"
+                    @change="selectCorrectAnswer(q, cIdx, 'postTest')"
+                  />
+                  <input
+                    v-model="q.choices[cIdx]"
+                    type="text"
+                    class="gf-option-input"
+                    placeholder="Type option here."
+                    @input="step4ErrorMessage = ''"
+                  />
+                  <span
+                    v-if="q.correctAnswer === cIdx"
+                    class="gf-correct-tag"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Correct</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="gf-remove-option-btn"
+                    title="Remove option"
+                    aria-label="Remove option"
+                    @click="removeOptionFromQuestion(q, cIdx, 'postTest')"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <p v-if="q.explanation" class="q-card-explanation">
-                <strong>Feedback Note:</strong> {{ q.explanation }}
-              </p>
+
+              <!-- Add Option Control -->
+              <div class="gf-add-option-row">
+                <span class="gf-radio-deco" aria-hidden="true"></span>
+                <button
+                  type="button"
+                  class="gf-add-option-btn"
+                  @click="addOptionToQuestion(q, 'postTest')"
+                >
+                  Add option
+                </button>
+              </div>
+
+              <!-- Saved Feedback Summary (if feedback has been added) -->
+              <div
+                v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
+                class="gf-saved-feedback-box"
+              >
+                <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
+                  <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
+                  <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                </div>
+                <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
+                  <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
+                  <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+                </div>
+              </div>
+
+              <!-- Question Card Footer: Answer Key, Add feedback answer & Delete -->
+              <div class="gf-card-footer">
+                <div class="gf-footer-left">
+                  <button
+                    type="button"
+                    class="gf-answer-key-btn"
+                    :class="{
+                      'is-active': q.answerKeyMode,
+                      'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
+                    }"
+                    @click="toggleAnswerKeyMode(q)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    <span>Answer Key</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="gf-add-feedback-btn"
+                    :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
+                    @click="openFeedbackModal('postTest', qIdx)"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span>Add feedback answer</span>
+                  </button>
+
+                  <span
+                    v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
+                    class="gf-ak-status is-set"
+                  >
+                    Correct: {{ q.choices[q.correctAnswer] }}
+                  </span>
+                  <span
+                    v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
+                    class="gf-ak-status is-set"
+                  >
+                    Option {{ q.correctAnswer + 1 }} selected
+                  </span>
+                  <span v-else class="gf-ak-status is-empty">
+                    Select correct answer
+                  </span>
+                </div>
+
+                <div class="gf-footer-right">
+                  <button
+                    type="button"
+                    class="gf-delete-q-btn"
+                    title="Delete question"
+                    @click="removeQuestion('postTest', qIdx)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Bar: + Add Question & Total Questions -->
+          <div class="gf-questions-bottom-bar">
+            <button
+              type="button"
+              class="gf-btn-add-question"
+              @click="addBlankQuestion('postTest')"
+            >
+              + Add Question
+            </button>
+            <div class="gf-total-questions">
+              Total Questions: <strong>{{ newModule.postTest.length }}</strong>
             </div>
           </div>
         </div>
@@ -692,11 +970,97 @@
         </div>
       </div>
     </div>
+
+    <!-- ADD FEEDBACK MODAL -->
+    <div
+      v-if="feedbackModal.open"
+      class="gf-feedback-modal-backdrop"
+      @click.self="closeFeedbackModal"
+    >
+      <div class="gf-feedback-modal-card" role="dialog" aria-modal="true" aria-labelledby="gf-feedback-modal-title">
+        <!-- Modal Header -->
+        <div class="gf-feedback-modal-header">
+          <h3 id="gf-feedback-modal-title" class="gf-feedback-modal-title">Add feedback</h3>
+          <button
+            type="button"
+            class="gf-feedback-modal-close"
+            title="Close"
+            aria-label="Close"
+            @click="closeFeedbackModal"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Tabs: Incorrect answers | Correct answers -->
+        <div class="gf-feedback-modal-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="gf-feedback-tab-btn"
+            :class="{ 'is-active': feedbackModal.activeTab === 'incorrect' }"
+            :aria-selected="feedbackModal.activeTab === 'incorrect'"
+            @click="feedbackModal.activeTab = 'incorrect'"
+          >
+            Incorrect answers
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="gf-feedback-tab-btn"
+            :class="{ 'is-active': feedbackModal.activeTab === 'correct' }"
+            :aria-selected="feedbackModal.activeTab === 'correct'"
+            @click="feedbackModal.activeTab = 'correct'"
+          >
+            Correct answers
+          </button>
+        </div>
+
+        <!-- Modal Body: Separate Multiline Textarea per Tab -->
+        <div class="gf-feedback-modal-body">
+          <textarea
+            v-if="feedbackModal.activeTab === 'incorrect'"
+            v-model="feedbackModal.incorrectFeedback"
+            rows="4"
+            class="gf-feedback-textarea"
+            placeholder="Enter feedback here..."
+          ></textarea>
+          <textarea
+            v-else
+            v-model="feedbackModal.correctFeedback"
+            rows="4"
+            class="gf-feedback-textarea"
+            placeholder="Enter feedback here..."
+          ></textarea>
+        </div>
+
+        <!-- Modal Footer: Cancel & Save -->
+        <div class="gf-feedback-modal-footer">
+          <button
+            type="button"
+            class="gf-feedback-cancel-btn"
+            @click="closeFeedbackModal"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="gf-feedback-save-btn"
+            @click="saveFeedbackModal"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getModules, createModule, uploadModuleFile } from '../api/modules.js';
@@ -769,6 +1133,62 @@ const learnerDropdownOpen = ref(false);
 const isCreatingModule = ref(false);
 const currentStepIndex = ref(0);
 const step1ErrorMessage = ref('');
+const step2ErrorMessage = ref('');
+const step4ErrorMessage = ref('');
+
+let questionUidCounter = 0;
+
+function createBlankQuestion() {
+  questionUidCounter += 1;
+  return {
+    uid: `q-${questionUidCounter}-${Date.now()}`,
+    id: null,
+    prompt: '',
+    choices: [''],
+    optionIds: [null],
+    correctAnswer: null,
+    answerKeyMode: false,
+    correctFeedback: '',
+    incorrectFeedback: '',
+  };
+}
+
+// Feedback Modal State
+const feedbackModal = reactive({
+  open: false,
+  targetKey: 'preTest',
+  questionIndex: -1,
+  activeTab: 'incorrect',
+  incorrectFeedback: '',
+  correctFeedback: '',
+});
+
+function openFeedbackModal(targetKey, qIdx) {
+  const list = newModule[targetKey];
+  if (!Array.isArray(list) || !list[qIdx]) return;
+  const q = list[qIdx];
+  feedbackModal.targetKey = targetKey;
+  feedbackModal.questionIndex = qIdx;
+  feedbackModal.activeTab = 'incorrect';
+  feedbackModal.incorrectFeedback = q.incorrectFeedback || '';
+  feedbackModal.correctFeedback = q.correctFeedback || '';
+  feedbackModal.open = true;
+}
+
+function closeFeedbackModal() {
+  feedbackModal.open = false;
+  feedbackModal.questionIndex = -1;
+}
+
+function saveFeedbackModal() {
+  const list = newModule[feedbackModal.targetKey];
+  if (Array.isArray(list) && list[feedbackModal.questionIndex]) {
+    const q = list[feedbackModal.questionIndex];
+    q.incorrectFeedback = (feedbackModal.incorrectFeedback || '').trim();
+    q.correctFeedback = (feedbackModal.correctFeedback || '').trim();
+  }
+  closeFeedbackModal();
+}
 
 const wizardSteps = [
   { key: 'info', title: 'Module Information' },
@@ -776,8 +1196,6 @@ const wizardSteps = [
   { key: 'material', title: 'Learning Module' },
   { key: 'postTest', title: 'Post-Test' },
 ];
-
-const choiceLetters = ['A', 'B', 'C', 'D'];
 
 // Strands list for the module information dropdown
 const internalStrands = [
@@ -789,6 +1207,35 @@ const internalStrands = [
   { slug: 'self-society', name: 'Understanding Self & Society' },
   { slug: 'digital-citizenship', name: 'Digital Citizenship' },
 ];
+
+const STRAND_TO_CODE_MAP = {
+  'Communication Skills (English)': 'LS1',
+  'Communication Skills (Filipino)': 'LS1',
+  'Scientific & Critical Thinking Skills': 'LS2',
+  'Scientific Literacy': 'LS2',
+  'Mathematical & Problem Solving Skills': 'LS3',
+  'Mathematical and Problem Solving Skills': 'LS3',
+  'Life and Career Skills': 'LS4',
+  'Life & Career Skills': 'LS4',
+  'Understanding Self & Society': 'LS5',
+  'Understanding the Self and Society': 'LS5',
+  'Digital Citizenship': 'LS6',
+};
+
+function resolveModuleCodeFromStrand(strandName) {
+  if (!strandName) return '';
+  if (STRAND_TO_CODE_MAP[strandName]) {
+    return STRAND_TO_CODE_MAP[strandName];
+  }
+  const sLower = String(strandName).toLowerCase();
+  if (sLower.includes('english') || sLower.includes('filipino') || sLower.includes('communication')) return 'LS1';
+  if (sLower.includes('scientific') || sLower.includes('science')) return 'LS2';
+  if (sLower.includes('mathematical') || sLower.includes('math') || sLower.includes('problem solving')) return 'LS3';
+  if (sLower.includes('life') || sLower.includes('career')) return 'LS4';
+  if (sLower.includes('self') || sLower.includes('society')) return 'LS5';
+  if (sLower.includes('digital') || sLower.includes('citizenship')) return 'LS6';
+  return '';
+}
 
 const newModule = reactive({
   title: '',
@@ -803,14 +1250,23 @@ const newModule = reactive({
   description: '',
   isAllLearners: true,
   selectedLearnerIds: [],
-  preTest: [],
+  preTest: [createBlankQuestion()],
   uploadedFile: null,
   fileName: '',
   fileType: 'PDF',
   fileSize: '',
   learningNotes: '',
-  postTest: [],
+  postTest: [createBlankQuestion()],
 });
+
+// Watch Learning Strand to automatically update Module Code
+watch(
+  () => newModule.strand,
+  (newStrand) => {
+    newModule.code = resolveModuleCodeFromStrand(newStrand);
+  },
+  { immediate: true }
+);
 
 // Available Learning Centers (combined teacher assigned centers and distinct centers from assigned learners)
 const availableLearningCenters = computed(() => {
@@ -838,73 +1294,76 @@ const currentSelectedCenterName = computed(() => {
   return c ? c.name : 'Selected Center';
 });
 
-// Available learners filtered by selected Target ALS Level (and assigned to the logged-in teacher)
-const availableLearners = computed(() => {
+// Eligible learners filtered by Target ALS Level and selected Learning Center, authorized for the teacher
+const eligibleLearners = computed(() => {
   const targetEnum = activeTargetLevel.value; // 'ELEMENTARY' or 'JUNIOR'
+  const selectedCenterId = newModule.learningCenterId ? Number(newModule.learningCenterId) : null;
 
-  return teacherLearners.value.filter((l) => {
-    if (l.targetLevel) {
-      return l.targetLevel === targetEnum;
+  return (teacherLearners.value || []).filter((l) => {
+    // 1. Level filter
+    const lTarget = l.targetLevel || (String(l.level || '').toLowerCase().includes('elem') ? 'ELEMENTARY' : 'JUNIOR');
+    if (lTarget !== targetEnum) {
+      return false;
     }
-    const lLevelNorm = (l.level || '').toLowerCase().trim();
-    if (targetEnum === 'ELEMENTARY') {
-      return lLevelNorm.includes('elem');
-    } else {
-      return lLevelNorm.includes('jun') || lLevelNorm.includes('sec');
+
+    // 2. Learning Center filter
+    if (selectedCenterId && l.learningCenterId) {
+      if (Number(l.learningCenterId) !== selectedCenterId) {
+        return false;
+      }
     }
+
+    return true;
   });
 });
 
-// Summary text for closed multi-select trigger button
-const learnerSelectionDisplayText = computed(() => {
-  if (newModule.isAllLearners) {
-    return 'All Learners';
-  }
-  if (!newModule.selectedLearnerIds || newModule.selectedLearnerIds.length === 0) {
-    return 'Select recipient learners...';
-  }
-  const selectedNames = availableLearners.value
-    .filter((l) => newModule.selectedLearnerIds.includes(l.id))
-    .map((l) => l.name);
+const learnerSearchQuery = ref('');
 
-  if (selectedNames.length === 0) {
-    return `${newModule.selectedLearnerIds.length} learner(s) selected`;
-  }
-  if (selectedNames.length <= 2) {
-    return selectedNames.join(', ');
-  }
-  return `${selectedNames[0]}, ${selectedNames[1]} (+${selectedNames.length - 2} more)`;
+// Filtered learners for Specific Learners search
+const filteredSpecificLearners = computed(() => {
+  const query = learnerSearchQuery.value.trim().toLowerCase();
+  if (!query) return eligibleLearners.value;
+  return eligibleLearners.value.filter((l) => {
+    const nameMatch = (l.name || l.fullName || '').toLowerCase().includes(query);
+    const centerMatch = (l.learningCenter || '').toLowerCase().includes(query);
+    return nameMatch || centerMatch;
+  });
 });
 
-function toggleAllLearners() {
-  newModule.isAllLearners = true;
-  newModule.selectedLearnerIds = [];
+// Selected learners list for chips
+const selectedLearnersList = computed(() => {
+  const selectedSet = new Set((newModule.selectedLearnerIds || []).map(Number));
+  return (teacherLearners.value || []).filter((l) => selectedSet.has(Number(l.id)));
+});
+
+function onAssignmentModeChange(isAll) {
+  newModule.isAllLearners = isAll;
+  if (isAll) {
+    newModule.selectedLearnerIds = [];
+  }
 }
 
 function toggleLearner(learnerId) {
   newModule.isAllLearners = false;
-  const idx = newModule.selectedLearnerIds.indexOf(learnerId);
+  const numId = Number(learnerId);
+  const idx = newModule.selectedLearnerIds.indexOf(numId);
   if (idx === -1) {
-    newModule.selectedLearnerIds.push(learnerId);
+    newModule.selectedLearnerIds.push(numId);
   } else {
     newModule.selectedLearnerIds.splice(idx, 1);
   }
-  // If user unchecks all individual learners, revert back to All Learners
-  if (newModule.selectedLearnerIds.length === 0) {
-    newModule.isAllLearners = true;
-  }
 }
 
-// Watch level changes to dynamically update selection (Requirement 5)
-watch(() => newModule.level, () => {
-  if (!newModule.isAllLearners) {
-    const validIds = new Set(availableLearners.value.map((l) => l.id));
-    newModule.selectedLearnerIds = newModule.selectedLearnerIds.filter((id) => validIds.has(id));
-    if (newModule.selectedLearnerIds.length === 0) {
-      newModule.isAllLearners = true;
+// Watch level and learning center changes to dynamically update selection (Requirement 6)
+watch(
+  () => [newModule.learningCenterId, newModule.level, activeTargetLevel.value],
+  () => {
+    if (!newModule.isAllLearners && Array.isArray(newModule.selectedLearnerIds)) {
+      const validIds = new Set(eligibleLearners.value.map((l) => Number(l.id)));
+      newModule.selectedLearnerIds = newModule.selectedLearnerIds.filter((id) => validIds.has(Number(id)));
     }
   }
-});
+);
 
 const dateRangeError = computed(() => {
   if (newModule.dateStarted && newModule.dateEnded) {
@@ -913,13 +1372,6 @@ const dateRangeError = computed(() => {
     }
   }
   return '';
-});
-
-const currentQuestion = reactive({
-  prompt: '',
-  choices: ['', '', '', ''],
-  correctAnswer: 0,
-  explanation: '',
 });
 
 const fileInputRef = ref(null);
@@ -943,18 +1395,18 @@ function validateStep1() {
     return false;
   }
   if (!newModule.code) {
-    step1ErrorMessage.value = 'Module Code is required.';
+    step1ErrorMessage.value = 'No valid Module Code is configured for the selected Learning Strand.';
     return false;
   }
-  const validCodes = ['LS1', 'LS2', 'LS3', 'LS4', 'LS5', 'LS6'];
-  if (!validCodes.includes(newModule.code)) {
-    step1ErrorMessage.value = 'Module Code must be one of LS1, LS2, LS3, LS4, LS5, or LS6.';
+  const expectedCode = resolveModuleCodeFromStrand(newModule.strand);
+  if (expectedCode && newModule.code !== expectedCode) {
+    step1ErrorMessage.value = `Module Code (${newModule.code}) does not match the selected Learning Strand (${expectedCode}).`;
     return false;
   }
 
-  // Learner Selection Validation (Requirement 11)
+  // Learner Selection Validation
   if (!newModule.isAllLearners && (!newModule.selectedLearnerIds || newModule.selectedLearnerIds.length === 0)) {
-    step1ErrorMessage.value = 'Please select the learners who will receive this module.';
+    step1ErrorMessage.value = 'Please select at least one learner when "Specific Learners" is chosen.';
     return false;
   }
 
@@ -971,6 +1423,68 @@ function validateStep1() {
     return false;
   }
   return true;
+}
+
+function validateAssessmentQuestions(questionsArray, label) {
+  if (!Array.isArray(questionsArray) || questionsArray.length === 0) {
+    return {
+      valid: false,
+      error: `Please add at least 1 question in ${label} before proceeding.`,
+    };
+  }
+
+  for (let i = 0; i < questionsArray.length; i++) {
+    const q = questionsArray[i] || {};
+    const qNum = i + 1;
+    const prompt = String(q.prompt || '').trim();
+    if (!prompt) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please enter the question text.`,
+      };
+    }
+
+    const choices = Array.isArray(q.choices) ? q.choices : [];
+    if (choices.length < 2) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please provide at least 2 options.`,
+      };
+    }
+
+    const seen = new Set();
+    for (let j = 0; j < choices.length; j++) {
+      const optText = String(choices[j] ?? '').trim();
+      if (!optText) {
+        return {
+          valid: false,
+          error: `${label} Question ${qNum}: Option ${j + 1} cannot be empty. Fill it in or remove it with the X button.`,
+        };
+      }
+      const lower = optText.toLowerCase();
+      if (seen.has(lower)) {
+        return {
+          valid: false,
+          error: `${label} Question ${qNum}: Duplicate option "${optText}" is not allowed.`,
+        };
+      }
+      seen.add(lower);
+    }
+
+    if (
+      q.correctAnswer === null ||
+      q.correctAnswer === undefined ||
+      q.correctAnswer < 0 ||
+      q.correctAnswer >= choices.length
+    ) {
+      return {
+        valid: false,
+        error: `${label} Question ${qNum}: Please select 1 correct answer using the Answer Key or radio button.`,
+      };
+    }
+  }
+
+  return { valid: true, error: '' };
 }
 
 // Fetch modules from database for the currently logged-in teacher and selected ALS Level
@@ -1017,22 +1531,24 @@ async function loadTeacherLearners() {
   if (!tid) return;
   try {
     const { data } = await getAssignedLearners({ teacherId: tid });
-    teacherLearners.value = (data || []).map((l) => ({
-      id: l.id,
-      name: l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
-      level:
-        l.level === 'ELEMENTARY'
-          ? 'A&E Elementary'
-          : l.level === 'JUNIOR' ||
-            l.level === 'LOWER_SECONDARY' ||
-            l.level === 'A&E Junior' ||
-            l.level === 'A&E Junior High'
-          ? 'A&E Junior High'
-          : l.level || 'A&E Elementary',
-      targetLevel: l.level === 'ELEMENTARY' ? 'ELEMENTARY' : 'JUNIOR',
-      learningCenterId: l.learningCenterId,
-      learningCenter: l.learningCenter || '',
-    }));
+    teacherLearners.value = (data || []).map((l) => {
+      const isElem =
+        l.targetLevel === 'ELEMENTARY' ||
+        l.rawLevel === 'ELEMENTARY' ||
+        l.level === 'ELEMENTARY' ||
+        String(l.level || '').toLowerCase().includes('elem');
+      return {
+        id: Number(l.id),
+        name: l.name || l.fullName || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
+        fullName: l.fullName || l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim() || 'Learner',
+        level: isElem ? 'A&E Elementary' : 'A&E Junior High',
+        targetLevel: isElem ? 'ELEMENTARY' : 'JUNIOR',
+        learningCenterId: l.learningCenterId ? Number(l.learningCenterId) : null,
+        learningCenter: l.learningCenter || '',
+        assignedTeacherId: l.assignedTeacherId ? Number(l.assignedTeacherId) : null,
+        status: l.status || 'Active',
+      };
+    });
   } catch (err) {
     console.error('Failed to load teacher learners:', err);
     teacherLearners.value = [];
@@ -1052,16 +1568,27 @@ function startModuleCreation() {
   isCreatingModule.value = true;
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
+  step2ErrorMessage.value = '';
+  step4ErrorMessage.value = '';
 }
 
 function cancelModuleCreation() {
   isCreatingModule.value = false;
   step1ErrorMessage.value = '';
+  step2ErrorMessage.value = '';
+  step4ErrorMessage.value = '';
 }
 
 function nextStep() {
   if (currentStepIndex.value === 0) {
     if (!validateStep1()) {
+      return;
+    }
+  } else if (currentStepIndex.value === 1) {
+    step2ErrorMessage.value = '';
+    const check = validateAssessmentQuestions(newModule.preTest, 'Pre-Test');
+    if (!check.valid) {
+      step2ErrorMessage.value = check.error;
       return;
     }
   }
@@ -1076,44 +1603,69 @@ function prevStep() {
   } else {
     isCreatingModule.value = false;
     step1ErrorMessage.value = '';
+    step2ErrorMessage.value = '';
+    step4ErrorMessage.value = '';
   }
 }
 
-function addQuestionToModule(targetKey) {
-  if (!currentQuestion.prompt.trim()) {
-    alert('Please enter a question prompt.');
-    return;
-  }
-
-  // Ensure choices are filled
-  const validChoices = currentQuestion.choices.filter((c) => c && c.trim());
-  if (validChoices.length < 2) {
-    alert('Please enter at least 2 answer choices.');
-    return;
-  }
-
-  const newQ = {
-    prompt: currentQuestion.prompt.trim(),
-    choices: [...currentQuestion.choices],
-    correctAnswer: currentQuestion.correctAnswer,
-    explanation: currentQuestion.explanation.trim(),
-  };
-
-  newModule[targetKey].push(newQ);
-
-  // Reset current question input
-  currentQuestion.prompt = '';
-  currentQuestion.choices = ['', '', '', ''];
-  currentQuestion.correctAnswer = 0;
-  currentQuestion.explanation = '';
+function addBlankQuestion(targetKey) {
+  if (targetKey === 'preTest') step2ErrorMessage.value = '';
+  if (targetKey === 'postTest') step4ErrorMessage.value = '';
+  const blankQ = createBlankQuestion();
+  newModule[targetKey].push(blankQ);
+  const newIdx = newModule[targetKey].length - 1;
+  nextTick(() => {
+    const el = document.getElementById(`${targetKey}-q-card-${newIdx}`);
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
 }
 
 function removeQuestion(targetKey, index) {
+  if (targetKey === 'preTest') step2ErrorMessage.value = '';
+  if (targetKey === 'postTest') step4ErrorMessage.value = '';
   newModule[targetKey].splice(index, 1);
 }
 
-function copyQuestionsFromPreTest() {
-  newModule.postTest = JSON.parse(JSON.stringify(newModule.preTest));
+function addOptionToQuestion(q, targetKey) {
+  if (targetKey === 'preTest') step2ErrorMessage.value = '';
+  if (targetKey === 'postTest') step4ErrorMessage.value = '';
+  if (!Array.isArray(q.choices)) {
+    q.choices = [];
+  }
+  q.choices.push('');
+  if (Array.isArray(q.optionIds)) {
+    q.optionIds.push(null);
+  }
+}
+
+function removeOptionFromQuestion(q, cIdx, targetKey) {
+  if (targetKey === 'preTest') step2ErrorMessage.value = '';
+  if (targetKey === 'postTest') step4ErrorMessage.value = '';
+  if (!Array.isArray(q.choices)) return;
+
+  // If the deleted option was selected as the correct answer, clear the Answer Key
+  if (q.correctAnswer === cIdx) {
+    q.correctAnswer = null;
+  } else if (q.correctAnswer !== null && q.correctAnswer !== undefined && q.correctAnswer > cIdx) {
+    q.correctAnswer -= 1;
+  }
+
+  q.choices.splice(cIdx, 1);
+  if (Array.isArray(q.optionIds)) {
+    q.optionIds.splice(cIdx, 1);
+  }
+}
+
+function selectCorrectAnswer(q, cIdx, targetKey) {
+  if (targetKey === 'preTest') step2ErrorMessage.value = '';
+  if (targetKey === 'postTest') step4ErrorMessage.value = '';
+  q.correctAnswer = cIdx;
+}
+
+function toggleAnswerKeyMode(q) {
+  q.answerKeyMode = !q.answerKeyMode;
 }
 
 function triggerFileInput() {
@@ -1174,8 +1726,8 @@ function resetWizard() {
   newModule.description = '';
   newModule.isAllLearners = true;
   newModule.selectedLearnerIds = [];
-  newModule.preTest = [];
-  newModule.postTest = [];
+  newModule.preTest = [createBlankQuestion()];
+  newModule.postTest = [createBlankQuestion()];
   newModule.uploadedFile = null;
   newModule.fileName = '';
   newModule.fileType = 'PDF';
@@ -1183,12 +1735,28 @@ function resetWizard() {
   newModule.learningNotes = '';
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
-  learnerDropdownOpen.value = false;
+  step2ErrorMessage.value = '';
+  step4ErrorMessage.value = '';
+  learnerSearchQuery.value = '';
 }
 
 async function publishCompleteModule() {
   if (!validateStep1()) {
     currentStepIndex.value = 0;
+    return;
+  }
+
+  const preCheck = validateAssessmentQuestions(newModule.preTest, 'Pre-Test');
+  if (!preCheck.valid) {
+    step2ErrorMessage.value = preCheck.error;
+    currentStepIndex.value = 1;
+    return;
+  }
+
+  const postCheck = validateAssessmentQuestions(newModule.postTest, 'Post-Test');
+  if (!postCheck.valid) {
+    step4ErrorMessage.value = postCheck.error;
+    currentStepIndex.value = 3;
     return;
   }
 
@@ -1220,25 +1788,29 @@ async function publishCompleteModule() {
       level: newModule.level,
       learningCenterId: newModule.learningCenterId || (assignedCenters.value[0] ? assignedCenters.value[0].id : null),
       isAllLearners: newModule.isAllLearners,
-      assignedLearnerIds: newModule.isAllLearners ? [] : newModule.selectedLearnerIds,
+      assignedLearnerIds: newModule.isAllLearners ? [] : (newModule.selectedLearnerIds || []).map(Number),
       fileUrl: uploadedFileUrl,
       fileName: newModule.fileName || null,
       learningNotes: newModule.learningNotes ? newModule.learningNotes.trim() : '',
       preTest: newModule.preTest.map((q, idx) => ({
-        questionText: q.prompt,
+        questionText: q.prompt.trim(),
         options: q.choices.map((c, cIdx) => ({
-          optionText: c,
+          optionText: String(c ?? '').trim(),
           isCorrect: q.correctAnswer === cIdx,
         })),
+        correctFeedback: q.correctFeedback ? q.correctFeedback.trim() : null,
+        incorrectFeedback: q.incorrectFeedback ? q.incorrectFeedback.trim() : null,
         points: 1,
         sortOrder: idx + 1,
       })),
       postTest: newModule.postTest.map((q, idx) => ({
-        questionText: q.prompt,
+        questionText: q.prompt.trim(),
         options: q.choices.map((c, cIdx) => ({
-          optionText: c,
+          optionText: String(c ?? '').trim(),
           isCorrect: q.correctAnswer === cIdx,
         })),
+        correctFeedback: q.correctFeedback ? q.correctFeedback.trim() : null,
+        incorrectFeedback: q.incorrectFeedback ? q.incorrectFeedback.trim() : null,
         points: 1,
         sortOrder: idx + 1,
       })),
@@ -1772,197 +2344,617 @@ onMounted(async () => {
   color: #475569;
 }
 
-/* Question Builder Card */
-.question-builder-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.builder-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.question-builder-card h4 {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.btn-copy-pretest {
-  padding: 0.4rem 0.85rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 0.775rem;
-  font-weight: 600;
-  color: #2563eb;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-copy-pretest:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
-}
-
-.choices-entry-grid {
+/* Simplified Google Forms-Inspired Question Builder */
+.gf-questions-container {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 1.15rem;
+  margin-bottom: 1.25rem;
 }
 
-.choice-input-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.choice-letter-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  color: #475569;
-  font-weight: 700;
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.choice-text-field {
-  flex: 1;
-  padding: 0.6rem 0.85rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  background: #ffffff;
-  outline: none;
-}
-
-.choice-text-field:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.correct-radio-label {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #334155;
-  cursor: pointer;
-}
-
-.builder-actions-row {
-  margin-top: 1.25rem;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.btn-add-q-to-list {
-  background: #2563eb;
-  color: #ffffff;
-  border: none;
-  padding: 0.6rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-add-q-to-list:hover {
-  background: #1d4ed8;
-}
-
-/* Added Questions List */
-.questions-added-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.questions-added-list h4 {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0;
-}
-
-.added-question-card {
+.gf-question-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.35rem 1rem 1.35rem;
+  box-sizing: border-box;
 }
 
-.q-card-header {
+.gf-question-row {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
 }
 
-.q-card-num {
+.gf-question-number {
+  font-size: 0.95rem;
   font-weight: 700;
-  color: #2563eb;
+  color: #1e293b;
+  min-width: 1.35rem;
+  flex-shrink: 0;
 }
 
-.q-card-prompt {
-  font-weight: 600;
-  color: #0f172a;
+.gf-question-input {
   flex: 1;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  box-sizing: border-box;
 }
 
-.btn-remove-q {
-  background: transparent;
-  border: none;
+.gf-question-input::placeholder {
   color: #94a3b8;
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0 0.35rem;
+  font-weight: 400;
 }
 
-.btn-remove-q:hover {
-  color: #ef4444;
+.gf-question-input:focus {
+  background: #ffffff;
+  border-color: #64748b;
 }
 
-.q-card-choices {
+.gf-answer-key-banner {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.45rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  color: #334155;
+  font-weight: 600;
 }
 
-.choice-preview-pill {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.65rem;
-  background: #f1f5f9;
+.gf-ak-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.gf-ak-banner-text svg {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.gf-ak-done-btn {
+  padding: 0.35rem 0.85rem;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
   border-radius: 6px;
-  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-.choice-preview-pill.is-correct {
+.gf-ak-done-btn:hover {
+  background: #1d4ed8;
+}
+
+.gf-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.gf-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.2rem 0.25rem;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.gf-option-row.is-correct-choice {
+  background: #f0fdf4;
+}
+
+.gf-option-radio {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #16a34a;
+  flex-shrink: 0;
+}
+
+.gf-option-input {
+  flex: 1;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.gf-option-input::placeholder {
+  color: #94a3b8;
+}
+
+.gf-option-input:focus {
+  border-color: #64748b;
+}
+
+.gf-option-row.is-correct-choice .gf-option-input {
+  border-color: #86efac;
+  background: #ffffff;
+}
+
+.gf-correct-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
   background: #dcfce7;
   color: #15803d;
+  font-size: 0.725rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.gf-remove-option-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gf-remove-option-btn:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.gf-add-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.15rem 0.25rem 0.65rem 0.25rem;
+}
+
+.gf-radio-deco {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.gf-add-option-btn {
+  padding: 0.3rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gf-add-option-btn:hover {
+  background: #f1f5f9;
+  color: #1d4ed8;
+}
+
+.gf-saved-feedback-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.gf-saved-feedback-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.gf-saved-feedback-label {
+  font-weight: 700;
+  color: #334155;
+  font-size: 0.75rem;
+}
+
+.gf-saved-feedback-item.is-correct .gf-saved-feedback-label {
+  color: #15803d;
+}
+
+.gf-saved-feedback-item.is-incorrect .gf-saved-feedback-label {
+  color: #b91c1c;
+}
+
+.gf-saved-feedback-text {
+  color: #475569;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gf-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+.gf-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.gf-answer-key-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.85rem;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gf-answer-key-btn:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.gf-answer-key-btn.has-selected {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.gf-answer-key-btn.is-active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.gf-add-feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gf-add-feedback-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.gf-add-feedback-btn.has-feedback {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.gf-ak-status {
+  font-size: 0.775rem;
   font-weight: 600;
 }
 
-.q-card-explanation {
-  font-size: 0.8rem;
+.gf-ak-status.is-set {
+  color: #15803d;
+}
+
+.gf-ak-status.is-empty {
   color: #64748b;
-  margin: 0.25rem 0 0 0;
+}
+
+.gf-footer-right {
+  display: flex;
+  align-items: center;
+}
+
+.gf-delete-q-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #dc2626;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gf-delete-q-btn svg {
+  color: #dc2626;
+}
+
+.gf-delete-q-btn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+/* Add Feedback Modal Styles */
+.gf-feedback-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1200;
+}
+
+.gf-feedback-modal-card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.gf-feedback-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.35rem 0.85rem 1.35rem;
+}
+
+.gf-feedback-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.gf-feedback-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.gf-feedback-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.gf-feedback-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 1.35rem;
+  gap: 1.5rem;
+}
+
+.gf-feedback-tab-btn {
+  padding: 0.65rem 0.15rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+
+.gf-feedback-tab-btn:hover {
+  color: #0f172a;
+}
+
+.gf-feedback-tab-btn.is-active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.gf-feedback-modal-body {
+  padding: 1.25rem 1.35rem;
+}
+
+.gf-feedback-textarea {
+  width: 100%;
+  min-height: 115px;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.gf-feedback-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.gf-feedback-textarea:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+}
+
+.gf-feedback-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 1.35rem 1.15rem 1.35rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.gf-feedback-cancel-btn {
+  padding: 0.48rem 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gf-feedback-cancel-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.gf-feedback-save-btn {
+  padding: 0.48rem 1.15rem;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.gf-feedback-save-btn:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.gf-questions-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.gf-btn-add-question {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.15rem;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.gf-btn-add-question:hover {
+  background: #1d4ed8;
+}
+
+.gf-total-questions {
+  font-size: 0.875rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.gf-total-questions strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .gf-question-card {
+    padding: 1rem 0.95rem 0.85rem 0.95rem;
+  }
+
+  .gf-question-row {
+    align-items: flex-start;
+  }
+
+  .gf-question-number {
+    padding-top: 0.55rem;
+  }
+
+  .gf-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gf-footer-right {
+    justify-content: flex-end;
+  }
+
+  .gf-questions-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
 }
 
 /* Dropzone Box for File Upload */
@@ -2210,94 +3202,250 @@ onMounted(async () => {
   max-width: 440px;
 }
 
-/* Learner Multi-Select Dropdown */
-.learner-select-field {
+/* Read-only Module Code Box */
+.field-input-box.is-readonly {
+  background-color: #f8fafc;
+  color: #1e293b;
+  cursor: default;
+  font-weight: 600;
+  border-color: #cbd5e1;
+}
+
+/* Learner Assignment Section */
+.learner-assignment-section {
   position: relative;
+  margin-top: 0.25rem;
 }
 
-.learner-dropdown-container {
-  position: relative;
-  width: 100%;
-}
-
-.learner-dropdown-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  text-align: left;
-  user-select: none;
-  background-color: #ffffff;
-}
-
-.learner-dropdown-trigger.dropdown-open {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.learner-selection-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  color: #0f172a;
-  padding-right: 0.5rem;
-}
-
-.dropdown-chevron {
-  flex-shrink: 0;
-  color: #64748b;
-  transition: transform 0.2s ease;
-  margin-left: auto;
-}
-
-.dropdown-chevron.rotate-180 {
-  transform: rotate(180deg);
-}
-
-.dropdown-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 99;
-}
-
-.learner-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-  z-index: 100;
-  padding: 0.5rem;
-  max-height: 260px;
-  display: flex;
-  flex-direction: column;
-}
-
-.learner-option-item {
-  display: flex;
-  align-items: center;
+.assignment-radio-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 6px;
+  margin-top: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .assignment-radio-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+.assignment-radio-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   user-select: none;
 }
 
-.learner-option-item:hover {
-  background: #f1f5f9;
-}
-
-.all-learners-option {
+.assignment-radio-card:hover {
+  border-color: #cbd5e1;
   background: #f8fafc;
 }
 
-.all-learners-option:hover {
+.assignment-radio-card.is-selected {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
+}
+
+.custom-radio {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.radio-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.radio-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.radio-desc {
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* All Learners Summary Card */
+.all-learners-summary-card {
+  padding: 0.85rem 1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.learners-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #1e293b;
+  font-size: 0.875rem;
+}
+
+.learners-count-badge svg {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.empty-eligible-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+/* Specific Learners Section */
+.specific-learners-section {
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field-sub-lbl {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.specific-learners-container {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.learner-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.learner-search-input {
+  padding-left: 2.25rem !important;
+  padding-right: 2rem !important;
+  font-size: 0.875rem;
+  height: 38px;
+  width: 100%;
+  background: #ffffff;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 0.65rem;
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: #94a3b8;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.clear-search-btn:hover {
+  color: #475569;
+}
+
+.selected-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.selected-learner-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chip-close-btn {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.95rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.chip-close-btn:hover {
+  color: #1d4ed8;
+}
+
+.learners-multi-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.35rem;
+  background: #ffffff;
+}
+
+.learner-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  user-select: none;
+}
+
+.learner-check-row:hover {
+  background: #f1f5f9;
+}
+
+.learner-check-row.is-checked {
+  background: #f8fafc;
 }
 
 .learner-checkbox {
@@ -2310,40 +3458,30 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.learner-option-info {
+.learner-row-text {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
   min-width: 0;
 }
 
-.learner-option-name {
+.learner-row-name {
   font-size: 0.875rem;
+  font-weight: 600;
   color: #0f172a;
 }
 
-.learner-option-name.font-bold {
-  font-weight: 700;
-  color: #1e3a8a;
-}
-
-.learner-option-sub {
+.learner-row-sub {
   font-size: 0.75rem;
   color: #64748b;
 }
 
-.dropdown-divider {
-  height: 1px;
-  background: #e2e8f0;
-  margin: 0.35rem 0;
-}
-
-.learners-list-scroll {
-  overflow-y: auto;
-  max-height: 180px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+.selection-count-footer {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  padding-top: 0.35rem;
+  border-top: 1px solid #f1f5f9;
 }
 
 .no-learners-box {

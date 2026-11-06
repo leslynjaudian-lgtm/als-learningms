@@ -82,6 +82,7 @@ enum AnnouncementAudience {
 enum AnnouncementStatus {
   DRAFT
   PUBLISHED
+  SCHEDULED
 }
 
 
@@ -349,16 +350,18 @@ model Assessment {
 }
 
 model Question {
-  id           Int          @id @default(autoincrement())
-  assessmentId Int          @map("assessment_id")
-  assessment   Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  questionText String       @map("question_text") @db.Text
-  questionType QuestionType @default(MULTIPLE_CHOICE) @map("question_type")
-  points       Int          @default(1)
-  explanation  String?      @db.Text
-  sortOrder    Int          @default(1) @map("sort_order")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  id                Int          @id @default(autoincrement())
+  assessmentId      Int          @map("assessment_id")
+  assessment        Assessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionText      String       @map("question_text") @db.Text
+  questionType      QuestionType @default(MULTIPLE_CHOICE) @map("question_type")
+  points            Int          @default(1)
+  explanation       String?      @db.Text
+  correctFeedback   String?      @map("correct_feedback") @db.Text
+  incorrectFeedback String?      @map("incorrect_feedback") @db.Text
+  sortOrder         Int          @default(1) @map("sort_order")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   // Relations
   options        AnswerOption[]
@@ -483,6 +486,7 @@ model Announcement {
   priority         String               @default("NORMAL") @db.VarChar(30)
   category         String               @default("ANNOUNCEMENT") @db.VarChar(50)
   deadlineAt       DateTime?            @map("deadline_at")
+  scheduledAt      DateTime?            @map("scheduled_at")
   authorId         Int                  @map("author_id")
   author           User                 @relation(fields: [authorId], references: [id], onDelete: Restrict)
   creatorRole      Role                 @default(ADMIN) @map("creator_role")
@@ -541,6 +545,7 @@ model Schedule {
 
 model Notification {
   id               Int       @id @default(autoincrement())
+  notificationKey  String?   @unique @map("notification_key") @db.VarChar(120)
   title            String    @db.VarChar(255)
   message          String    @db.Text
   type             String    @default("ANNOUNCEMENT") @db.VarChar(50)

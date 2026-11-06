@@ -8,8 +8,11 @@ const router = Router();
 // Helper to format attendance item
 function formatAttendance(att) {
   let displayLevel = att.learner?.level || '';
-  if (displayLevel === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-  else if (displayLevel === 'JUNIOR') displayLevel = 'A&E Junior High School';
+  if (displayLevel === 'ELEMENTARY' || String(displayLevel).toUpperCase().includes('ELEM')) {
+    displayLevel = 'A&E Elementary';
+  } else if (displayLevel === 'JUNIOR' || String(displayLevel).toUpperCase().includes('JUNIOR') || String(displayLevel).toUpperCase().includes('JHS')) {
+    displayLevel = 'A&E Junior High';
+  }
 
   return {
     id: att.id,
@@ -21,7 +24,7 @@ function formatAttendance(att) {
     gender: att.learner?.gender || 'Male',
     learner: att.learner || null,
     lrn: att.learner?.lrn || '',
-    level: displayLevel,
+    level: displayLevel || 'A&E Elementary',
     learningCenterId: att.learningCenterId,
     learningCenter: att.learningCenter?.name || '—',
     recordedById: att.recordedById,
@@ -78,7 +81,24 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
     if (learnerId) {
       const lid = parseInt(learnerId, 10);
-      if (!isNaN(lid)) where.learnerId = lid;
+      if (!isNaN(lid)) {
+        const effectiveTid =
+          req.user && req.user.role === 'TEACHER'
+            ? req.user.profileId
+            : teacherId
+              ? parseInt(teacherId, 10)
+              : null;
+        if (effectiveTid && !isNaN(effectiveTid)) {
+          const targetLearner = await prisma.learner.findUnique({
+            where: { id: lid },
+            select: { assignedTeacherId: true },
+          });
+          if (!targetLearner || targetLearner.assignedTeacherId !== effectiveTid) {
+            return res.json([]);
+          }
+        }
+        where.learnerId = lid;
+      }
     }
 
     if (status) {
@@ -115,9 +135,10 @@ router.get('/', optionalAuth, async (req, res, next) => {
         recordedBy: true,
         learningCenter: true,
       },
-      orderBy: {
-        sessionDate: 'desc',
-      },
+      orderBy: [
+        { sessionDate: 'desc' },
+        { id: 'desc' },
+      ],
     });
 
     res.json(records.map(formatAttendance));

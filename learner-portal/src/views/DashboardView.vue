@@ -185,7 +185,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import api from '../api/axios';
 import { useNotifications } from '../composables/useNotifications.js';
 
@@ -258,7 +258,7 @@ async function loadLearnerData() {
     if (modules.value.length > 0) {
       const totalProg = modules.value.reduce((acc, m) => acc + (m.progress || 0), 0);
       stats.overallProgress = Math.round(totalProg / modules.value.length);
-      activeModule.value = modules.value[0];
+      activeModule.value = modules.value.find((m) => !m.completed && m.progressStatus !== 'COMPLETED' && (m.progress || 0) < 100) || modules.value[0] || null;
     } else {
       stats.overallProgress = meData?.progress || 0;
       activeModule.value = null;
@@ -329,5 +329,12 @@ async function loadLearnerData() {
 
 onMounted(() => {
   loadLearnerData();
+  window.addEventListener('als-progress-updated', loadLearnerData);
+  window.addEventListener('focus', loadLearnerData);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('als-progress-updated', loadLearnerData);
+  window.removeEventListener('focus', loadLearnerData);
 });
 </script>

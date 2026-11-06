@@ -1,5 +1,18 @@
 <template>
   <div class="page-container announcement-page">
+    <!-- Toast Notification Banner -->
+    <transition name="toast-slide">
+      <div v-if="toastMessage" class="toast-notification" :class="toastType">
+        <svg v-if="toastType === 'success'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ toastMessage }}</span>
+      </div>
+    </transition>
+
     <!-- Breadcrumb -->
     <nav class="breadcrumb">
       <router-link to="/dashboard">Dashboard</router-link>
@@ -57,6 +70,17 @@
             </option>
           </select>
         </div>
+
+        <!-- Status Filter Dropdown -->
+        <div class="filter-dropdown-item">
+          <label>Status</label>
+          <select v-model="selectedStatusFilter" class="filter-select select-status">
+            <option value="">All Statuses</option>
+            <option value="Published">Published</option>
+            <option value="Scheduled">Scheduled</option>
+            <option value="Draft">Draft</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -98,8 +122,25 @@
               </td>
               <td class="col-date">{{ item.datePosted || item.date }}</td>
               <td class="col-status">
-                <span class="badge badge-success">
-                  {{ item.status || 'Published' }}
+                <span
+                  v-if="item.statusRaw === 'DRAFT' || item.status === 'Draft'"
+                  class="badge badge-draft"
+                >
+                  Draft
+                </span>
+                <span
+                  v-else-if="item.statusRaw === 'SCHEDULED' || item.status === 'Scheduled'"
+                  class="badge badge-scheduled"
+                  :title="item.scheduledDate ? `Scheduled: ${item.scheduledDate} ${item.scheduledTime}` : 'Scheduled'"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  <span>Scheduled</span>
+                </span>
+                <span v-else class="badge badge-success">
+                  Published
                 </span>
               </td>
               <td class="td-actions">
@@ -118,11 +159,26 @@
                     </svg>
                   </button>
 
-                  <!-- Edit Icon -->
+                  <!-- If Draft: Quick Publish Icon -->
+                  <button
+                    v-if="item.statusRaw === 'DRAFT' || item.status === 'Draft'"
+                    type="button"
+                    class="btn-icon btn-icon-publish"
+                    title="Post Now"
+                    aria-label="Post Draft Announcement"
+                    @click="quickPublishDraft(item)"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                  </button>
+
+                  <!-- Edit / Reschedule Icon -->
                   <button
                     type="button"
                     class="btn-icon btn-icon-edit"
-                    title="Edit"
+                    :title="(item.statusRaw === 'SCHEDULED' || item.status === 'Scheduled') ? 'Reschedule / Edit' : 'Edit'"
                     aria-label="Edit Announcement"
                     @click="openEditModal(item)"
                   >
@@ -136,7 +192,7 @@
                   <button
                     type="button"
                     class="btn-icon btn-icon-danger"
-                    title="Delete"
+                    :title="(item.statusRaw === 'SCHEDULED' || item.status === 'Scheduled') ? 'Cancel Schedule' : 'Delete'"
                     aria-label="Delete Announcement"
                     @click="openDeleteModal(item)"
                   >
@@ -172,7 +228,7 @@
 
     <!-- Modal: Create / Edit Announcement -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
+      <div class="modal modal-announcement">
         <div class="modal-header">
           <h2>{{ editingAnnouncement ? 'Edit Announcement' : 'Create Announcement' }}</h2>
           <button type="button" class="modal-close" @click="closeModal" aria-label="Close modal">
@@ -183,8 +239,16 @@
           </button>
         </div>
 
-        <div class="modal-body">
-          <form @submit.prevent="saveAnnouncement">
+        <form class="modal-form" @submit.prevent="handleSplitMainClick">
+          <div class="modal-body-scrollable" ref="modalBodyRef">
+            <!-- Modal General Error Alert -->
+            <div v-if="formErrors.general" class="modal-form-alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>{{ formErrors.general }}</span>
+            </div>
+
             <!-- Title * -->
             <div class="form-group">
               <label class="form-label">Title <span class="required">*</span></label>
@@ -192,9 +256,11 @@
                 v-model="form.title"
                 type="text"
                 class="form-input"
+                :class="{ 'has-error': formErrors.title }"
                 placeholder="e.g. System Maintenance or District Assessment Schedule"
-                required
+                @input="clearFieldError('title')"
               />
+              <span v-if="formErrors.title" class="form-error">{{ formErrors.title }}</span>
             </div>
 
             <!-- Message * -->
@@ -202,23 +268,74 @@
               <label class="form-label">Message <span class="required">*</span></label>
               <textarea
                 v-model="form.message"
-                class="form-input"
+                class="form-input form-textarea"
+                :class="{ 'has-error': formErrors.message }"
                 rows="4"
                 placeholder="Type your announcement details here..."
-                required
+                @input="clearFieldError('message')"
               ></textarea>
+              <span v-if="formErrors.message" class="form-error">{{ formErrors.message }}</span>
             </div>
 
             <!-- Audience * -->
             <div class="form-group">
               <label class="form-label">Audience <span class="required">*</span></label>
-              <select v-model="form.audience" class="form-select-full" required>
+              <select v-model="form.audience" class="form-select-full">
                 <option value="All Learners">All Learners</option>
                 <option value="All Teachers">All Teachers</option>
               </select>
             </div>
 
-            <!-- Date Posted (No Status field in create form) -->
+            <!-- Schedule Publication Section (shown in Schedule mode or when editing a scheduled announcement) -->
+            <div v-if="currentAction === 'schedule' || form.isScheduled" class="schedule-section-card">
+              <div class="schedule-section-header">
+                <div class="schedule-section-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  <span>Publication Schedule</span>
+                </div>
+                <button
+                  type="button"
+                  class="schedule-section-switch"
+                  @click="cancelScheduleMode"
+                >
+                  Switch to Immediate Post
+                </button>
+              </div>
+              <p class="schedule-section-desc">
+                This announcement will remain hidden and will be automatically published and delivered to recipients at the specified date and time.
+              </p>
+              <div class="schedule-inputs-grid">
+                <div class="form-group mb-0">
+                  <label class="form-label">Schedule Date <span class="required">*</span></label>
+                  <input
+                    v-model="form.scheduleDate"
+                    type="date"
+                    class="form-input"
+                    :min="minScheduleDate"
+                    :class="{ 'has-error': formErrors.scheduleDate }"
+                    @input="clearFieldError('scheduleDate')"
+                  />
+                  <span v-if="formErrors.scheduleDate" class="form-error">{{ formErrors.scheduleDate }}</span>
+                </div>
+                <div class="form-group mb-0">
+                  <label class="form-label">Schedule Time <span class="required">*</span></label>
+                  <input
+                    v-model="form.scheduleTime"
+                    type="time"
+                    class="form-input"
+                    :class="{ 'has-error': formErrors.scheduleTime }"
+                    @input="clearFieldError('scheduleTime')"
+                  />
+                  <span v-if="formErrors.scheduleTime" class="form-error">{{ formErrors.scheduleTime }}</span>
+                </div>
+              </div>
+              <span v-if="formErrors.schedule" class="form-error schedule-error">{{ formErrors.schedule }}</span>
+            </div>
+
+            <!-- Date Posted -->
             <div class="form-group">
               <label class="form-label">Date Posted</label>
               <input
@@ -227,15 +344,105 @@
                 class="form-input"
               />
             </div>
+          </div>
 
-            <div class="modal-footer" style="padding: 1rem 0 0; margin-top: 1rem;">
-              <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn btn-primary" :disabled="submitting">
-                {{ submitting ? 'Saving...' : (editingAnnouncement ? 'Save Changes' : 'Publish Announcement') }}
+          <!-- Fixed Modal Footer with Cancel and Split Button [ Post | ▼ ] -->
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="submitting">
+              Cancel
+            </button>
+
+            <!-- Connected Split Button -->
+            <div class="split-btn-group" :class="{ 'is-active': hasManualInput, 'is-open': showSplitMenu }">
+              <button
+                type="button"
+                class="btn-split-main"
+                :disabled="submitting"
+                @click="handleSplitMainClick"
+              >
+                <svg v-if="submitting" class="spinner-inline" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="2" x2="12" y2="6"/>
+                  <line x1="12" y1="18" x2="12" y2="22"/>
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                  <line x1="2" y1="12" x2="6" y2="12"/>
+                  <line x1="18" y1="12" x2="22" y2="12"/>
+                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+                  <line x1="19.07" y1="4.93" x2="16.24" y2="7.76"/>
+                </svg>
+                <span>{{ submitButtonLabel }}</span>
               </button>
+              <button
+                type="button"
+                class="btn-split-toggle"
+                :aria-expanded="showSplitMenu"
+                :disabled="submitting"
+                aria-label="More publishing options"
+                @click.stop="toggleSplitMenu"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :class="{ 'rotate-180': showSplitMenu }">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+
+              <!-- Floating Dropdown Menu (Opens Upward) -->
+              <transition name="menu-fade">
+                <div v-if="showSplitMenu" class="split-dropdown-menu" @click.stop>
+                  <button
+                    type="button"
+                    class="split-menu-item"
+                    :class="{ active: currentAction === 'post' }"
+                    @click="chooseAction('post')"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                    <div class="split-menu-text">
+                      <span class="split-menu-title">Post</span>
+                      <span class="split-menu-desc">Share this announcement now.</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="split-menu-item"
+                    :class="{ active: currentAction === 'schedule' }"
+                    @click="chooseAction('schedule')"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <div class="split-menu-text">
+                      <span class="split-menu-title">Schedule</span>
+                      <span class="split-menu-desc">Choose when to post this announcement.</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="split-menu-item"
+                    :class="{ active: currentAction === 'draft' }"
+                    @click="chooseAction('draft')"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                      <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                      <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    <div class="split-menu-text">
+                      <span class="split-menu-title">Save Draft</span>
+                      <span class="split-menu-desc">Save this announcement for later.</span>
+                    </div>
+                  </button>
+                </div>
+              </transition>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -282,9 +489,32 @@
             <div class="detail-item">
               <span class="detail-label">Status</span>
               <span class="detail-value">
-                <span class="badge badge-success">
-                  {{ viewingAnnouncement?.status || 'Published' }}
+                <span
+                  v-if="viewingAnnouncement?.statusRaw === 'DRAFT' || viewingAnnouncement?.status === 'Draft'"
+                  class="badge badge-draft"
+                >
+                  Draft
                 </span>
+                <span
+                  v-else-if="viewingAnnouncement?.statusRaw === 'SCHEDULED' || viewingAnnouncement?.status === 'Scheduled'"
+                  class="badge badge-scheduled"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                  <span>Scheduled</span>
+                </span>
+                <span v-else class="badge badge-success">
+                  Published
+                </span>
+              </span>
+            </div>
+
+            <div v-if="viewingAnnouncement?.scheduledDate || viewingAnnouncement?.scheduledAt" class="detail-item">
+              <span class="detail-label">Scheduled For</span>
+              <span class="detail-value text-primary font-bold">
+                {{ viewingAnnouncement.scheduledDate }} {{ viewingAnnouncement.scheduledTime }}
               </span>
             </div>
 
@@ -330,13 +560,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   getAnnouncements,
   createAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
+  publishAnnouncement,
+  scheduleAnnouncement,
 } from '../api/announcements.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { useNotifications } from '../composables/useNotifications.js';
@@ -354,6 +586,26 @@ const deleting = ref(false);
 const searchQuery = ref('');
 const selectedAudienceFilter = ref('');
 const selectedCenterFilter = ref('');
+const selectedStatusFilter = ref('');
+
+// Split Button and Action States
+const showSplitMenu = ref(false);
+const currentAction = ref('post'); // 'post' | 'schedule' | 'draft'
+const modalBodyRef = ref(null);
+
+// Toast Notification State
+const toastMessage = ref('');
+const toastType = ref('success');
+let toastTimer = null;
+
+function showToast(msg, type = 'success') {
+  toastMessage.value = msg;
+  toastType.value = type;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastMessage.value = '';
+  }, 4000);
+}
 
 // Modals state
 const showModal = ref(false);
@@ -369,7 +621,88 @@ const form = reactive({
   message: '',
   audience: 'All Learners',
   datePosted: '',
+  scheduleDate: '',
+  scheduleTime: '09:00',
+  isScheduled: false,
 });
+
+const formErrors = reactive({
+  title: '',
+  message: '',
+  scheduleDate: '',
+  scheduleTime: '',
+  schedule: '',
+  general: '',
+});
+
+function clearFieldError(field) {
+  if (formErrors[field]) formErrors[field] = '';
+  if (formErrors.general) formErrors.general = '';
+}
+
+function clearErrors() {
+  Object.keys(formErrors).forEach((key) => {
+    formErrors[key] = '';
+  });
+}
+
+// Requirement: Button is blue when user has typed at least one non-whitespace character in Title or Message
+// Auto-populated fields (Date Posted, default Center) do not count as user input
+const hasManualInput = computed(() => {
+  const t = (form.title || '').trim();
+  const m = (form.message || '').trim();
+  return t.length > 0 || m.length > 0;
+});
+
+const minScheduleDate = computed(() => getTodayString());
+
+const submitButtonLabel = computed(() => {
+  if (submitting.value) {
+    if (currentAction.value === 'draft') return 'Saving Draft...';
+    if (currentAction.value === 'schedule') return 'Scheduling...';
+    return 'Posting...';
+  }
+  if (editingAnnouncement.value) {
+    if (editingAnnouncement.value.statusRaw === 'DRAFT') {
+      if (currentAction.value === 'post') return 'Post';
+      if (currentAction.value === 'schedule') return 'Schedule';
+      return 'Save Draft';
+    }
+    if (editingAnnouncement.value.statusRaw === 'SCHEDULED') {
+      if (currentAction.value === 'post') return 'Post Now';
+      return 'Save Changes';
+    }
+    return 'Save Changes';
+  }
+  if (currentAction.value === 'schedule') return 'Schedule';
+  if (currentAction.value === 'draft') return 'Save Draft';
+  return 'Post';
+});
+
+function toggleSplitMenu() {
+  showSplitMenu.value = !showSplitMenu.value;
+}
+
+function closeSplitMenu() {
+  showSplitMenu.value = false;
+}
+
+function chooseAction(action) {
+  currentAction.value = action;
+  showSplitMenu.value = false;
+  if (action === 'schedule') {
+    if (!form.scheduleDate) form.scheduleDate = getTodayString();
+    if (!form.scheduleTime) form.scheduleTime = '09:00';
+  }
+}
+
+function cancelScheduleMode() {
+  currentAction.value = 'post';
+  form.isScheduled = false;
+  formErrors.schedule = '';
+  formErrors.scheduleDate = '';
+  formErrors.scheduleTime = '';
+}
 
 function getTodayString() {
   const d = new Date();
@@ -432,55 +765,173 @@ const filteredAnnouncements = computed(() => {
     const matchesCenter =
       !selectedCenterFilter.value || a.learningCenter === selectedCenterFilter.value;
 
-    return matchesQuery && matchesAudience && matchesCenter;
+    let matchesStatus = true;
+    if (selectedStatusFilter.value) {
+      const target = selectedStatusFilter.value.toUpperCase();
+      const current = String(a.statusRaw || a.status || '').toUpperCase();
+      matchesStatus = current.includes(target);
+    }
+
+    return matchesQuery && matchesAudience && matchesCenter && matchesStatus;
   });
 });
 
-function openCreateModal() {
+function resetForm() {
   editingAnnouncement.value = null;
   form.title = '';
   form.message = '';
   form.audience = 'All Learners';
   form.datePosted = getTodayString();
+  form.scheduleDate = getTodayString();
+  form.scheduleTime = '09:00';
+  form.isScheduled = false;
+  currentAction.value = 'post';
+  showSplitMenu.value = false;
+  clearErrors();
+  if (modalBodyRef.value) {
+    modalBodyRef.value.scrollTop = 0;
+  }
+}
+
+function openCreateModal() {
+  resetForm();
   showModal.value = true;
+  nextTick(() => {
+    if (modalBodyRef.value) modalBodyRef.value.scrollTop = 0;
+  });
 }
 
 function openEditModal(item) {
   editingAnnouncement.value = item;
-  form.title = item.title;
-  form.message = item.message || item.content;
+  form.title = item.title || '';
+  form.message = item.message || item.content || '';
   form.audience = (item.audience === 'All Teachers' || item.audienceRaw === 'ALL_TEACHERS') ? 'All Teachers' : 'All Learners';
   form.datePosted = formatDateForInput(item.createdAt || item.datePosted || item.date);
+  clearErrors();
+  showSplitMenu.value = false;
+
+  const statusRaw = String(item.statusRaw || item.status || '').toUpperCase();
+  if (statusRaw === 'SCHEDULED') {
+    currentAction.value = 'schedule';
+    form.isScheduled = true;
+    if (item.scheduledAt) {
+      const sDate = new Date(item.scheduledAt);
+      if (!isNaN(sDate.getTime())) {
+        form.scheduleDate = formatDateForInput(sDate);
+        form.scheduleTime = `${String(sDate.getHours()).padStart(2, '0')}:${String(sDate.getMinutes()).padStart(2, '0')}`;
+      }
+    } else {
+      form.scheduleDate = getTodayString();
+      form.scheduleTime = '09:00';
+    }
+  } else if (statusRaw === 'DRAFT') {
+    currentAction.value = 'draft';
+    form.isScheduled = false;
+    form.scheduleDate = getTodayString();
+    form.scheduleTime = '09:00';
+  } else {
+    currentAction.value = 'post';
+    form.isScheduled = false;
+    form.scheduleDate = getTodayString();
+    form.scheduleTime = '09:00';
+  }
+
   showModal.value = true;
+  nextTick(() => {
+    if (modalBodyRef.value) modalBodyRef.value.scrollTop = 0;
+  });
 }
 
-function closeModal() {
-  if (submitting.value) return;
+function openScheduleFromList(item) {
+  openEditModal(item);
+  currentAction.value = 'schedule';
+  form.isScheduled = true;
+}
+
+function closeModal(force = false) {
+  if (submitting.value && !force) return;
   showModal.value = false;
-  editingAnnouncement.value = null;
+  resetForm();
 }
 
-async function saveAnnouncement() {
-  if (!form.title.trim()) {
-    alert('Please enter a title.');
-    return;
+function handleSplitMainClick() {
+  if (currentAction.value === 'draft') {
+    saveDraft();
+  } else if (currentAction.value === 'schedule') {
+    submitSchedule();
+  } else {
+    submitPost();
   }
-  if (!form.message.trim()) {
-    alert('Please enter announcement message.');
-    return;
+}
+
+function validateForm(isDraft = false, isSchedule = false) {
+  clearErrors();
+  let isValid = true;
+
+  if (isDraft) {
+    if (!hasManualInput.value) {
+      formErrors.general = 'Please enter at least a title or message to save a draft.';
+      formErrors.title = 'Title or message required for draft';
+      isValid = false;
+    }
+    return isValid;
   }
 
+  // Mandatory fields for Post & Schedule
+  if (!form.title || !form.title.trim()) {
+    formErrors.title = 'Title is required.';
+    isValid = false;
+  }
+  if (!form.message || !form.message.trim()) {
+    formErrors.message = 'Message content is required.';
+    isValid = false;
+  }
+
+  if (isSchedule) {
+    if (!form.scheduleDate) {
+      formErrors.scheduleDate = 'Schedule date is required.';
+      isValid = false;
+    }
+    if (!form.scheduleTime) {
+      formErrors.scheduleTime = 'Schedule time is required.';
+      isValid = false;
+    }
+    if (form.scheduleDate && form.scheduleTime) {
+      const scheduledDateTime = new Date(`${form.scheduleDate}T${form.scheduleTime}`);
+      if (isNaN(scheduledDateTime.getTime()) || scheduledDateTime.getTime() <= Date.now()) {
+        formErrors.schedule = 'Scheduled date and time must be in the future.';
+        isValid = false;
+      }
+    }
+  }
+
+  if (!isValid) {
+    formErrors.general = 'Please fill in all mandatory fields before proceeding.';
+    if (modalBodyRef.value) {
+      modalBodyRef.value.scrollTop = 0;
+    }
+  }
+
+  return isValid;
+}
+
+async function executeSave(statusTarget = 'PUBLISHED') {
   const payload = {
-    title: form.title.trim(),
+    title: form.title.trim() || (statusTarget === 'DRAFT' ? 'Untitled Draft' : ''),
     message: form.message.trim(),
     content: form.message.trim(),
     audience: form.audience === 'All Teachers' ? 'ALL_TEACHERS' : 'ALL_LEARNERS',
     creatorRole: 'ADMIN',
-    datePosted: form.datePosted,
-    date: form.datePosted,
+    datePosted: form.datePosted || getTodayString(),
+    date: form.datePosted || getTodayString(),
     createdAt: form.datePosted ? new Date(form.datePosted).toISOString() : new Date().toISOString(),
-    status: 'PUBLISHED',
+    status: statusTarget,
   };
+
+  if (statusTarget === 'SCHEDULED') {
+    const sAt = new Date(`${form.scheduleDate}T${form.scheduleTime}`);
+    payload.scheduledAt = sAt.toISOString();
+  }
 
   submitting.value = true;
   try {
@@ -515,13 +966,70 @@ async function saveAnnouncement() {
         createdBy: 'Administrator',
       });
     }
+
+    if (statusTarget === 'DRAFT') {
+      showToast('Draft saved successfully.');
+    } else if (statusTarget === 'SCHEDULED') {
+      showToast('Announcement scheduled successfully.');
+    } else {
+      showToast('Announcement posted successfully.');
+    }
+
+    await loadAnnouncements();
     window.dispatchEvent(new Event('als-notifications-updated'));
-    closeModal();
+    submitting.value = false;
+    closeModal(true);
   } catch (err) {
     console.error('Failed to save announcement:', err);
-    alert(err.response?.data?.error || 'Failed to save announcement.');
+    formErrors.general = err.response?.data?.error || 'Failed to save announcement. Please check all required fields.';
+    if (modalBodyRef.value) {
+      modalBodyRef.value.scrollTop = 0;
+    }
   } finally {
     submitting.value = false;
+  }
+}
+
+function submitPost() {
+  if (!validateForm(false, false)) return;
+  executeSave('PUBLISHED');
+}
+
+function submitSchedule() {
+  if (!validateForm(false, true)) return;
+  executeSave('SCHEDULED');
+}
+
+function saveDraft() {
+  if (!validateForm(true, false)) return;
+  executeSave('DRAFT');
+}
+
+async function quickPublishDraft(item) {
+  if (submitting.value) return;
+  submitting.value = true;
+  try {
+    await publishAnnouncement(item.id);
+    showToast('Announcement posted successfully.');
+    await loadAnnouncements();
+    window.dispatchEvent(new Event('als-notifications-updated'));
+  } catch (err) {
+    alert(err.response?.data?.error || 'Failed to publish announcement.');
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function handleGlobalKeydown(e) {
+  if (e.key === 'Escape') {
+    if (showSplitMenu.value) {
+      closeSplitMenu();
+      e.preventDefault();
+      e.stopPropagation();
+    } else if (showModal.value && !submitting.value) {
+      closeModal();
+      e.preventDefault();
+    }
   }
 }
 
@@ -562,6 +1070,8 @@ async function confirmDeleteAnnouncement() {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', handleGlobalKeydown);
+  window.addEventListener('click', closeSplitMenu);
   await loadLearningCentersList();
   await loadAnnouncements();
   if (route.query.action === 'create') {
@@ -575,6 +1085,12 @@ onMounted(async () => {
     }
     router.replace({ path: route.path, query: {} });
   }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('click', closeSplitMenu);
+  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 
@@ -1296,5 +1812,343 @@ onMounted(async () => {
   padding: 1rem;
   margin: 0;
   white-space: pre-wrap;
+}
+
+/* Badge Styles */
+.badge-scheduled {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-draft {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+/* Action Icons */
+.btn-icon-publish {
+  color: #16a34a;
+}
+.btn-icon-publish:hover {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.btn-icon-schedule {
+  color: #2563eb;
+}
+.btn-icon-schedule:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Split Button */
+.split-btn-group {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.btn-split-main {
+  height: 42px;
+  padding: 0 1.25rem;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #94a3b8;
+  color: #ffffff;
+  border: 1px solid #94a3b8;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-split-toggle {
+  height: 42px;
+  padding: 0 0.65rem;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #94a3b8;
+  color: #ffffff;
+  border: 1px solid #94a3b8;
+  border-left: none;
+}
+
+.split-btn-group.is-active .btn-split-main {
+  background: #2563eb;
+  border-color: #2563eb;
+  border-right-color: rgba(255, 255, 255, 0.35);
+}
+
+.split-btn-group.is-active .btn-split-main:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.split-btn-group.is-active .btn-split-toggle {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.split-btn-group.is-active .btn-split-toggle:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.btn-split-main:hover:not(:disabled) {
+  background: #64748b;
+  border-color: #64748b;
+}
+
+.btn-split-toggle:hover:not(:disabled) {
+  background: #64748b;
+  border-color: #64748b;
+}
+
+.btn-split-main:disabled,
+.btn-split-toggle:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.rotate-180 {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+/* Floating Dropdown Menu (Upward) */
+.split-dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  max-width: calc(100vw - 32px);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0.4rem;
+  z-index: 10060;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+}
+
+.split-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #1e293b;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.split-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.split-menu-item.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.split-menu-item svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #64748b;
+}
+
+.split-menu-item.active svg {
+  color: #2563eb;
+}
+
+.split-menu-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.split-menu-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.split-menu-item.active .split-menu-title {
+  color: #1d4ed8;
+}
+
+.split-menu-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 1px;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+/* Schedule Section Card inside form */
+.schedule-section-card {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.15rem;
+}
+
+.schedule-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.schedule-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.schedule-section-switch {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.schedule-section-switch:hover {
+  color: #1d4ed8;
+}
+
+.schedule-section-desc {
+  font-size: 0.8rem;
+  color: #475569;
+  margin-bottom: 0.85rem;
+  line-height: 1.35;
+}
+
+.schedule-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.modal-form-alert {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.form-error {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #dc2626;
+  margin-top: 0.3rem;
+}
+
+.form-input.has-error,
+.form-select-full.has-error {
+  border-color: #dc2626 !important;
+  background-color: #fef2f2 !important;
+}
+
+.schedule-error {
+  margin-top: 0.6rem;
+}
+
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+/* Toast Alert Notification */
+.toast-notification {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  z-index: 10099;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.toast-notification.success {
+  background: #15803d;
+  color: #ffffff;
+}
+
+.toast-notification.error {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-slide-enter-from,
+.toast-slide-leave-to {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 </style>

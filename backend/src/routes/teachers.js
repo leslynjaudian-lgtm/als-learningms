@@ -47,6 +47,7 @@ function formatTeacher(t) {
 
   return {
     id: t.id,
+    teacherId: t.id,
     userId: t.userId,
     name: t.fullName,
     fullName: t.fullName,
@@ -284,7 +285,7 @@ router.get('/check-username', async (req, res, next) => {
 
 // ---------------------
 // GET /api/teachers/:id
-// Get a single teacher
+// Get a single teacher (supports lookup by teacher.id or user.id fallback)
 // ---------------------
 router.get('/:id', async (req, res, next) => {
   try {
@@ -293,34 +294,43 @@ router.get('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid teacher ID' });
     }
 
-    const teacher = await prisma.teacher.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            username: true,
-            email: true,
-            status: true,
-            profilePhoto: true,
-          },
-        },
-        learningCenter: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            locationAddress: true,
-            municipality: true,
-            province: true,
-          },
-        },
-        assignedLearners: {
-          include: {
-            learningCenter: true,
-          },
+    const includeConfig = {
+      user: {
+        select: {
+          username: true,
+          email: true,
+          status: true,
+          profilePhoto: true,
         },
       },
+      learningCenter: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          locationAddress: true,
+          municipality: true,
+          province: true,
+        },
+      },
+      assignedLearners: {
+        include: {
+          learningCenter: true,
+        },
+      },
+    };
+
+    let teacher = await prisma.teacher.findUnique({
+      where: { id },
+      include: includeConfig,
     });
+
+    if (!teacher) {
+      teacher = await prisma.teacher.findUnique({
+        where: { userId: id },
+        include: includeConfig,
+      });
+    }
 
     if (!teacher) {
       return res.status(404).json({ error: 'Teacher not found' });

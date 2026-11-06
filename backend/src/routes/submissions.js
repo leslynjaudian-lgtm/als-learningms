@@ -4,22 +4,34 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
+import { syncLearnerModuleProgress } from '../utils/progressCalculator.js';
+import { notifyActivitySubmitted } from '../services/notificationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.join(__dirname, '../../data');
+const BACKEND_ROOT = path.join(__dirname, '../..');
+const DATA_DIR = path.join(BACKEND_ROOT, 'data');
 const AF2_FILE = path.join(DATA_DIR, 'af2_records.json');
+
+function readAf2Records() {
+  try {
+    if (fs.existsSync(AF2_FILE)) {
+      const raw = fs.readFileSync(AF2_FILE, 'utf-8');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (err) {
+    console.warn('Could not read AF2 records file:', err);
+  }
+  return [];
+}
 
 function syncAf2Record(recordData) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    let records = [];
-    if (fs.existsSync(AF2_FILE)) {
-      const raw = fs.readFileSync(AF2_FILE, 'utf-8');
-      records = raw ? JSON.parse(raw) : [];
-    }
+    let records = readAf2Records();
 
     const existingIdx = records.findIndex(
       (r) =>
@@ -52,34 +64,272 @@ function syncAf2Record(recordData) {
 
 const router = Router();
 
-// Helper to format submission record
-function formatSubmission(s) {
+function inferFileTypeInfo(fileNameOrUrl = '', rawMime = '') {
+  const target = String(fileNameOrUrl || '').toLowerCase().split('?')[0];
+  const mime = String(rawMime || '').toLowerCase();
+
+  if (target.endsWith('.pdf') || mime === 'application/pdf') {
+    return { fileType: 'PDF Document', mimeType: 'application/pdf', ext: 'PDF', isPdf: true, isImage: false };
+  }
+  if (target.endsWith('.png') || mime === 'image/png') {
+    return { fileType: 'PNG Image', mimeType: 'image/png', ext: 'PNG', isPdf: false, isImage: true };
+  }
+  if (target.endsWith('.webp') || mime === 'image/webp') {
+    return { fileType: 'WEBP Image', mimeType: 'image/webp', ext: 'WEBP', isPdf: false, isImage: true };
+  }
+  if (target.endsWith('.gif') || mime === 'image/gif') {
+    return { fileType: 'GIF Image', mimeType: 'image/gif', ext: 'GIF', isPdf: false, isImage: true };
+  }
+  if (target.endsWith('.jpg') || target.endsWith('.jpeg') || mime === 'image/jpeg') {
+    return { fileType: 'JPG Image', mimeType: 'image/jpeg', ext: 'JPG', isPdf: false, isImage: true };
+  }
+  return { fileType: 'Image / Document', mimeType: rawMime || 'application/octet-stream', ext: 'FILE', isPdf: false, isImage: true };
+}
+
+function resolveDiskFilePath(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') return null;
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('data:')) {
+    return null;
+  }
+  const cleanRel = fileUrl.replace(/^\/+/, '');
+  const candidate1 = path.join(BACKEND_ROOT, cleanRel);
+  if (fs.existsSync(candidate1)) return candidate1;
+  const candidate2 = path.join(process.cwd(), cleanRel);
+  if (fs.existsSync(candidate2)) return candidate2;
+  const candidate3 = path.join(BACKEND_ROOT, 'uploads/submissions', cleanRel);
+  if (fs.existsSync(candidate3)) return candidate3;
+  const candidate4 = path.join(BACKEND_ROOT, 'uploads/modules', cleanRel);
+  if (fs.existsSync(candidate4)) return candidate4;
+  return null;
+}
+
+function enrichFileItem(rawFile, index = 0, fallbackDate = null) {
+  const fileUrl = String(rawFile?.fileUrl || rawFile?.url || '').trim();
+  const fallbackName = fileUrl
+    ? decodeURIComponent(fileUrl.split('/').pop().split('?')[0])
+    : `Activity ${index + 1}.jpg`;
+  const fileName = String(rawFile?.fileName || rawFile?.name || fallbackName).trim() || fallbackName;
+  const typeInfo = inferFileTypeInfo(fileName || fileUrl, rawFile?.fileType || rawFile?.mimeType || rawFile?.type);
+
+  let fileSize = rawFile?.fileSize || rawFile?.size || null;
+  if ((!fileSize || Number(fileSize) <= 0) && fileUrl) {
+    try {
+      const diskPath = resolveDiskFilePath(fileUrl);
+      if (diskPath) {
+        const stat = fs.statSync(diskPath);
+        if (stat && stat.size > 0) {
+          fileSize = stat.size;
+        }
+      }
+    } catch {}
+  }
+
+  return {
+    id: rawFile?.id || `file_${index + 1}`,
+    fileName,
+    fileUrl,
+    fileType: typeInfo.fileType,
+    mimeType: typeInfo.mimeType,
+    ext: typeInfo.ext,
+    isPdf: typeInfo.isPdf,
+    isImage: typeInfo.isImage,
+    fileSize: fileSize ? Number(fileSize) : null,
+    submittedAt: rawFile?.submittedAt || rawFile?.uploadedAt || fallbackDate || null,
+  };
+}
+
+function extractFilesFromSubmissionRow(s) {
+  const extracted = [];
+  const seenKeys = new Set();
+
+  function addCandidate(candidate, fallbackDate) {
+    const url = String(candidate?.fileUrl || candidate?.url || '').trim();
+    const name = String(candidate?.fileName || candidate?.name || '').trim();
+    if (!url && !name) return;
+    const dedupeKey = url ? url.toLowerCase() : name.toLowerCase();
+    if (seenKeys.has(dedupeKey)) return;
+    seenKeys.add(dedupeKey);
+    extracted.push(enrichFileItem(candidate, extracted.length, fallbackDate));
+  }
+
+  // 1. Check if s.content stores structured JSON with files
+  if (s.content && typeof s.content === 'string') {
+    const trimmed = s.content.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const list = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.files)
+          ? parsed.files
+          : [];
+        for (const item of list) {
+          addCandidate(item, s.submittedAt);
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Ensure primary fileUrl / fileName on the row is included
+  if (s.fileUrl || s.fileName) {
+    addCandidate(
+      {
+        fileUrl: s.fileUrl || '',
+        fileName: s.fileName || '',
+        submittedAt: s.submittedAt,
+      },
+      s.submittedAt
+    );
+  }
+
+  return extracted;
+}
+
+function extractPlainContent(contentVal) {
+  if (!contentVal || typeof contentVal !== 'string') return '';
+  const trimmed = contentVal.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return String(parsed.text || parsed.notes || '');
+      }
+      return '';
+    } catch {}
+  }
+  return contentVal;
+}
+
+// Helper to format submission record (supports single row or grouped rows for a learner+module)
+function formatSubmission(s, groupedFiles = null, relatedIds = null) {
   let displayLevel = s.learner?.level;
-  if (s.learner?.level === 'ELEMENTARY' || s.learner?.level === 'A&E Elementary') displayLevel = 'A&E Elementary';
-  else if (s.learner?.level === 'JUNIOR' || s.learner?.level === 'A&E Junior' || s.learner?.level === 'A&E Junior High' || String(s.learner?.level || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
+  if (s.learner?.level === 'ELEMENTARY' || s.learner?.level === 'A&E Elementary') {
+    displayLevel = 'A&E Elementary';
+  } else if (
+    s.learner?.level === 'JUNIOR' ||
+    s.learner?.level === 'A&E Junior' ||
+    s.learner?.level === 'A&E Junior High' ||
+    String(s.learner?.level || '').toUpperCase().includes('JUN')
+  ) {
+    displayLevel = 'A&E Junior High';
+  }
+
+  const files = Array.isArray(groupedFiles) && groupedFiles.length > 0
+    ? groupedFiles.map((f, idx) => enrichFileItem(f, idx, s.submittedAt))
+    : extractFilesFromSubmissionRow(s);
+
+  const primaryFile = files[0] || null;
+  const rawStatus = String(s.status || 'SUBMITTED').trim();
+  const lowerStatus = rawStatus.toLowerCase().replace(/_/g, ' ');
+  let normalizedStatus = 'Submitted';
+  if (lowerStatus === 'mastered') normalizedStatus = 'Mastered';
+  else if (lowerStatus === 'not mastered') normalizedStatus = 'Not Mastered';
+  else if (lowerStatus === 'submitted' || lowerStatus === 'not evaluated' || lowerStatus === 'pending') {
+    normalizedStatus = 'Submitted';
+  } else {
+    normalizedStatus = rawStatus;
+  }
+
+  const isReviewFinalized = lowerStatus === 'mastered' || lowerStatus === 'not mastered' || lowerStatus === 'graded' || s.grade != null;
 
   return {
     id: s.id,
+    relatedSubmissionIds: Array.isArray(relatedIds) && relatedIds.length > 0 ? relatedIds : [s.id],
     moduleId: s.moduleId,
     moduleTitle: s.module?.title || 'Learning Module',
     learnerId: s.learnerId,
     learnerName: s.learner?.fullName || 'Learner',
     lrn: s.learner?.lrn || '—',
-    programLevel: displayLevel || '—',
+    programLevel: displayLevel || 'A&E Elementary',
     activity: s.title || s.module?.title || 'Module Activity Output',
     title: s.title || 'Module Activity Output',
-    fileUrl: s.fileUrl || '',
-    fileName: s.fileName || 'activity_photo.jpg',
-    content: s.content || '',
+    fileUrl: primaryFile?.fileUrl || s.fileUrl || '',
+    fileName: primaryFile?.fileName || s.fileName || 'Activity 1.jpg',
+    fileType: primaryFile?.fileType || 'JPG Image',
+    fileSize: primaryFile?.fileSize || null,
+    files,
+    fileCount: files.length,
+    content: extractPlainContent(s.content),
     grade: s.grade ? Number(s.grade) : null,
     feedback: s.feedback || '',
     teacherRemarks: s.feedback || '',
     remarks: s.feedback || '',
-    status: s.status || 'Not Evaluated',
+    status: normalizedStatus,
+    isReviewFinalized,
     dateSubmitted: s.submittedAt ? s.submittedAt.toISOString().split('T')[0] : '',
     submittedAt: s.submittedAt,
     updatedAt: s.updatedAt,
   };
+}
+
+// Group raw submission rows by (moduleId, learnerId) so each learner has exactly ONE submission per module
+// while preserving all uploaded files in chronological upload order.
+function groupSubmissionsByLearnerAndModule(rows) {
+  const groups = new Map();
+
+  // Sort oldest-first when collecting files so Activity 1, Activity 2, Activity 3 stay in upload order
+  const chronological = [...(rows || [])].sort(
+    (a, b) => new Date(a.submittedAt || 0).getTime() - new Date(b.submittedAt || 0).getTime()
+  );
+
+  for (const row of chronological) {
+    const key = `${row.moduleId}_${row.learnerId}`;
+    const rowFiles = extractFilesFromSubmissionRow(row);
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        primaryRow: { ...row },
+        files: [...rowFiles],
+        seenFileKeys: new Set(
+          rowFiles.map((f) => (f.fileUrl ? f.fileUrl.toLowerCase() : f.fileName.toLowerCase()))
+        ),
+        relatedIds: [row.id],
+      });
+    } else {
+      const grp = groups.get(key);
+      grp.relatedIds.push(row.id);
+
+      for (const f of rowFiles) {
+        const fKey = f.fileUrl ? f.fileUrl.toLowerCase() : f.fileName.toLowerCase();
+        if (!grp.seenFileKeys.has(fKey)) {
+          grp.seenFileKeys.add(fKey);
+          grp.files.push({
+            ...f,
+            id: `file_${grp.files.length + 1}`,
+          });
+        }
+      }
+
+      // Keep latest submission timestamp
+      if (row.submittedAt && new Date(row.submittedAt) > new Date(grp.primaryRow.submittedAt || 0)) {
+        grp.primaryRow.submittedAt = row.submittedAt;
+      }
+      if (row.updatedAt && new Date(row.updatedAt) > new Date(grp.primaryRow.updatedAt || 0)) {
+        grp.primaryRow.updatedAt = row.updatedAt;
+      }
+
+      // Prefer reviewed status (Mastered / Not Mastered) and non-empty teacher feedback if present on any row
+      const rowStatusLower = String(row.status || '').toLowerCase().replace(/_/g, ' ');
+      if (rowStatusLower === 'mastered' || rowStatusLower === 'not mastered') {
+        grp.primaryRow.status = row.status;
+      }
+      if (row.feedback && String(row.feedback).trim()) {
+        grp.primaryRow.feedback = row.feedback;
+      }
+      if (row.grade != null) {
+        grp.primaryRow.grade = row.grade;
+      }
+    }
+  }
+
+  // Return sorted by latest submittedAt descending
+  return Array.from(groups.values())
+    .sort(
+      (a, b) =>
+        new Date(b.primaryRow.submittedAt || 0).getTime() -
+        new Date(a.primaryRow.submittedAt || 0).getTime()
+    )
+    .map((grp) => formatSubmission(grp.primaryRow, grp.files, grp.relatedIds));
 }
 
 // Helper to retrieve actual Pre-Test and Post-Test scores for a specific learner & module
@@ -229,7 +479,7 @@ router.get('/scores', optionalAuth, async (req, res, next) => {
 
 // ---------------------
 // GET /api/submissions
-// List submissions with role scoping and assessment scores
+// List submissions with role scoping, multi-file grouping, and assessment scores
 // ---------------------
 router.get('/', optionalAuth, async (req, res, next) => {
   try {
@@ -271,12 +521,13 @@ router.get('/', optionalAuth, async (req, res, next) => {
       orderBy: { submittedAt: 'desc' },
     });
 
+    const grouped = groupSubmissionsByLearnerAndModule(submissions);
+
     const enriched = await Promise.all(
-      submissions.map(async (s) => {
-        const base = formatSubmission(s);
-        const scores = await getLearnerAssessmentScores(s.learnerId, s.moduleId);
+      grouped.map(async (item) => {
+        const scores = await getLearnerAssessmentScores(item.learnerId, item.moduleId);
         return {
-          ...base,
+          ...item,
           ...scores,
         };
       })
@@ -289,12 +540,73 @@ router.get('/', optionalAuth, async (req, res, next) => {
 });
 
 // ---------------------
+// GET /api/submissions/:id
+// Get a single learner submission with all grouped files and assessment scores
+// ---------------------
+router.get('/:id', optionalAuth, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid submission ID' });
+
+    const sub = await prisma.submission.findUnique({
+      where: { id },
+      include: {
+        module: { select: { id: true, title: true, teacherId: true } },
+        learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true } },
+      },
+    });
+
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+
+    if (req.user && req.user.role === 'TEACHER' && sub.module?.teacherId !== req.user.profileId) {
+      return res.status(403).json({ error: 'You are not authorized to view this submission' });
+    }
+
+    // Fetch all rows for the same (moduleId, learnerId) in case multiple rows existed
+    const allRowsForLearnerModule = await prisma.submission.findMany({
+      where: {
+        moduleId: sub.moduleId,
+        learnerId: sub.learnerId,
+      },
+      include: {
+        module: { select: { id: true, title: true, teacherId: true } },
+        learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true } },
+      },
+      orderBy: { submittedAt: 'asc' },
+    });
+
+    const grouped = groupSubmissionsByLearnerAndModule(allRowsForLearnerModule);
+    const unified = grouped[0] || formatSubmission(sub);
+    const scores = await getLearnerAssessmentScores(sub.learnerId, sub.moduleId);
+
+    res.json({
+      ...unified,
+      id: sub.id,
+      ...scores,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
 // POST /api/submissions
-// Submit module activity (Learner)
+// Submit module activity (Learner) — supports single or multiple files grouped per learner+module
 // ---------------------
 router.post('/', optionalAuth, async (req, res, next) => {
   try {
-    const { moduleId, title, content, fileUrl, fileName, learnerId: explicitLearnerId } = req.body;
+    const {
+      moduleId,
+      title,
+      content,
+      fileUrl,
+      fileName,
+      fileSize,
+      fileType,
+      files: incomingFiles,
+      replaceFiles,
+      learnerId: explicitLearnerId,
+    } = req.body;
 
     const parsedModuleId = parseInt(moduleId, 10);
     if (isNaN(parsedModuleId)) {
@@ -315,41 +627,163 @@ router.post('/', optionalAuth, async (req, res, next) => {
       return res.status(400).json({ error: 'Learner ID is required for submission' });
     }
 
-    const sub = await prisma.submission.create({
-      data: {
-        moduleId: parsedModuleId,
-        learnerId: targetLearnerId,
-        title: title?.trim() || 'Module Activity Output',
-        content: content?.trim() || null,
-        fileUrl: fileUrl?.trim() || null,
-        fileName: fileName?.trim() || 'activity_output.pdf',
-        status: 'SUBMITTED',
-      },
-      include: {
-        module: { select: { id: true, title: true, teacherId: true } },
-        learner: { select: { id: true, fullName: true, lrn: true } },
-      },
-    });
+    const nowIso = new Date().toISOString();
+    const newFilesList = [];
 
-    // Update LearnerProgress to in progress
-    await prisma.learnerProgress.upsert({
+    if (Array.isArray(incomingFiles) && incomingFiles.length > 0) {
+      incomingFiles.forEach((f, idx) => {
+        if (f && (f.fileUrl || f.url || f.fileName || f.name)) {
+          newFilesList.push(
+            enrichFileItem(
+              {
+                fileUrl: f.fileUrl || f.url || '',
+                fileName: f.fileName || f.name || `Activity ${idx + 1}.jpg`,
+                fileSize: f.fileSize || f.size || null,
+                fileType: f.fileType || f.type || '',
+                submittedAt: f.submittedAt || f.uploadedAt || nowIso,
+              },
+              idx,
+              nowIso
+            )
+          );
+        }
+      });
+    } else if (fileUrl || fileName) {
+      newFilesList.push(
+        enrichFileItem(
+          {
+            fileUrl: fileUrl?.trim() || '',
+            fileName: fileName?.trim() || 'activity_output.pdf',
+            fileSize: fileSize || null,
+            fileType: fileType || '',
+            submittedAt: nowIso,
+          },
+          0,
+          nowIso
+        )
+      );
+    }
+
+    // Check if submission(s) already exist for this (moduleId, learnerId)
+    const existingRows = await prisma.submission.findMany({
       where: {
-        learnerId_moduleId: {
-          learnerId: targetLearnerId,
-          moduleId: parsedModuleId,
-        },
-      },
-      create: {
-        learnerId: targetLearnerId,
         moduleId: parsedModuleId,
-        status: 'IN_PROGRESS',
+        learnerId: targetLearnerId,
       },
-      update: {
-        status: 'IN_PROGRESS',
-      },
+      orderBy: { submittedAt: 'asc' },
     });
 
-    res.status(201).json(formatSubmission(sub));
+    if (existingRows.length > 0) {
+      const primaryExisting = existingRows[0];
+      const statusLower = String(primaryExisting.status || '').toLowerCase().replace(/_/g, ' ').trim();
+      if (statusLower === 'mastered' || statusLower === 'not mastered' || statusLower === 'graded' || primaryExisting.grade != null) {
+        return res.status(403).json({
+          error: 'Your teacher has checked your work. You cannot change these files now.',
+          isFinalized: true
+        });
+      }
+    }
+
+    let mergedFiles = [];
+    const seenKeys = new Set();
+
+    function pushUniqueFile(f) {
+      const url = String(f?.fileUrl || '').trim();
+      const name = String(f?.fileName || '').trim();
+      if (!url && !name) return;
+      const key = url ? url.toLowerCase() : name.toLowerCase();
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      mergedFiles.push(enrichFileItem(f, mergedFiles.length, nowIso));
+    }
+
+    if (!replaceFiles && existingRows.length > 0) {
+      for (const row of existingRows) {
+        const rowFiles = extractFilesFromSubmissionRow(row);
+        rowFiles.forEach(pushUniqueFile);
+      }
+    }
+
+    newFilesList.forEach(pushUniqueFile);
+
+    const primaryFile = mergedFiles[0] || newFilesList[0] || null;
+    const plainText = extractPlainContent(content);
+
+    let prevHistory = [];
+    if (existingRows.length > 0) {
+      try {
+        const parsed = JSON.parse(existingRows[0].content || '{}');
+        if (Array.isArray(parsed?.history)) prevHistory = parsed.history;
+      } catch {}
+    }
+
+    const actionType = req.body.action || (existingRows.length > 0 ? 'FILES_UPDATED' : 'SUBMITTED');
+    const serializedContent = JSON.stringify({
+      text: plainText || `Uploaded ${mergedFiles.length} activity file(s)`,
+      files: mergedFiles,
+      history: [
+        ...prevHistory,
+        {
+          action: actionType,
+          fileCount: mergedFiles.length,
+          timestamp: nowIso
+        }
+      ]
+    });
+
+    let sub;
+    if (existingRows.length > 0) {
+      const primaryExisting = existingRows[0];
+      sub = await prisma.submission.update({
+        where: { id: primaryExisting.id },
+        data: {
+          title: title?.trim() || primaryExisting.title || 'Module Activity Output',
+          fileUrl: primaryFile?.fileUrl || primaryExisting.fileUrl || null,
+          fileName: primaryFile?.fileName || primaryExisting.fileName || 'activity_output.pdf',
+          content: serializedContent,
+          submittedAt: new Date(),
+        },
+        include: {
+          module: { select: { id: true, title: true, teacherId: true } },
+          learner: { select: { id: true, fullName: true, lrn: true, level: true } },
+        },
+      });
+
+      // Remove redundant extra rows for the same (moduleId, learnerId) now that all files are merged
+      if (existingRows.length > 1) {
+        const extraIds = existingRows.slice(1).map((r) => r.id);
+        await prisma.submission.deleteMany({
+          where: { id: { in: extraIds } },
+        }).catch(() => {});
+      }
+    } else {
+      sub = await prisma.submission.create({
+        data: {
+          moduleId: parsedModuleId,
+          learnerId: targetLearnerId,
+          title: title?.trim() || 'Module Activity Output',
+          content: serializedContent,
+          fileUrl: primaryFile?.fileUrl || fileUrl?.trim() || null,
+          fileName: primaryFile?.fileName || fileName?.trim() || 'activity_output.pdf',
+          status: 'SUBMITTED',
+        },
+        include: {
+          module: { select: { id: true, title: true, teacherId: true } },
+          learner: { select: { id: true, fullName: true, lrn: true, level: true } },
+        },
+      });
+    }
+
+    // Synchronize learner progress for this module
+    await syncLearnerModuleProgress(targetLearnerId, parsedModuleId);
+
+    // Notify the teacher about activity submission
+    notifyActivitySubmitted({
+      submissionId: sub.id,
+      isUpdate: existingRows.length > 0,
+    }).catch((e) => console.error('[Submissions] notifyActivitySubmitted error:', e));
+
+    res.status(201).json(formatSubmission(sub, mergedFiles, [sub.id]));
   } catch (err) {
     next(err);
   }
@@ -368,7 +802,28 @@ async function handleSubmissionReview(req, res, next) {
 
     const sub = await prisma.submission.findUnique({
       where: { id },
-      include: { module: true, learner: true },
+      include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            teacherId: true,
+            targetLevel: true,
+            learningCenterId: true,
+            learningArea: { select: { id: true, name: true, code: true } },
+          },
+        },
+        learner: {
+          select: {
+            id: true,
+            fullName: true,
+            lrn: true,
+            level: true,
+            assignedTeacherId: true,
+            learningCenterId: true,
+          },
+        },
+      },
     });
 
     if (!sub) return res.status(404).json({ error: 'Submission not found' });
@@ -384,10 +839,29 @@ async function handleSubmissionReview(req, res, next) {
     // Normalize learning progress status
     let normalizedStatus = status;
     if (status) {
-      const lower = status.toLowerCase().replace(/_/g, ' ');
+      const lower = String(status).toLowerCase().replace(/_/g, ' ').trim();
       if (lower === 'mastered') normalizedStatus = 'Mastered';
       else if (lower === 'not mastered') normalizedStatus = 'Not Mastered';
     }
+
+    // Gather all rows for this (moduleId, learnerId) so we preserve all uploaded files and consolidate if needed
+    const allRows = await prisma.submission.findMany({
+      where: {
+        moduleId: sub.moduleId,
+        learnerId: sub.learnerId,
+      },
+      orderBy: { submittedAt: 'asc' },
+    });
+
+    const groupedList = groupSubmissionsByLearnerAndModule(allRows.length > 0 ? allRows : [sub]);
+    const allFiles = groupedList[0]?.files || extractFilesFromSubmissionRow(sub);
+    const primaryFile = allFiles[0] || null;
+    const plainText = extractPlainContent(sub.content);
+
+    const preservedContent = JSON.stringify({
+      text: plainText,
+      files: allFiles,
+    });
 
     const updated = await prisma.submission.update({
       where: { id },
@@ -395,12 +869,43 @@ async function handleSubmissionReview(req, res, next) {
         grade: grade !== undefined && grade !== null && grade !== '' ? Number(grade) : undefined,
         feedback: resolvedFeedback !== undefined ? String(resolvedFeedback).trim() : undefined,
         status: normalizedStatus || undefined,
+        fileUrl: primaryFile?.fileUrl || sub.fileUrl || undefined,
+        fileName: primaryFile?.fileName || sub.fileName || undefined,
+        content: allFiles.length > 0 ? preservedContent : undefined,
       },
       include: {
-        module: { select: { id: true, title: true, teacherId: true, level: true, strand: true, learningCenterId: true } },
-        learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true, learningCenterId: true } },
+        module: {
+          select: {
+            id: true,
+            title: true,
+            teacherId: true,
+            targetLevel: true,
+            learningCenterId: true,
+            learningArea: { select: { id: true, name: true, code: true } },
+          },
+        },
+        learner: {
+          select: {
+            id: true,
+            fullName: true,
+            lrn: true,
+            level: true,
+            assignedTeacherId: true,
+            learningCenterId: true,
+          },
+        },
       },
     });
+
+    // Clean up any duplicate rows for the same (moduleId, learnerId) now that files are consolidated on `id`
+    if (allRows.length > 1) {
+      const extraIds = allRows.map((r) => r.id).filter((rId) => rId !== id);
+      if (extraIds.length > 0) {
+        await prisma.submission.deleteMany({
+          where: { id: { in: extraIds } },
+        }).catch(() => {});
+      }
+    }
 
     // Also update LearnerProgress in database
     if (sub.learnerId && sub.moduleId && normalizedStatus) {
@@ -409,7 +914,6 @@ async function handleSubmissionReview(req, res, next) {
 
       if (isMastered || isNotMastered) {
         const masteryDb = isMastered ? 'MASTERED' : 'NOT_MASTERED';
-        const progressDb = isMastered ? 'COMPLETED' : 'IN_PROGRESS';
 
         await prisma.learnerProgress.upsert({
           where: {
@@ -420,19 +924,19 @@ async function handleSubmissionReview(req, res, next) {
           },
           update: {
             masteryStatus: masteryDb,
-            status: progressDb,
-            completedAt: isMastered ? new Date() : undefined,
           },
           create: {
             learnerId: sub.learnerId,
             moduleId: sub.moduleId,
             masteryStatus: masteryDb,
-            status: progressDb,
-            completedAt: isMastered ? new Date() : null,
           },
         }).catch((err) => console.warn('Could not update learner progress:', err));
+
+        await syncLearnerModuleProgress(sub.learnerId, sub.moduleId);
       }
     }
+
+    const scores = await getLearnerAssessmentScores(sub.learnerId, sub.moduleId);
 
     // Sync to AF2 records JSON file
     if (normalizedStatus) {
@@ -440,21 +944,34 @@ async function handleSubmissionReview(req, res, next) {
         learnerId: sub.learnerId,
         learnerName: sub.learner?.fullName || '',
         lrn: sub.learner?.lrn || '',
-        level: sub.learner?.level === 'ELEMENTARY' ? 'A&E Elementary' : (sub.learner?.level === 'JUNIOR' || String(sub.learner?.level || '').toUpperCase().includes('JUN') ? 'A&E Junior High' : 'A&E Elementary'),
+        level:
+          sub.learner?.level === 'ELEMENTARY'
+            ? 'A&E Elementary'
+            : sub.learner?.level === 'JUNIOR' || String(sub.learner?.level || '').toUpperCase().includes('JUN')
+            ? 'A&E Junior High'
+            : 'A&E Elementary',
         learningCenterId: sub.learner?.learningCenterId || sub.module?.learningCenterId || null,
         teacherId: teacherId || sub.module?.teacherId || null,
         teacherName: teacherName || '',
         moduleId: sub.moduleId,
         moduleTitle: sub.module?.title || sub.title || 'Learning Module',
-        strandName: sub.module?.strand || '',
+        strandName: sub.module?.learningArea?.name || '',
+        preTestScore: scores.preTestScore,
+        preTestTotal: scores.preTestTotal,
+        postTestScore: scores.postTestScore,
+        postTestTotal: scores.postTestTotal,
         assessment: normalizedStatus,
         moduleStatus: normalizedStatus,
+        uploadedOutputs: allFiles.map((f) => f.fileName || f.fileUrl).join(', '),
         remarks: resolvedFeedback !== undefined ? String(resolvedFeedback).trim() : '',
         dateFinished: (reviewedAt || new Date().toISOString()).split('T')[0],
       });
     }
 
-    res.json(formatSubmission(updated));
+    res.json({
+      ...formatSubmission(updated, allFiles, [updated.id]),
+      ...scores,
+    });
   } catch (err) {
     next(err);
   }

@@ -23,383 +23,439 @@
 
     <!-- Main Module Study View -->
     <template v-else>
-      <!-- Top Step Bar (Hidden when PDF is in full-screen reading mode to give maximum mobile viewport) -->
-      <div v-if="currentStep !== 2 || isReviewingPdfOutside" class="step-navigation-container">
-      <div class="step-nav-header">
-        <router-link v-if="currentStep === 0" to="/modules" class="back-link">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-          <span>My Modules</span>
-        </router-link>
-        <button v-else type="button" class="back-link btn-back-nav" @click="goToOverview">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-          <span>Module Overview</span>
-        </button>
-
-        <div class="module-mini-meta">
-          <span class="meta-strand-pill">{{ moduleStrandCode }}</span>
-          <span class="meta-code">{{ moduleCode }}</span>
-        </div>
-      </div>
-
-      <div class="module-main-header">
-        <h1 class="module-heading">{{ moduleTitle }}</h1>
-        <p class="module-subheading">{{ moduleSubheading }}</p>
-      </div>
-
-      <!-- 4-Step Horizontal Indicator -->
-      <div class="stepper-track" role="navigation" aria-label="Module Steps">
-        <div
-          v-for="s in steps"
-          :key="s.step"
-          class="step-item"
-          :class="{
-            active: currentStep === s.step,
-            completed: isStepCompleted(s.step),
-            disabled: !isStepUnlocked(s.step)
-          }"
-          @click="onStepClick(s.step)"
-        >
-          <div class="step-circle">
-            <!-- Checkmark icon if completed -->
-            <svg v-if="isStepCompleted(s.step)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12"></polyline>
+      <!-- Subpage Top Bar (visible only when inside Steps 1, 3, or 4) -->
+      <div v-if="currentStep !== 0 && currentStep !== 2" class="subpage-nav-bar">
+        <!-- First row: Back to Module -->
+        <div class="subpage-nav-row">
+          <button type="button" class="subpage-back-btn" @click="goToOverview">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
-            <!-- Step number otherwise -->
-            <span v-else>{{ s.step }}</span>
-          </div>
-          <span class="step-name">{{ s.label }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================================ -->
-    <!-- STEP 0: MODULE OVERVIEW (Learning Steps & Progress)          -->
-    <!-- ============================================================ -->
-    <div v-if="currentStep === 0" class="module-overview-wrapper">
-      <div class="overview-header-card">
-        <div class="overview-header-top">
-          <div class="overview-header-titles">
-            <h2 class="overview-main-heading">Learning Steps &amp; Overview</h2>
-            <div class="overview-meta-line">
-              <span class="overview-strand-tag">{{ moduleStrandCode }}</span>
-              <span class="overview-module-code">{{ moduleCode }}</span>
-            </div>
-          </div>
-          <div class="overview-status-pill" :class="overallStatusClass">
-            {{ overallStatusLabel }}
-          </div>
+            <span>Back to Module</span>
+          </button>
         </div>
 
-        <!-- Overall Progress Strip -->
-        <div class="overview-progress-strip">
-          <div class="strip-label-row">
-            <span class="strip-title">Overall Completion</span>
-            <span class="strip-pct">{{ computedProgressPercentage }}%</span>
+        <!-- Second row: STEP X & Activity Title & Completed Status -->
+        <div class="subpage-heading-group">
+          <div class="subpage-meta-row">
+            <span class="subpage-step-label">STEP {{ currentStep }}</span>
+            <span v-if="isAssessmentResultsView" class="subpage-completed-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Completed</span>
+            </span>
           </div>
-          <div class="strip-track">
-            <div class="strip-fill" :style="{ width: `${computedProgressPercentage}%` }"></div>
-          </div>
+          <h1 class="subpage-title-text">
+            {{ isPreTestResultsView ? 'Pre-Test Results' : isPostTestResultsView ? 'Post-Test Results' : getSubpageTitle(currentStep) }}
+          </h1>
         </div>
       </div>
 
-      <!-- 4 Learning Steps Cards -->
-      <div class="overview-steps-vertical-list">
-        <!-- Step 1 Card: Pre-Test -->
-        <div
-          class="overview-step-box"
-          :class="{
-            completed: isStepCompleted(1),
-            active: !isStepCompleted(1)
-          }"
-        >
-          <div class="step-card-header">
-            <div class="step-badge-circle" :class="{ 'circle-done': isStepCompleted(1) }">
-              <svg v-if="isStepCompleted(1)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
+      <!-- ============================================================ -->
+      <!-- STEP 0: MODULE OVERVIEW (Clean Google Classroom Checklist)    -->
+      <!-- ============================================================ -->
+      <div v-if="currentStep === 0" class="module-details-container">
+        <!-- Section 1: Module Header -->
+        <div class="module-header-card">
+          <div class="header-top-nav">
+            <router-link to="/modules" class="back-to-modules-link">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span v-else>1</span>
-            </div>
-            <div class="step-status-wrap">
-              <span class="step-tag-pill">Step 1</span>
-              <span v-if="isStepCompleted(1)" class="step-status-pill status-completed">
-                Completed &bull; Score: {{ progress.preTestScore ?? 0 }}/{{ preTestTotal }}
-              </span>
-              <span v-else class="step-status-pill status-ready">Ready to Start</span>
-            </div>
+              <span>My Modules</span>
+            </router-link>
           </div>
 
-          <div class="step-card-body">
-            <h3 class="step-box-title">Pre-Test (Diagnostic Assessment)</h3>
-            <p class="step-box-desc">
-              {{ isStepCompleted(1)
-                ? 'Your answers have been recorded. You can review your results and feedback anytime.'
-                : 'Measure your understanding before starting the lessons. Instant diagnostic feedback is provided.'
-              }}
-            </p>
+          <div class="header-titles">
+            <h1 class="module-main-title">{{ moduleTitle }}</h1>
+            <p class="module-strand-subtitle">{{ strandAndCodeText }}</p>
           </div>
 
-          <div class="step-card-footer">
-            <button
-              v-if="isStepCompleted(1)"
-              type="button"
-              class="btn-outline step-action-btn"
-              @click="goToStep(1)"
-            >
-              <span>View Results</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn-primary step-action-btn"
-              @click="goToStep(1)"
-            >
-              <span>Start Pre-Test</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
+          <div class="header-progress-wrap">
+            <div class="header-progress-row">
+              <span class="header-progress-label">Your Progress</span>
+              <span class="header-progress-percent">{{ computedProgressPercentage }}% Complete</span>
+            </div>
+            <div class="header-progress-track" role="progressbar" :aria-valuenow="computedProgressPercentage" aria-valuemin="0" aria-valuemax="100">
+              <div class="header-progress-fill" :style="{ width: `${computedProgressPercentage}%` }"></div>
+            </div>
           </div>
         </div>
 
-        <!-- Step 2 Card: Learning Materials -->
-        <div
-          class="overview-step-box"
-          :class="{
-            completed: isStepCompleted(2),
-            locked: !isStepUnlocked(2),
-            active: isStepUnlocked(2) && !isStepCompleted(2)
-          }"
-        >
-          <div class="step-card-header">
+        <!-- Section 2: Your Learning Activities -->
+        <div class="learning-activities-section">
+          <div class="activities-header">
+            <h2 class="activities-title">Your Learning Activities</h2>
+            <p class="activities-desc">Follow these four steps to finish your module.</p>
+          </div>
+
+          <div class="activities-checklist">
+            <!-- Step 1 Card: Pre-Test -->
             <div
-              class="step-badge-circle"
+              class="activity-card"
               :class="{
-                'circle-done': isStepCompleted(2),
-                'circle-locked': !isStepUnlocked(2)
+                'is-active-step': currentActiveStep === 1,
+                'is-completed': isStepCompleted(1),
+                'is-locked': !isStepUnlocked(1)
               }"
             >
-              <svg v-if="isStepCompleted(2)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <svg v-else-if="!isStepUnlocked(2)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span v-else>2</span>
+              <!-- Top Row: Icon, Title Group, Status -->
+              <div class="card-top-row">
+                <div
+                  class="card-icon-badge"
+                  :class="{
+                    'badge-completed': isStepCompleted(1),
+                    'badge-active': currentActiveStep === 1,
+                    'badge-locked': !isStepUnlocked(1)
+                  }"
+                >
+                  <!-- Small green check if completed -->
+                  <svg v-if="isStepCompleted(1)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <!-- Lock icon if locked -->
+                  <svg v-else-if="!isStepUnlocked(1)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <!-- Step number otherwise -->
+                  <span v-else>1</span>
+                </div>
+
+                <div class="card-title-group">
+                  <span class="card-step-label">Step 1</span>
+                  <h3 class="card-activity-title">Pre-Test</h3>
+                </div>
+
+                <div class="card-status-col">
+                  <span v-if="isStepCompleted(1)" class="card-status-pill status-completed">
+                    Completed
+                  </span>
+                  <span v-else-if="!isStepUnlocked(1)" class="card-status-pill status-locked">
+                    Locked
+                  </span>
+                  <span v-else class="card-status-pill status-ready">
+                    Ready
+                  </span>
+                </div>
+              </div>
+
+              <!-- Middle: Short Description -->
+              <p class="card-description">Answer a few questions before reading the module.</p>
+
+              <!-- Bottom Row: Assessment Score on Left, Action Button on Right -->
+              <div class="card-bottom-row">
+                <div class="card-bottom-left">
+                  <div v-if="isStepCompleted(1)" class="card-score-pill">
+                    <span class="score-label">Score:</span>
+                    <strong class="score-val">{{ progress.preTestScore ?? 0 }}/{{ preTestTotal }}</strong>
+                  </div>
+                </div>
+
+                <div class="card-bottom-right">
+                  <button
+                    v-if="isStepCompleted(1)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(1)"
+                  >
+                    <span>View Results</span>
+                  </button>
+                  <button
+                    v-else-if="isStepUnlocked(1)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(1)"
+                  >
+                    <span>Start Pre-Test</span>
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="activity-btn btn-locked"
+                    disabled
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Locked</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="step-status-wrap">
-              <span class="step-tag-pill">Step 2</span>
-              <span v-if="!isStepUnlocked(2)" class="step-status-pill status-locked">Locked</span>
-              <span v-else-if="isStepCompleted(2)" class="step-status-pill status-completed">Completed</span>
-              <span v-else-if="progress.readingStarted" class="step-status-pill status-in-progress">
-                In Progress &bull; Page {{ progress.pdfCurrentPage || 1 }} of {{ progress.pdfTotalPages || 29 }}
-              </span>
-              <span v-else class="step-status-pill status-ready">Ready to Read</span>
-            </div>
-          </div>
 
-          <div class="step-card-body">
-            <h3 class="step-box-title">Learning Materials (Module Reader)</h3>
-            <p class="step-box-desc">
-              Study the module lessons with vertical Long Strip or horizontal Wide Strip mode, full-screen reading, and zoom.
-            </p>
-          </div>
-
-          <div class="step-card-footer">
-            <button
-              v-if="isStepUnlocked(2)"
-              type="button"
-              class="btn-primary step-action-btn"
-              @click="goToStep(2)"
-            >
-              <span>{{ progress.readingStarted ? `Continue Reading (p. ${progress.pdfCurrentPage || 1})` : 'Open Learning Module' }}</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn-disabled step-action-btn"
-              disabled
-            >
-              <span>Complete Pre-Test First</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 3 Card: Post-Test -->
-        <div
-          class="overview-step-box"
-          :class="{
-            completed: isStepCompleted(3),
-            locked: !isStepUnlocked(3),
-            active: isStepUnlocked(3) && !isStepCompleted(3)
-          }"
-        >
-          <div class="step-card-header">
+            <!-- Step 2 Card: Read the Module -->
             <div
-              class="step-badge-circle"
+              class="activity-card"
               :class="{
-                'circle-done': isStepCompleted(3),
-                'circle-locked': !isStepUnlocked(3)
+                'is-active-step': currentActiveStep === 2,
+                'is-completed': isStepCompleted(2),
+                'is-locked': !isStepUnlocked(2)
               }"
             >
-              <svg v-if="isStepCompleted(3)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <svg v-else-if="!isStepUnlocked(3)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span v-else>3</span>
+              <!-- Top Row: Icon, Title Group, Status -->
+              <div class="card-top-row">
+                <div
+                  class="card-icon-badge"
+                  :class="{
+                    'badge-completed': isStepCompleted(2),
+                    'badge-active': currentActiveStep === 2,
+                    'badge-locked': !isStepUnlocked(2)
+                  }"
+                >
+                  <svg v-if="isStepCompleted(2)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else-if="!isStepUnlocked(2)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span v-else>2</span>
+                </div>
+
+                <div class="card-title-group">
+                  <span class="card-step-label">Step 2</span>
+                  <h3 class="card-activity-title">Read the Module</h3>
+                </div>
+
+                <div class="card-status-col">
+                  <span v-if="!isStepUnlocked(2)" class="card-status-pill status-locked">Locked</span>
+                  <span v-else-if="isStepCompleted(2)" class="card-status-pill status-completed">Completed</span>
+                  <span v-else-if="progress.readingStarted" class="card-status-pill status-in-progress">In Progress</span>
+                  <span v-else class="card-status-pill status-ready">Ready</span>
+                </div>
+              </div>
+
+              <!-- Middle: Short Description -->
+              <p class="card-description">Read the lessons and learn at your own pace.</p>
+
+              <!-- Bottom Row: Reading Info on Left, Action Button on Right -->
+              <div class="card-bottom-row">
+                <div class="card-bottom-left">
+                  <div v-if="!isStepCompleted(2) && progress.readingStarted" class="card-reading-progress">
+                    <span>Page {{ progress.pdfCurrentPage || 1 }} of {{ progress.pdfTotalPages || 29 }}</span>
+                  </div>
+                </div>
+
+                <div class="card-bottom-right">
+                  <button
+                    v-if="isStepCompleted(2)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(2)"
+                  >
+                    <span>Read Again</span>
+                  </button>
+                  <button
+                    v-else-if="isStepUnlocked(2)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(2)"
+                  >
+                    <span>{{ progress.readingStarted ? 'Continue Reading' : 'Start Reading' }}</span>
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="activity-btn btn-locked"
+                    disabled
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Locked</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="step-status-wrap">
-              <span class="step-tag-pill">Step 3</span>
-              <span v-if="!isStepUnlocked(3)" class="step-status-pill status-locked">Locked</span>
-              <span v-else-if="isStepCompleted(3)" class="step-status-pill status-completed">
-                Completed &bull; Score: {{ progress.postTestScore ?? 0 }}/{{ postTestTotal }}
-              </span>
-              <span v-else class="step-status-pill status-ready">Ready to Take</span>
-            </div>
-          </div>
 
-          <div class="step-card-body">
-            <h3 class="step-box-title">Post-Test (Mastery Assessment)</h3>
-            <p class="step-box-desc">
-              Evaluate your mastery of the lessons and compare your pre-test and post-test scores.
-            </p>
-          </div>
-
-          <div class="step-card-footer">
-            <button
-              v-if="isStepCompleted(3)"
-              type="button"
-              class="btn-outline step-action-btn"
-              @click="goToStep(3)"
-            >
-              <span>View Results</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else-if="isStepUnlocked(3)"
-              type="button"
-              class="btn-primary step-action-btn"
-              @click="goToStep(3)"
-            >
-              <span>Start Post-Test</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn-disabled step-action-btn"
-              disabled
-            >
-              <span>Read Module to Unlock</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 4 Card: Activities & Outputs -->
-        <div
-          class="overview-step-box"
-          :class="{
-            completed: isStepCompleted(4),
-            locked: !isStepUnlocked(4),
-            active: isStepUnlocked(4) && !isStepCompleted(4)
-          }"
-        >
-          <div class="step-card-header">
+            <!-- Step 3 Card: Post-Test -->
             <div
-              class="step-badge-circle"
+              class="activity-card"
               :class="{
-                'circle-done': isStepCompleted(4),
-                'circle-locked': !isStepUnlocked(4)
+                'is-active-step': currentActiveStep === 3,
+                'is-completed': isStepCompleted(3),
+                'is-locked': !isStepUnlocked(3)
               }"
             >
-              <svg v-if="isStepCompleted(4)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <svg v-else-if="!isStepUnlocked(4)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span v-else>4</span>
-            </div>
-            <div class="step-status-wrap">
-              <span class="step-tag-pill">Step 4</span>
-              <span v-if="!isStepUnlocked(4)" class="step-status-pill status-locked">Locked</span>
-              <span v-else-if="isStepCompleted(4)" class="step-status-pill status-completed">Submitted</span>
-              <span v-else class="step-status-pill status-ready">Ready to Submit</span>
-            </div>
-          </div>
+              <!-- Top Row: Icon, Title Group, Status -->
+              <div class="card-top-row">
+                <div
+                  class="card-icon-badge"
+                  :class="{
+                    'badge-completed': isStepCompleted(3),
+                    'badge-active': currentActiveStep === 3,
+                    'badge-locked': !isStepUnlocked(3)
+                  }"
+                >
+                  <svg v-if="isStepCompleted(3)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else-if="!isStepUnlocked(3)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span v-else>3</span>
+                </div>
 
-          <div class="step-card-body">
-            <h3 class="step-box-title">Activity Submission (Handwritten Work)</h3>
-            <p class="step-box-desc">
-              {{ !isStepUnlocked(4)
-                ? 'Locked until you complete the Post-Test. Upload photos or PDF copies of your handwritten activity outputs once unlocked.'
-                : 'Upload photos or PDF copies of your handwritten activity outputs for teacher evaluation.'
-              }}
-            </p>
-          </div>
+                <div class="card-title-group">
+                  <span class="card-step-label">Step 3</span>
+                  <h3 class="card-activity-title">Post-Test</h3>
+                </div>
 
-          <div class="step-card-footer">
-            <button
-              v-if="isStepCompleted(4)"
-              type="button"
-              class="btn-outline step-action-btn"
-              @click="goToStep(4)"
+                <div class="card-status-col">
+                  <span v-if="!isStepUnlocked(3)" class="card-status-pill status-locked">Locked</span>
+                  <span v-else-if="isStepCompleted(3)" class="card-status-pill status-completed">Completed</span>
+                  <span v-else class="card-status-pill status-ready">Ready</span>
+                </div>
+              </div>
+
+              <!-- Middle: Short Description -->
+              <p class="card-description">Answer questions about what you learned.</p>
+
+              <!-- Bottom Row: Assessment Score on Left, Action Button on Right -->
+              <div class="card-bottom-row">
+                <div class="card-bottom-left">
+                  <div v-if="isStepCompleted(3)" class="card-score-pill">
+                    <span class="score-label">Score:</span>
+                    <strong class="score-val">{{ progress.postTestScore ?? 0 }}/{{ postTestTotal }}</strong>
+                  </div>
+                </div>
+
+                <div class="card-bottom-right">
+                  <button
+                    v-if="isStepCompleted(3)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(3)"
+                  >
+                    <span>View Results</span>
+                  </button>
+                  <button
+                    v-else-if="isStepUnlocked(3)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(3)"
+                  >
+                    <span>Start Post-Test</span>
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="activity-btn btn-locked"
+                    disabled
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Locked</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 4 Card: Submit Your Activity -->
+            <div
+              class="activity-card"
+              :class="{
+                'is-active-step': currentActiveStep === 4,
+                'is-completed': isStepCompleted(4),
+                'is-locked': !isStepUnlocked(4)
+              }"
             >
-              <span>View Submission</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else-if="isStepUnlocked(4)"
-              type="button"
-              class="btn-primary step-action-btn"
-              @click="goToStep(4)"
-            >
-              <span>Upload Activities</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn-disabled step-action-btn"
-              disabled
-            >
-              <span>Complete Post-Test to Unlock</span>
-            </button>
+              <!-- Top Row: Icon, Title Group, Status -->
+              <div class="card-top-row">
+                <div
+                  class="card-icon-badge"
+                  :class="{
+                    'badge-completed': isStepCompleted(4),
+                    'badge-active': currentActiveStep === 4,
+                    'badge-locked': !isStepUnlocked(4)
+                  }"
+                >
+                  <svg v-if="isStepCompleted(4)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else-if="!isStepUnlocked(4)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <span v-else>4</span>
+                </div>
+
+                <div class="card-title-group">
+                  <span class="card-step-label">Step 4</span>
+                  <h3 class="card-activity-title">Submit Your Activity</h3>
+                </div>
+
+                <div class="card-status-col">
+                  <span v-if="!isStepUnlocked(4)" class="card-status-pill status-locked">Locked</span>
+                  <span v-else-if="isStepCompleted(4)" class="card-status-pill status-completed">Submitted</span>
+                  <span v-else class="card-status-pill status-ready">Ready</span>
+                </div>
+              </div>
+
+              <!-- Middle: Short Description -->
+              <p class="card-description">Upload photos of your written answers or a PDF file.</p>
+
+              <!-- Bottom Row: Submissions Info on Left, Action Button on Right -->
+              <div class="card-bottom-row">
+                <div class="card-bottom-left">
+                  <span v-if="isStepCompleted(4) && progress.submittedFilesMeta?.length" class="card-submission-meta">
+                    {{ progress.submittedFilesMeta.length }} file{{ progress.submittedFilesMeta.length > 1 ? 's' : '' }} submitted
+                  </span>
+                </div>
+
+                <div class="card-bottom-right">
+                  <button
+                    v-if="isStepCompleted(4)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(4)"
+                  >
+                    <span>View My Submissions</span>
+                  </button>
+                  <button
+                    v-else-if="isStepUnlocked(4)"
+                    type="button"
+                    class="activity-btn btn-primary"
+                    @click="goToStep(4)"
+                  >
+                    <span>Submit Activity</span>
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="activity-btn btn-locked"
+                    disabled
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Locked</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
     <!-- ============================================================ -->
     <!-- STEP 1: PRE-TEST (Multiple-Choice Questions)                 -->
     <!-- ============================================================ -->
-    <div v-else-if="currentStep === 1" class="step-content-card">
+    <div v-else-if="currentStep === 1" class="step-content-card" :class="{ 'results-view-mode': isPreTestResultsView }">
       <!-- No Pre-Test Questions Configured -->
       <div v-if="preTestQuestions.length === 0" class="score-summary-box">
         <div class="score-icon-badge">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#165dfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
@@ -408,7 +464,7 @@
         <span class="summary-status-pill">Ready to Study</span>
         <h2 class="summary-title">No Pre-Test Required</h2>
         <p class="summary-desc">
-          This module does not require a diagnostic assessment. You can proceed directly to the learning materials.
+          This module does not require a pre-test. You can proceed directly to read the module.
         </p>
 
         <button
@@ -416,7 +472,7 @@
           class="btn-primary summary-action-btn"
           @click="proceedToModuleReader"
         >
-          <span>Proceed to Learning Module</span>
+          <span>Proceed to Read the Module</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
@@ -427,7 +483,7 @@
       <template v-else-if="!progress.preTestCompleted && !showingPreTestScore">
         <div class="assessment-header">
           <div class="assessment-eyebrow">
-            <span class="step-badge">Diagnostic Assessment</span>
+            <span class="step-badge">Pre-Test</span>
             <span class="q-counter">Question {{ currentPreQIndex + 1 }} of {{ preTestQuestions.length }}</span>
           </div>
 
@@ -497,7 +553,7 @@
             </svg>
             <strong>{{ isPreAnswerCorrect ? 'Correct!' : 'Incorrect' }}</strong>
           </div>
-          <p class="feedback-detail">{{ currentPreQ.feedback }}</p>
+          <p class="feedback-detail">{{ getQuestionFeedback(currentPreQ, isPreAnswerCorrect) }}</p>
         </div>
 
         <!-- Action Buttons -->
@@ -525,57 +581,34 @@
         </div>
       </template>
 
-      <!-- Pre-Test Completed / Score Summary & Read-Only Review View -->
+      <!-- Pre-Test Completed / Compact Score Summary & Review View -->
       <template v-else>
-        <!-- Notice Banner: Pre-Test is Completed and Cannot Be Re-taken -->
-        <div class="pretest-notice-banner">
-          <div class="banner-icon-badge">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-          </div>
-          <div class="banner-text-wrap">
-            <span class="banner-status-tag">Pre-Test Completed</span>
-            <p class="banner-message">
-              Pre-Test Completed. You have already submitted your answers. You can review your results, but you cannot answer again.
+        <!-- Compact Score Summary -->
+        <div class="results-score-card">
+          <div class="results-score-row">
+            <div class="results-score-badge">
+              <span class="results-score-val">{{ progress.preTestScore ?? 0 }}/{{ preTestTotal }}</span>
+              <span class="results-score-percent">({{ Math.round(((progress.preTestScore ?? 0) / (preTestTotal || 1)) * 100) }}%)</span>
+            </div>
+            <p class="results-score-confirm">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span>Your answers have been saved.</span>
             </p>
           </div>
-        </div>
 
-        <div class="score-summary-box">
-          <div class="score-highlight-card">
-            <div class="score-number-display">
-              <span class="score-big">{{ progress.preTestScore ?? 0 }}</span>
-              <span class="score-divider">/</span>
-              <span class="score-total">{{ preTestTotal }}</span>
-            </div>
-            <div class="score-percentage-tag">
-              {{ Math.round(((progress.preTestScore ?? 0) / preTestTotal) * 100) }}% Score
-            </div>
-          </div>
-
-          <div class="instruction-box">
-            <strong>Diagnostic Results Recorded:</strong> This pre-test assessed your initial understanding. Proceed to study the module lessons or review your answers below.
-          </div>
-
-          <div class="summary-button-group">
+          <div class="results-actions-row">
             <button
               type="button"
-              class="btn-primary summary-action-btn"
+              class="btn-primary results-primary-btn"
               @click="proceedToModuleReader"
             >
-              <span>{{ progress.readingStarted ? `Continue Reading (p. ${progress.pdfCurrentPage || 1})` : 'Proceed to Learning Module' }}</span>
+              <span>{{ progress.readingStarted ? `Continue Reading (p. ${progress.pdfCurrentPage || 1})` : 'Proceed to Read the Module' }}</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-            </button>
-            <button
-              type="button"
-              class="btn-secondary overview-btn"
-              @click="goToOverview"
-            >
-              <span>Back to Module Overview</span>
             </button>
           </div>
         </div>
@@ -583,7 +616,7 @@
         <!-- Read-Only Review of Submitted Questions & Answers -->
         <div v-if="preTestQuestions.length > 0" class="readonly-review-section">
           <div class="review-section-header">
-            <h3 class="review-title">Review Submitted Answers &amp; Feedback</h3>
+            <h3 class="review-title">Review Submitted Answers</h3>
             <span class="review-count">{{ preTestQuestions.length }} Questions</span>
           </div>
 
@@ -623,26 +656,52 @@
                     'is-correct-target': opt.id === q.correctAnswer && progress.preTestAnswers[q.id] !== opt.id
                   }"
                 >
-                  <div class="review-opt-circle">
-                    <span v-if="progress.preTestAnswers[q.id] !== opt.id && opt.id !== q.correctAnswer">
-                      {{ opt.letter || opt.id }}
+                  <!-- Label ABOVE answer text -->
+                  <div
+                    v-if="progress.preTestAnswers[q.id] === opt.id || opt.id === q.correctAnswer"
+                    class="review-opt-label-row"
+                  >
+                    <span
+                      v-if="progress.preTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer"
+                      class="badge-user-choice badge-choice-correct"
+                    >
+                      Your Answer &bull; Correct
                     </span>
-                    <svg v-else-if="opt.id === q.correctAnswer" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    <svg v-else-if="progress.preTestAnswers[q.id] === opt.id" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
+                    <span
+                      v-else-if="progress.preTestAnswers[q.id] === opt.id"
+                      class="badge-user-choice badge-choice-wrong"
+                    >
+                      Your Answer
+                    </span>
+                    <span
+                      v-else-if="opt.id === q.correctAnswer"
+                      class="badge-correct-choice"
+                    >
+                      Correct Answer
+                    </span>
                   </div>
-                  <span class="review-opt-text">{{ opt.text }}</span>
-                  <span v-if="progress.preTestAnswers[q.id] === opt.id" class="badge-user-choice">Your Answer</span>
-                  <span v-else-if="opt.id === q.correctAnswer" class="badge-correct-choice">Correct Answer</span>
+
+                  <!-- Option circle & text -->
+                  <div class="review-opt-content">
+                    <div class="review-opt-circle">
+                      <span v-if="progress.preTestAnswers[q.id] !== opt.id && opt.id !== q.correctAnswer">
+                        {{ opt.letter || opt.id }}
+                      </span>
+                      <svg v-else-if="opt.id === q.correctAnswer" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <svg v-else-if="progress.preTestAnswers[q.id] === opt.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </div>
+                    <span class="review-opt-text">{{ opt.text }}</span>
+                  </div>
                 </div>
               </div>
 
-              <div v-if="q.feedback" class="review-feedback-card">
-                <strong>Feedback:</strong> {{ q.feedback }}
+              <div v-if="getQuestionFeedback(q, progress.preTestAnswers[q.id] === q.correctAnswer)" class="review-feedback-card">
+                <strong>Feedback:</strong> {{ getQuestionFeedback(q, progress.preTestAnswers[q.id] === q.correctAnswer) }}
               </div>
             </div>
           </div>
@@ -655,10 +714,12 @@
     <!-- ============================================================ -->
     <div v-else-if="currentStep === 2" class="step-reader-wrapper">
       <MockPdfViewer
+        :moduleId="effectiveModuleId"
         :pdfUrl="pdfUrl"
         :title="moduleTitle"
         :code="moduleCode"
         :subtitle="moduleStrandCode"
+        :downloadFileName="moduleDownloadFileName"
         :initialPage="progress.pdfCurrentPage || 1"
         :initialMode="progress.pdfViewMode || 'long'"
         @back="onViewerBack"
@@ -670,7 +731,7 @@
     <!-- ============================================================ -->
     <!-- STEP 3: POST-TEST (Multiple-Choice Questions)                -->
     <!-- ============================================================ -->
-    <div v-else-if="currentStep === 3" class="step-content-card">
+    <div v-else-if="currentStep === 3" class="step-content-card" :class="{ 'results-view-mode': isPostTestResultsView }">
       <!-- No Post-Test Questions Configured -->
       <div v-if="postTestQuestions.length === 0" class="score-summary-box">
         <div class="score-icon-badge post-badge-circle">
@@ -679,10 +740,10 @@
           </svg>
         </div>
 
-        <span class="summary-status-pill post-pill">Mastery Assessment Skipped</span>
+        <span class="summary-status-pill post-pill">Post-Test Skipped</span>
         <h2 class="summary-title">No Post-Test Required</h2>
         <p class="summary-desc">
-          This module does not require a mastery post-test. Continue to submit your activity outputs.
+          This module does not require a post-test. Continue to submit your activity.
         </p>
 
         <button
@@ -690,7 +751,7 @@
           class="btn-primary summary-action-btn"
           @click="proceedToActivitySubmission"
         >
-          <span>Continue to Activity Submission</span>
+          <span>Proceed to Submit Activity</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
@@ -701,7 +762,7 @@
       <template v-else-if="!progress.postTestCompleted && !showingPostTestScore">
         <div class="assessment-header">
           <div class="assessment-eyebrow">
-            <span class="step-badge post-badge">Mastery Assessment</span>
+            <span class="step-badge post-badge">Post-Test</span>
             <span class="q-counter">Question {{ currentPostQIndex + 1 }} of {{ postTestQuestions.length }}</span>
           </div>
 
@@ -720,7 +781,7 @@
             {{ currentPostQ.question }}
           </h2>
 
-          <!-- Options -->
+          <!-- Options (Do not reveal correct answers or feedback before Post-Test submission) -->
           <div class="options-list">
             <button
               v-for="opt in currentPostQ.options"
@@ -728,70 +789,27 @@
               type="button"
               class="option-item"
               :class="{
-                selected: selectedPostAnswer === opt.id,
-                correct: isPostSubmitted && opt.id === currentPostQ.correctAnswer,
-                incorrect: isPostSubmitted && selectedPostAnswer === opt.id && opt.id !== currentPostQ.correctAnswer,
-                locked: isPostSubmitted
+                selected: selectedPostAnswer === opt.id
               }"
-              :disabled="isPostSubmitted"
               @click="onSelectPostAnswer(opt.id)"
             >
               <div class="opt-letter-circle">
-                <span v-if="!isPostSubmitted || (opt.id !== currentPostQ.correctAnswer && selectedPostAnswer !== opt.id)">
-                  {{ opt.letter || opt.id }}
-                </span>
-                <svg v-else-if="opt.id === currentPostQ.correctAnswer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <svg v-else-if="selectedPostAnswer === opt.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+                <span>{{ opt.letter || opt.id }}</span>
               </div>
               <span class="opt-text">{{ opt.text }}</span>
             </button>
           </div>
         </div>
 
-        <!-- Feedback Card -->
-        <div
-          v-if="isPostSubmitted"
-          class="feedback-card"
-          :class="isPostAnswerCorrect ? 'feedback-correct' : 'feedback-incorrect'"
-        >
-          <div class="feedback-heading">
-            <svg v-if="isPostAnswerCorrect" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <strong>{{ isPostAnswerCorrect ? 'Correct!' : 'Incorrect' }}</strong>
-          </div>
-          <p class="feedback-detail">{{ currentPostQ.feedback }}</p>
-        </div>
-
         <!-- Actions -->
         <div class="assessment-actions">
           <button
-            v-if="!isPostSubmitted"
             type="button"
             class="btn-primary action-btn"
             :disabled="!selectedPostAnswer"
             @click="submitPostAnswer"
           >
-            Submit Answer
-          </button>
-          <button
-            v-else
-            type="button"
-            class="btn-primary action-btn"
-            @click="nextPostQuestion"
-          >
-            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : 'View Post-Test Results' }}</span>
+            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : 'Submit Post-Test' }}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -799,95 +817,197 @@
         </div>
       </template>
 
-      <!-- Post-Test Comparison & Mastery Summary View -->
+      <!-- Post-Test Completed / Compact Score Summary & Review View -->
       <template v-else>
-        <div class="score-summary-box">
-          <div class="score-icon-badge post-badge-circle">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
+        <!-- Compact Score Summary -->
+        <div class="results-score-card">
+          <div class="results-score-row">
+            <div class="results-score-badge">
+              <span class="results-score-val">{{ progress.postTestScore ?? 0 }}/{{ postTestTotal }}</span>
+              <span class="results-score-percent">({{ Math.round(((progress.postTestScore ?? 0) / (postTestTotal || 1)) * 100) }}%)</span>
+            </div>
+            <p class="results-score-confirm">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span>Your answers have been saved.</span>
+            </p>
           </div>
 
-          <span class="summary-status-pill post-pill">Post-Test Completed</span>
-          <h2 class="summary-title">Learning Mastery Results</h2>
-          <p class="summary-desc">
-            Compare your understanding before and after studying <em>{{ moduleTitle }}</em>.
-          </p>
+          <!-- Compact Comparison (if Pre-Test was also taken) -->
+          <div v-if="progress.preTestCompleted && preTestTotal > 0" class="results-comp-pills">
+            <span class="comp-pill">Pre-Test: {{ progress.preTestScore }}/{{ preTestTotal }}</span>
+            <span class="comp-pill" :class="scoreImprovement >= 0 ? 'pill-gain' : 'pill-loss'">
+              {{ scoreImprovement >= 0 ? `+${scoreImprovement}` : scoreImprovement }} pts improvement
+            </span>
+          </div>
 
-          <!-- Dynamic Comparison Cards -->
-          <div class="comparison-grid">
-            <div class="comp-card">
-              <span class="comp-label">Pre-Test Score</span>
-              <div class="comp-val">{{ progress.preTestScore }} / {{ preTestTotal }}</div>
-              <span class="comp-sub">{{ Math.round((progress.preTestScore / preTestTotal) * 100) }}%</span>
-            </div>
+          <div class="results-actions-row">
+            <button
+              type="button"
+              class="btn-primary results-primary-btn"
+              @click="proceedToActivitySubmission"
+            >
+              <span>Proceed to Submit Activity</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
+        </div>
 
-            <div class="comp-card highlight-post">
-              <span class="comp-label">Post-Test Score</span>
-              <div class="comp-val text-green">{{ progress.postTestScore }} / {{ postTestTotal }}</div>
-              <span class="comp-sub">{{ Math.round((progress.postTestScore / postTestTotal) * 100) }}%</span>
-            </div>
+        <!-- Read-Only Review of Submitted Post-Test Questions & Feedback -->
+        <div v-if="postTestQuestions.length > 0" class="readonly-review-section">
+          <div class="review-section-header">
+            <h3 class="review-title">Review Submitted Answers</h3>
+            <span class="review-count">{{ postTestQuestions.length }} Questions</span>
+          </div>
 
-            <div class="comp-card highlight-delta">
-              <span class="comp-label">Improvement</span>
-              <div class="comp-val" :class="scoreImprovement >= 0 ? 'text-blue' : 'text-amber'">
-                {{ scoreImprovement >= 0 ? `+${scoreImprovement}` : scoreImprovement }} pts
+          <div class="review-questions-list">
+            <div
+              v-for="(q, qIdx) in postTestQuestions"
+              :key="`post-review-${q.id || qIdx}`"
+              class="review-question-card"
+            >
+              <div class="review-q-header">
+                <span class="q-num-pill">Question {{ qIdx + 1 }}</span>
+                <span
+                  class="q-result-tag"
+                  :class="progress.postTestAnswers[q.id] === q.correctAnswer ? 'tag-correct' : 'tag-incorrect'"
+                >
+                  <svg v-if="progress.postTestAnswers[q.id] === q.correctAnswer" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                  <span>{{ progress.postTestAnswers[q.id] === q.correctAnswer ? 'Correct' : 'Incorrect' }}</span>
+                </span>
               </div>
-              <span class="comp-sub">percentage points</span>
+
+              <h4 class="review-q-text">{{ q.question }}</h4>
+
+              <div class="review-options-list">
+                <div
+                  v-for="opt in q.options"
+                  :key="opt.id"
+                  class="review-opt-item"
+                  :class="{
+                    'chosen-correct': progress.postTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer,
+                    'chosen-wrong': progress.postTestAnswers[q.id] === opt.id && opt.id !== q.correctAnswer,
+                    'is-correct-target': opt.id === q.correctAnswer && progress.postTestAnswers[q.id] !== opt.id
+                  }"
+                >
+                  <!-- Label ABOVE answer text -->
+                  <div
+                    v-if="progress.postTestAnswers[q.id] === opt.id || opt.id === q.correctAnswer"
+                    class="review-opt-label-row"
+                  >
+                    <span
+                      v-if="progress.postTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer"
+                      class="badge-user-choice badge-choice-correct"
+                    >
+                      Your Answer &bull; Correct
+                    </span>
+                    <span
+                      v-else-if="progress.postTestAnswers[q.id] === opt.id"
+                      class="badge-user-choice badge-choice-wrong"
+                    >
+                      Your Answer
+                    </span>
+                    <span
+                      v-else-if="opt.id === q.correctAnswer"
+                      class="badge-correct-choice"
+                    >
+                      Correct Answer
+                    </span>
+                  </div>
+
+                  <!-- Option circle & text -->
+                  <div class="review-opt-content">
+                    <div class="review-opt-circle">
+                      <span v-if="progress.postTestAnswers[q.id] !== opt.id && opt.id !== q.correctAnswer">
+                        {{ opt.letter || opt.id }}
+                      </span>
+                      <svg v-else-if="opt.id === q.correctAnswer" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <svg v-else-if="progress.postTestAnswers[q.id] === opt.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </div>
+                    <span class="review-opt-text">{{ opt.text }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="getQuestionFeedback(q, progress.postTestAnswers[q.id] === q.correctAnswer)" class="review-feedback-card">
+                <strong>Feedback:</strong> {{ getQuestionFeedback(q, progress.postTestAnswers[q.id] === q.correctAnswer) }}
+              </div>
             </div>
           </div>
-
-          <div class="instruction-box">
-            <strong>Next Step:</strong> You are ready for the final step. Take clear photos of your handwritten answers or upload your PDF output for the activities.
-          </div>
-
-          <button
-            type="button"
-            class="btn-primary summary-action-btn"
-            @click="proceedToActivitySubmission"
-          >
-            <span>Continue to Activity Submission</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
         </div>
       </template>
     </div>
 
     <!-- ============================================================ -->
-    <!-- STEP 4: HANDWRITTEN ACTIVITY SUBMISSION (Images / PDF)        -->
+    <!-- STEP 4: SUBMIT YOUR ACTIVITY                                 -->
     <!-- ============================================================ -->
     <div v-else-if="currentStep === 4" class="step-content-card">
       <div class="activity-upload-section">
+        <!-- Step Header -->
         <div class="activity-header">
-          <span class="step-badge">Final Step</span>
-          <h2 class="activity-title">Upload Activity Answers</h2>
+          <span class="step-badge">Step 4</span>
+          <h2 class="activity-title">Submit Your Activity</h2>
           <p class="activity-desc">
-            Take clear photos of your answers written on paper, or upload them as a PDF. Make sure your answers are readable.
+            Upload photos of your written answers or a PDF file.
           </p>
         </div>
 
-        <!-- Success Banner if already submitted -->
-        <div v-if="progress.activitySubmitted" class="submitted-demo-banner">
-          <div class="demo-badge-wrap">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Toast Feedback Alert -->
+        <transition name="fade">
+          <div v-if="toastMessage" class="files-toast-alert" role="status">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
               <polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
-            <div>
-              <h3 class="demo-success-title">{{ isMock ? 'Activities Submitted (Demo)' : 'Activities Submitted' }}</h3>
-              <p class="demo-success-text">
-                {{ isMock ? 'Your activity answers have been saved for this demonstration.' : 'Your activity output has been uploaded and submitted to your teacher.' }}
-              </p>
-            </div>
+            <span>{{ toastMessage }}</span>
           </div>
-          <p class="demo-disclaimer">
-            {{ isMock ? 'Note: This is a working mock demonstration for previewing the learner experience. Your activity outputs have been recorded in browser storage and this module is now marked Completed.' : 'Your activities have been recorded. Your teacher can now review and grade your work.' }}
-          </p>
+        </transition>
+
+        <!-- Finalized Notice if Teacher checked work -->
+        <div v-if="isReviewFinalized" class="review-finalized-banner">
+          <div class="banner-icon-col">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </div>
+          <div class="banner-text-col">
+            <h3 class="banner-title">Review Finalized</h3>
+            <p class="banner-subtext">Your teacher has checked your work. You cannot change these files now.</p>
+          </div>
         </div>
 
-        <!-- File Upload Area -->
+        <!-- Success Message if Submitted & Not Finalized -->
+        <div v-else-if="progress.activitySubmitted" class="sent-success-banner">
+          <div class="banner-icon-col">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="8 12 11 15 16 9"/>
+            </svg>
+          </div>
+          <div class="banner-text-col">
+            <h3 class="sent-title">Activity Submitted!</h3>
+            <p class="sent-subtext">Your teacher can now check your work.</p>
+          </div>
+        </div>
+
+        <!-- File Upload Area (Dropzone) if Not Submitted Yet -->
         <div
           v-if="!progress.activitySubmitted"
           class="dropzone-box"
@@ -907,7 +1027,7 @@
           />
 
           <div class="dropzone-icon">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#165dfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
@@ -927,22 +1047,22 @@
           {{ uploadError }}
         </div>
 
-        <!-- Selected Files List & Previews -->
-        <div v-if="selectedFiles.length > 0" class="selected-files-container">
-          <h3 class="files-heading">Selected Files ({{ selectedFiles.length }})</h3>
+        <!-- Section: Your Uploaded Files -->
+        <div v-if="displayFilesList.length > 0" class="selected-files-container">
+          <h3 class="files-heading">Your Uploaded Files ({{ displayFilesList.length }})</h3>
 
           <div class="files-grid">
             <div
-              v-for="(f, fIdx) in selectedFiles"
-              :key="`file-${fIdx}`"
+              v-for="f in displayFilesList"
+              :key="`file-${f.index}-${f.name}`"
               class="file-item-card"
             >
-              <!-- Thumbnail -->
+              <!-- Thumbnail / File Icon -->
               <div class="file-thumb-wrap">
                 <img
-                  v-if="f.previewUrl"
-                  :src="f.previewUrl"
-                  alt="Preview"
+                  v-if="isImageFile(f) && (f.previewUrl || f.fileUrl)"
+                  :src="f.previewUrl || resolveFileUrl(f.fileUrl)"
+                  :alt="f.name"
                   class="file-img-preview"
                 />
                 <div v-else class="file-pdf-thumb">
@@ -960,95 +1080,234 @@
                 <span class="file-size">{{ formatFileSize(f.size) }}</span>
               </div>
 
-              <!-- Remove button -->
-              <button
-                v-if="!progress.activitySubmitted"
-                type="button"
-                class="file-remove-btn"
-                @click="removeFile(fIdx)"
-                title="Remove file"
-                aria-label="Remove file"
-              >
-                &times;
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Saved Submitted Files if returning to page -->
-        <div v-else-if="progress.activitySubmitted && progress.submittedFilesMeta?.length > 0" class="selected-files-container">
-          <h3 class="files-heading">Uploaded Files Recorded ({{ progress.submittedFilesMeta.length }})</h3>
-          <div class="files-grid">
-            <div
-              v-for="(f, fIdx) in progress.submittedFilesMeta"
-              :key="`saved-${fIdx}`"
-              class="file-item-card"
-            >
-              <div class="file-thumb-wrap">
-                <div class="file-pdf-thumb">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#165dfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
+              <!-- One Three-Dot Menu (NO separate eye icon) -->
+              <div class="file-menu-wrap" @click.stop>
+                <button
+                  type="button"
+                  class="three-dot-btn"
+                  :aria-expanded="activeMenuFileIndex === f.index"
+                  aria-label="File options"
+                  @click.stop="toggleFileMenu(f.index)"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2"/>
+                    <circle cx="12" cy="12" r="2"/>
+                    <circle cx="12" cy="19" r="2"/>
                   </svg>
+                </button>
+
+                <div
+                  v-if="activeMenuFileIndex === f.index"
+                  class="file-dropdown-menu"
+                >
+                  <button
+                    type="button"
+                    class="menu-action-item"
+                    @click="handleViewFile(f)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <span>View File</span>
+                  </button>
+
+                  <button
+                    v-if="!isReviewFinalized"
+                    type="button"
+                    class="menu-action-item"
+                    @click="promptReplaceFile(f.index)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 2v6h-6"/>
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                      <path d="M3 22v-6h6"/>
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                    <span>Replace File</span>
+                  </button>
+
+                  <button
+                    v-if="!isReviewFinalized"
+                    type="button"
+                    class="menu-action-item item-danger"
+                    @click="promptRemoveFile(f.index)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      <line x1="10" y1="11" x2="10" y2="17"/>
+                      <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                    <span>Remove File</span>
+                  </button>
                 </div>
               </div>
-              <div class="file-details">
-                <span class="file-name">{{ f.name }}</span>
-                <span class="file-size">{{ formatFileSize(f.size) }}</span>
-              </div>
             </div>
           </div>
         </div>
 
-        <!-- Submit Activities Button -->
+        <!-- Hidden Inputs for File Actions -->
+        <input
+          type="file"
+          ref="replaceFileInputRef"
+          style="display: none;"
+          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+          @change="onReplaceFileSelected"
+        />
+        <input
+          type="file"
+          ref="addMoreFileInputRef"
+          style="display: none;"
+          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+          multiple
+          @change="onAddMoreFilesSelected"
+        />
+        <!-- Action Buttons Area -->
         <div class="activity-actions">
-          <button
-            v-if="!progress.activitySubmitted"
-            type="button"
-            class="btn-primary submit-activities-btn"
-            :disabled="selectedFiles.length === 0 || isSubmittingActivity"
-            @click="handleSubmitActivities"
-          >
-            <span v-if="isSubmittingActivity">Submitting Activities...</span>
-            <span v-else>Submit Activities</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-
-          <!-- Module Completed Actions -->
-          <div v-else class="completed-nav-buttons">
+          <!-- When Not Submitted Yet: Initial Submit Button -->
+          <div v-if="!progress.activitySubmitted" class="submitted-actions-wrap">
             <button
               type="button"
-              class="btn-outline re-read-btn"
-              @click="reopenPdfViewer"
+              class="btn-primary submit-activities-btn"
+              :disabled="selectedFiles.length === 0 || isSubmittingActivity"
+              @click="handleSubmitActivities"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-              </svg>
-              <span>Reopen Learning Module</span>
-            </button>
-
-            <router-link
-              to="/modules"
-              class="btn-primary return-modules-btn"
-            >
-              <span>Back to My Modules</span>
+              <span v-if="isSubmittingActivity">Submitting Activity...</span>
+              <span v-else>Submit Activity</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
+            </button>
+
+            <!-- Back to My Modules Button -->
+            <router-link
+              to="/modules"
+              class="btn-back-modules"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+              </svg>
+              <span>Back to My Modules</span>
+            </router-link>
+          </div>
+
+          <!-- When Already Submitted -->
+          <div v-else class="submitted-actions-wrap">
+            <!-- Add More Files Button (if review not finalized) -->
+            <button
+              v-if="!isReviewFinalized"
+              type="button"
+              class="btn-primary add-more-btn"
+              :disabled="isUpdatingFiles"
+              @click="triggerAddFiles"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Add More Files</span>
+            </button>
+
+            <!-- Back to My Modules Button -->
+            <router-link
+              to="/modules"
+              class="btn-back-modules"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+              </svg>
+              <span>Back to My Modules</span>
             </router-link>
           </div>
         </div>
       </div>
     </div>
     </template>
+
+    <!-- Confirmation Modal: Remove File -->
+    <div v-if="fileToRemove !== null" class="custom-modal-overlay" @click.self="cancelRemoveFile">
+      <div class="custom-modal-box" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
+        <h3 id="remove-modal-title" class="custom-modal-title">Remove this file?</h3>
+        <p class="custom-modal-text">Are you sure you want to remove this file?</p>
+        <div class="custom-modal-actions">
+          <button
+            type="button"
+            class="modal-btn modal-cancel-btn"
+            @click="cancelRemoveFile"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="modal-btn modal-danger-btn"
+            :disabled="isUpdatingFiles"
+            @click="confirmRemoveFile"
+          >
+            <span v-if="isUpdatingFiles">Removing...</span>
+            <span v-else>Remove File</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Modal: View File -->
+    <div v-if="previewingFile" class="custom-modal-overlay" @click.self="closeFilePreview">
+      <div class="preview-modal-box" role="dialog" aria-modal="true">
+        <div class="preview-modal-header">
+          <span class="preview-file-title" :title="previewingFile.name">{{ previewingFile.name }}</span>
+          <button
+            type="button"
+            class="preview-close-btn"
+            @click="closeFilePreview"
+            aria-label="Close preview"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="preview-modal-body">
+          <img
+            v-if="isImageFile(previewingFile)"
+            :src="previewingFile.previewUrl || resolveFileUrl(previewingFile.fileUrl)"
+            :alt="previewingFile.name"
+            class="preview-img-full"
+          />
+          <div v-else class="preview-doc-box">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <p class="preview-doc-name">{{ previewingFile.name }}</p>
+            <p class="preview-doc-sub">{{ formatFileSize(previewingFile.size) }}</p>
+            <a
+              v-if="previewingFile.fileUrl"
+              :href="resolveFileUrl(previewingFile.fileUrl)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-primary open-in-tab-btn"
+            >
+              Open Document in New Tab
+            </a>
+          </div>
+        </div>
+        <div class="preview-modal-footer">
+          <button
+            type="button"
+            class="modal-btn modal-cancel-btn"
+            @click="closeFilePreview"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import api from '../api/axios';
 import MockPdfViewer from '../components/MockPdfViewer.vue';
@@ -1086,7 +1345,9 @@ const rawPreQuestions = ref([]);
 const rawPostQuestions = ref([]);
 const isSubmittingActivity = ref(false);
 
-const choiceLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
+function getChoiceLetter(idx) {
+  return idx >= 0 && idx < 26 ? String.fromCharCode(65 + idx) : String(idx + 1);
+}
 
 function normalizeQuestion(q, index) {
   if (q.options && q.options[0]?.text && q.correctAnswer !== undefined) {
@@ -1095,12 +1356,14 @@ function normalizeQuestion(q, index) {
       question: q.question || q.questionText,
       options: q.options.map((opt, oIdx) => ({
         id: opt.id,
-        letter: opt.letter || (typeof opt.id === 'string' && opt.id.length === 1 ? opt.id : choiceLetters[oIdx] || String(oIdx + 1)),
+        letter: opt.letter || (typeof opt.id === 'string' && opt.id.length === 1 ? opt.id : getChoiceLetter(oIdx)),
         text: opt.text || opt.optionText,
         rawId: opt.rawId || opt.id,
         isCorrect: opt.isCorrect ?? (opt.id === q.correctAnswer)
       })),
       correctAnswer: q.correctAnswer,
+      correctFeedback: q.correctFeedback ? String(q.correctFeedback).trim() : '',
+      incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback).trim() : '',
       feedback: q.feedback || q.explanation || (q.options.find((o) => o.isCorrect || o.id === q.correctAnswer)?.text ? `The correct answer is: ${q.options.find((o) => o.isCorrect || o.id === q.correctAnswer)?.text}` : 'Review the module lessons to understand this concept.')
     };
   }
@@ -1114,14 +1377,27 @@ function normalizeQuestion(q, index) {
     question: q.questionText || q.prompt || `Question ${index + 1}`,
     options: opts.map((o, oIdx) => ({
       id: o.id,
-      letter: choiceLetters[oIdx] || String(oIdx + 1),
+      letter: getChoiceLetter(oIdx),
       text: o.optionText || o.text || '',
       rawId: o.id,
       isCorrect: Boolean(o.isCorrect)
     })),
     correctAnswer: correctOptId,
+    correctFeedback: q.correctFeedback ? String(q.correctFeedback).trim() : '',
+    incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback).trim() : '',
     feedback: q.explanation?.trim() || (correctOpt?.optionText ? `The correct answer is: ${correctOpt.optionText}` : 'Correct answer verified.')
   };
+}
+
+function getQuestionFeedback(q, isCorrect) {
+  if (!q) return '';
+  if (isCorrect && q.correctFeedback && String(q.correctFeedback).trim()) {
+    return String(q.correctFeedback).trim();
+  }
+  if (!isCorrect && q.incorrectFeedback && String(q.incorrectFeedback).trim()) {
+    return String(q.incorrectFeedback).trim();
+  }
+  return q.feedback || '';
 }
 
 // Progress State
@@ -1190,6 +1466,13 @@ function saveProgress(val) {
       console.warn('Could not save module progress to storage:', e);
     }
   }
+  try {
+    window.dispatchEvent(
+      new CustomEvent('als-progress-updated', {
+        detail: { moduleId: effectiveModuleId?.value, progress: p }
+      })
+    );
+  } catch (e) {}
 }
 
 const progress = ref(loadProgress());
@@ -1204,6 +1487,22 @@ const computedProgressPercentage = computed(() => {
   if (isStepCompleted(4)) count += 25;
   return count;
 });
+
+const currentActiveStep = computed(() => {
+  if (!isStepCompleted(1)) return 1;
+  if (!isStepCompleted(2)) return 2;
+  if (!isStepCompleted(3)) return 3;
+  if (!isStepCompleted(4)) return 4;
+  return null;
+});
+
+function getSubpageTitle(step) {
+  if (step === 1) return 'Pre-Test';
+  if (step === 2) return 'Read the Module';
+  if (step === 3) return 'Post-Test';
+  if (step === 4) return 'Submit Your Activity';
+  return '';
+}
 
 const overallStatusLabel = computed(() => {
   if (computedProgressPercentage.value === 100) return 'Completed';
@@ -1245,18 +1544,154 @@ const selectedPostAnswer = ref('');
 const isPostSubmitted = ref(false);
 const showingPostTestScore = ref(false);
 
-// Step 4: Activity submission state
+const isPreTestResultsView = computed(() => {
+  return currentStep.value === 1 && Boolean(progress.value.preTestCompleted || showingPreTestScore.value);
+});
+
+const isPostTestResultsView = computed(() => {
+  return currentStep.value === 3 && Boolean(progress.value.postTestCompleted || showingPostTestScore.value);
+});
+
+const isAssessmentResultsView = computed(() => {
+  return isPreTestResultsView.value || isPostTestResultsView.value;
+});
+
+// Step 4: Activity submission & correction state
 const fileInputRef = ref(null);
+const replaceFileInputRef = ref(null);
+const addMoreFileInputRef = ref(null);
 const selectedFiles = ref([]);
 const isDragging = ref(false);
 const uploadError = ref('');
 const isReviewingPdfOutside = ref(false);
+const submissionRecord = ref(null);
+const activeMenuFileIndex = ref(null);
+const previewingFile = ref(null);
+const fileToRemove = ref(null);
+const isUpdatingFiles = ref(false);
+const toastMessage = ref('');
+const replaceTargetIndex = ref(null);
+
+function showToast(msg) {
+  toastMessage.value = msg;
+  setTimeout(() => {
+    if (toastMessage.value === msg) {
+      toastMessage.value = '';
+    }
+  }, 3500);
+}
+
+function handleDocumentClick(e) {
+  if (!e.target?.closest || !e.target.closest('.file-menu-wrap')) {
+    activeMenuFileIndex.value = null;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('click', handleDocumentClick);
+});
+
+const isReviewFinalized = computed(() => {
+  if (isMock.value) return false;
+  const sub = submissionRecord.value;
+  if (!sub) return false;
+  if (sub.isReviewFinalized) return true;
+  const st = String(sub.status || '').toLowerCase().replace(/_/g, ' ').trim();
+  if (st === 'graded' || st === 'mastered' || st === 'not mastered' || st === 'completed') {
+    return true;
+  }
+  if (sub.grade != null && String(sub.grade).trim() !== '') {
+    return true;
+  }
+  return false;
+});
+
+function resolveFileUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const apiUrl = import.meta.env.VITE_API_URL || '';
+  if (apiUrl && apiUrl.startsWith('http')) {
+    const root = apiUrl.replace(/\/api\/?$/, '');
+    return `${root}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+  return url;
+}
+
+function isImageFile(f) {
+  if (!f) return false;
+  const type = String(f.type || f.fileType || '').toLowerCase();
+  if (type.startsWith('image/')) return true;
+  const name = String(f.name || f.fileName || '').toLowerCase();
+  return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.webp') || name.endsWith('.gif');
+}
+
+const displayFilesList = computed(() => {
+  if (progress.value.activitySubmitted && Array.isArray(progress.value.submittedFilesMeta) && progress.value.submittedFilesMeta.length > 0) {
+    return progress.value.submittedFilesMeta.map((f, idx) => ({
+      index: idx,
+      name: f.name || f.fileName || `Activity File ${idx + 1}`,
+      size: f.size || f.fileSize || 0,
+      type: f.type || f.fileType || '',
+      fileUrl: f.fileUrl || '',
+      previewUrl: f.previewUrl || (f.fileUrl ? resolveFileUrl(f.fileUrl) : null),
+      isSaved: true
+    }));
+  }
+  return selectedFiles.value.map((f, idx) => ({
+    index: idx,
+    name: f.name,
+    size: f.size,
+    type: f.type,
+    fileUrl: '',
+    previewUrl: f.previewUrl,
+    isSaved: false
+  }));
+});
+
+function toggleFileMenu(idx) {
+  activeMenuFileIndex.value = activeMenuFileIndex.value === idx ? null : idx;
+}
+
+function handleViewFile(file) {
+  activeMenuFileIndex.value = null;
+  previewingFile.value = file;
+}
+
+function closeFilePreview() {
+  previewingFile.value = null;
+}
+
+function promptReplaceFile(idx) {
+  activeMenuFileIndex.value = null;
+  if (isReviewFinalized.value) return;
+  replaceTargetIndex.value = idx;
+  if (replaceFileInputRef.value) {
+    replaceFileInputRef.value.value = '';
+    replaceFileInputRef.value.click();
+  }
+}
+
+function promptRemoveFile(idx) {
+  activeMenuFileIndex.value = null;
+  if (isReviewFinalized.value) return;
+  fileToRemove.value = idx;
+}
+
+function cancelRemoveFile() {
+  fileToRemove.value = null;
+}
 
 const steps = [
   { step: 1, label: 'Pre-Test' },
   { step: 2, label: 'Learning Module' },
   { step: 3, label: 'Post-Test' },
-  { step: 4, label: 'Activity Submission' }
+  { step: 4, label: 'Submit Your Activity' }
 ];
 
 // Computed Questions
@@ -1297,6 +1732,18 @@ const moduleSubheading = computed(() => {
   return moduleData.value?.strand || moduleData.value?.learningArea?.name || 'General Curriculum';
 });
 
+const strandAndCodeText = computed(() => {
+  const strand = moduleSubheading.value || 'General Curriculum';
+  const strandCode = moduleStrandCode.value || '';
+  const code = moduleCode.value || '';
+  const displayCode = strandCode && strandCode !== 'LS' ? strandCode : (code || strandCode || '');
+
+  if (displayCode && !strand.toLowerCase().includes(displayCode.toLowerCase())) {
+    return `${strand} · ${displayCode}`;
+  }
+  return strand;
+});
+
 const pdfUrl = computed(() => {
   if (isMock.value) return MOCK_MODULE.fileUrl;
   const rawUrl = moduleData.value?.fileUrl;
@@ -1305,6 +1752,31 @@ const pdfUrl = computed(() => {
     return rawUrl;
   }
   return `/${rawUrl}`;
+});
+
+const moduleDownloadFileName = computed(() => {
+  if (moduleData.value?.downloadFileName) {
+    return moduleData.value.downloadFileName;
+  }
+  const rawTitle = String(moduleTitle.value || 'Learning_Module')
+    .trim()
+    .replace(/\.pdf$/i, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const rawStrand = String(moduleStrandCode.value || '').trim().toUpperCase();
+  const lsMatch = rawStrand.match(/^LS\d+/i);
+  const cleanStrand = lsMatch
+    ? lsMatch[0].toUpperCase()
+    : rawStrand.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const baseTitle = rawTitle || 'Learning_Module';
+  if (
+    cleanStrand &&
+    !baseTitle.toUpperCase().endsWith(`_${cleanStrand}`) &&
+    baseTitle.toUpperCase() !== cleanStrand
+  ) {
+    return `${baseTitle}_${cleanStrand}.pdf`;
+  }
+  return `${baseTitle}.pdf`;
 });
 
 const preTestTotal = computed(() => {
@@ -1326,18 +1798,25 @@ const scoreImprovement = computed(() => {
 
 // Step unlock and completion logic
 function isStepCompleted(stepNum) {
-  if (stepNum === 1) return progress.value.preTestCompleted || preTestQuestions.value.length === 0;
-  if (stepNum === 2) return progress.value.readingConfirmed || (progress.value.pdfCurrentPage && progress.value.pdfCurrentPage >= (progress.value.pdfTotalPages || 29));
-  if (stepNum === 3) return progress.value.postTestCompleted || postTestQuestions.value.length === 0;
-  if (stepNum === 4) return progress.value.activitySubmitted;
+  if (stepNum === 1) return Boolean(progress.value.preTestCompleted || preTestQuestions.value.length === 0);
+  if (stepNum === 2) {
+    return Boolean(
+      progress.value.readingConfirmed ||
+      (progress.value.pdfCurrentPage && progress.value.pdfCurrentPage >= (progress.value.pdfTotalPages || 29)) ||
+      progress.value.postTestCompleted ||
+      progress.value.activitySubmitted
+    );
+  }
+  if (stepNum === 3) return Boolean(progress.value.postTestCompleted || postTestQuestions.value.length === 0 || progress.value.activitySubmitted);
+  if (stepNum === 4) return Boolean(progress.value.activitySubmitted);
   return false;
 }
 
 function isStepUnlocked(stepNum) {
   if (stepNum === 1) return true;
-  if (stepNum === 2) return progress.value.preTestCompleted || preTestQuestions.value.length === 0;
-  if (stepNum === 3) return progress.value.readingStarted || progress.value.readingConfirmed;
-  if (stepNum === 4) return progress.value.postTestCompleted || postTestQuestions.value.length === 0;
+  if (stepNum === 2) return isStepCompleted(1);
+  if (stepNum === 3) return isStepCompleted(2);
+  if (stepNum === 4) return isStepCompleted(3);
   return false;
 }
 
@@ -1461,17 +1940,16 @@ function reopenPdfViewer() {
 // POST-TEST LOGIC
 // ==========================================
 function onSelectPostAnswer(optId) {
-  if (isPostSubmitted.value) return;
   selectedPostAnswer.value = optId;
 }
 
-function submitPostAnswer() {
+async function submitPostAnswer() {
   if (!selectedPostAnswer.value) return;
-  isPostSubmitted.value = true;
 
-  // Record answer locally
+  // Record answer locally without revealing correct answer or feedback before Post-Test submission
   progress.value.postTestAnswers[currentPostQ.value.id] = selectedPostAnswer.value;
   saveProgress();
+  await nextPostQuestion();
 }
 
 async function nextPostQuestion() {
@@ -1612,6 +2090,8 @@ function submitMockActivities() {
   progress.value.submittedFilesMeta = meta;
   progress.value.completedAt = new Date().toISOString();
   saveProgress();
+  selectedFiles.value = [];
+  showToast('Your answers have been sent to your teacher.');
 }
 
 async function submitRealActivities() {
@@ -1625,9 +2105,12 @@ async function submitRealActivities() {
 
   try {
     const uploadedFilesMeta = [];
+    const uploadedFilesPayload = [];
 
     for (const f of selectedFiles.value) {
       let uploadedFileUrl = null;
+      let uploadedFileSize = f.size || null;
+      let uploadedFileType = f.type || '';
       try {
         const formData = new FormData();
         formData.append('file', f.file);
@@ -1635,25 +2118,43 @@ async function submitRealActivities() {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         uploadedFileUrl = upRes.data?.fileUrl;
+        if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
+        if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
       } catch (uploadErr) {
         console.warn('Upload endpoint error, proceeding with submission record:', uploadErr);
       }
 
-      await api.post('/submissions', {
-        moduleId: Number(effectiveModuleId.value),
-        title: `${moduleTitle.value} - Activity Output`,
+      const nowIso = new Date().toISOString();
+      uploadedFilesPayload.push({
         fileUrl: uploadedFileUrl || null,
         fileName: f.name,
-        content: `Uploaded activity output: ${f.name}`
+        fileSize: uploadedFileSize,
+        fileType: uploadedFileType,
+        submittedAt: nowIso
       });
 
       uploadedFilesMeta.push({
         name: f.name,
-        size: f.size,
-        type: f.type,
-        uploadedAt: new Date().toISOString()
+        size: uploadedFileSize || f.size,
+        type: uploadedFileType || f.type,
+        fileUrl: uploadedFileUrl || null,
+        uploadedAt: nowIso
       });
     }
+
+    const firstFile = uploadedFilesPayload[0] || {};
+    const subRes = await api.post('/submissions', {
+      moduleId: Number(effectiveModuleId.value),
+      title: `${moduleTitle.value} - Activity Output`,
+      fileUrl: firstFile.fileUrl || null,
+      fileName: firstFile.fileName || 'Activity 1.jpg',
+      fileSize: firstFile.fileSize || null,
+      fileType: firstFile.fileType || '',
+      files: uploadedFilesPayload,
+      replaceFiles: true,
+      content: `Uploaded ${uploadedFilesPayload.length} activity output file(s)`
+    });
+    submissionRecord.value = subRes.data;
 
     // Update LearnerProgress to COMPLETED
     await api.post(`/modules/${effectiveModuleId.value}/progress`, {
@@ -1666,11 +2167,262 @@ async function submitRealActivities() {
     progress.value.submittedFilesMeta = uploadedFilesMeta;
     progress.value.completedAt = new Date().toISOString();
     saveProgress();
+    selectedFiles.value = [];
+    showToast('Your answers have been sent to your teacher.');
   } catch (err) {
     console.error('Failed to submit activities:', err);
     uploadError.value = err.response?.data?.error || 'Failed to submit activities. Please check your connection and try again.';
   } finally {
     isSubmittingActivity.value = false;
+  }
+}
+
+async function confirmRemoveFile() {
+  if (fileToRemove.value === null) return;
+  const idx = fileToRemove.value;
+  fileToRemove.value = null;
+  isUpdatingFiles.value = true;
+  uploadError.value = '';
+
+  try {
+    if (progress.value.activitySubmitted) {
+      const currentList = [...(progress.value.submittedFilesMeta || [])];
+      currentList.splice(idx, 1);
+
+      if (!isMock.value) {
+        const payloadFiles = currentList.map((f) => ({
+          fileName: f.name || f.fileName,
+          fileSize: f.size || f.fileSize,
+          fileType: f.type || f.fileType,
+          fileUrl: f.fileUrl || null,
+          submittedAt: f.uploadedAt || f.submittedAt || new Date().toISOString()
+        }));
+
+        const res = await api.post('/submissions', {
+          moduleId: Number(effectiveModuleId.value),
+          title: `${moduleTitle.value} - Activity Output`,
+          files: payloadFiles,
+          replaceFiles: true,
+          action: 'FILE_REMOVED',
+          content: `Updated activity outputs (${payloadFiles.length} file(s) remaining)`
+        });
+        submissionRecord.value = res.data;
+      }
+
+      progress.value.submittedFilesMeta = currentList;
+      if (currentList.length === 0) {
+        progress.value.activitySubmitted = false;
+      }
+      saveProgress();
+      showToast('Your files have been updated.');
+    } else {
+      removeFile(idx);
+    }
+  } catch (err) {
+    console.error('Failed to remove file:', err);
+    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
+  } finally {
+    isUpdatingFiles.value = false;
+  }
+}
+
+async function onReplaceFileSelected(e) {
+  const file = e.target.files?.[0];
+  if (!file || replaceTargetIndex.value === null) return;
+  const targetIdx = replaceTargetIndex.value;
+  replaceTargetIndex.value = null;
+
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+  const maxBytes = 15 * 1024 * 1024;
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!validExtensions.includes(ext)) {
+    uploadError.value = `Unsupported file "${file.name}". Please upload JPG, PNG, or PDF.`;
+    return;
+  }
+  if (file.size > maxBytes) {
+    uploadError.value = `File "${file.name}" exceeds the 15MB size limit.`;
+    return;
+  }
+
+  isUpdatingFiles.value = true;
+  uploadError.value = '';
+
+  try {
+    let previewUrl = null;
+    if (file.type.startsWith('image/')) {
+      previewUrl = URL.createObjectURL(file);
+    }
+
+    if (progress.value.activitySubmitted) {
+      let uploadedFileUrl = null;
+      let uploadedFileSize = file.size;
+      let uploadedFileType = file.type;
+
+      if (!isMock.value) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const upRes = await api.post('/modules/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          uploadedFileUrl = upRes.data?.fileUrl;
+          if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
+          if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
+        } catch (upErr) {
+          console.warn('Upload endpoint error:', upErr);
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const updatedMeta = [...(progress.value.submittedFilesMeta || [])];
+      updatedMeta[targetIdx] = {
+        name: file.name,
+        size: uploadedFileSize,
+        type: uploadedFileType,
+        fileUrl: uploadedFileUrl || null,
+        previewUrl,
+        uploadedAt: nowIso
+      };
+
+      if (!isMock.value) {
+        const payloadFiles = updatedMeta.map((f) => ({
+          fileName: f.name || f.fileName,
+          fileSize: f.size || f.fileSize,
+          fileType: f.type || f.fileType,
+          fileUrl: f.fileUrl || null,
+          submittedAt: f.uploadedAt || nowIso
+        }));
+
+        const res = await api.post('/submissions', {
+          moduleId: Number(effectiveModuleId.value),
+          title: `${moduleTitle.value} - Activity Output`,
+          files: payloadFiles,
+          replaceFiles: true,
+          action: 'FILE_REPLACED',
+          content: `Replaced file "${file.name}"`
+        });
+        submissionRecord.value = res.data;
+      }
+
+      progress.value.submittedFilesMeta = updatedMeta;
+      saveProgress();
+      showToast('Your files have been updated.');
+    } else {
+      if (selectedFiles.value[targetIdx]?.previewUrl) {
+        URL.revokeObjectURL(selectedFiles.value[targetIdx].previewUrl);
+      }
+      selectedFiles.value[targetIdx] = {
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        previewUrl
+      };
+    }
+  } catch (err) {
+    console.error('Failed to replace file:', err);
+    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
+  } finally {
+    isUpdatingFiles.value = false;
+  }
+}
+
+function triggerAddFiles() {
+  if (isReviewFinalized.value) return;
+  if (addMoreFileInputRef.value) {
+    addMoreFileInputRef.value.value = '';
+    addMoreFileInputRef.value.click();
+  }
+}
+
+async function onAddMoreFilesSelected(e) {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  if (!progress.value.activitySubmitted) {
+    addFiles(files);
+    return;
+  }
+
+  isUpdatingFiles.value = true;
+  uploadError.value = '';
+
+  try {
+    const newItems = [];
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const maxBytes = 15 * 1024 * 1024;
+
+    for (const file of files) {
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!validExtensions.includes(ext) || file.size > maxBytes) continue;
+
+      let previewUrl = null;
+      if (file.type.startsWith('image/')) {
+        previewUrl = URL.createObjectURL(file);
+      }
+
+      let uploadedFileUrl = null;
+      let uploadedFileSize = file.size;
+      let uploadedFileType = file.type;
+
+      if (!isMock.value) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const upRes = await api.post('/modules/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          uploadedFileUrl = upRes.data?.fileUrl;
+          if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
+          if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
+        } catch (upErr) {
+          console.warn('Upload endpoint error:', upErr);
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      newItems.push({
+        name: file.name,
+        size: uploadedFileSize,
+        type: uploadedFileType,
+        fileUrl: uploadedFileUrl || null,
+        previewUrl,
+        uploadedAt: nowIso
+      });
+    }
+
+    if (newItems.length > 0) {
+      const combined = [...(progress.value.submittedFilesMeta || []), ...newItems];
+
+      if (!isMock.value) {
+        const payloadFiles = combined.map((f) => ({
+          fileName: f.name || f.fileName,
+          fileSize: f.size || f.fileSize,
+          fileType: f.type || f.fileType,
+          fileUrl: f.fileUrl || null,
+          submittedAt: f.uploadedAt || new Date().toISOString()
+        }));
+
+        const res = await api.post('/submissions', {
+          moduleId: Number(effectiveModuleId.value),
+          title: `${moduleTitle.value} - Activity Output`,
+          files: payloadFiles,
+          replaceFiles: true,
+          action: 'FILES_ADDED',
+          content: `Added ${newItems.length} activity file(s)`
+        });
+        submissionRecord.value = res.data;
+      }
+
+      progress.value.submittedFilesMeta = combined;
+      saveProgress();
+      showToast('Your files have been updated.');
+    }
+  } catch (err) {
+    console.error('Failed to add files:', err);
+    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
+  } finally {
+    isUpdatingFiles.value = false;
   }
 }
 
@@ -1777,15 +2529,33 @@ async function fetchModuleData() {
       const subRes = await api.get(`/submissions?moduleId=${effectiveModuleId.value}`);
       const subs = Array.isArray(subRes.data) ? subRes.data : [];
       if (subs.length > 0) {
+        submissionRecord.value = subs[0];
         progress.value.activitySubmitted = true;
         progress.value.highestUnlockedStep = 4;
-        if (!progress.value.submittedFilesMeta?.length) {
-          progress.value.submittedFilesMeta = subs.map((s) => ({
-            name: s.fileName || s.title || 'Submitted Activity',
-            size: s.fileSize || 0,
-            type: s.fileType || 'application/pdf',
-            uploadedAt: s.createdAt || new Date().toISOString()
-          }));
+        const allServerFiles = [];
+        subs.forEach((s) => {
+          if (Array.isArray(s.files) && s.files.length > 0) {
+            s.files.forEach((f) => {
+              allServerFiles.push({
+                name: f.fileName || f.name || 'Submitted Activity',
+                size: f.fileSize || f.size || 0,
+                type: f.mimeType || f.fileType || 'image/jpeg',
+                fileUrl: f.fileUrl || '',
+                uploadedAt: f.submittedAt || s.submittedAt || new Date().toISOString()
+              });
+            });
+          } else {
+            allServerFiles.push({
+              name: s.fileName || s.title || 'Submitted Activity',
+              size: s.fileSize || 0,
+              type: s.fileType || 'application/pdf',
+              fileUrl: s.fileUrl || '',
+              uploadedAt: s.submittedAt || s.createdAt || new Date().toISOString()
+            });
+          }
+        });
+        if (allServerFiles.length > 0) {
+          progress.value.submittedFilesMeta = allServerFiles;
         }
       }
     } catch (subErr) {
@@ -1818,8 +2588,8 @@ onMounted(() => {
 .mock-study-page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 120px);
-  padding-bottom: calc(84px + env(safe-area-inset-bottom, 16px));
+  min-height: auto;
+  padding-bottom: 0.5rem;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -1883,168 +2653,93 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-/* Step Bar Container */
-.step-navigation-container {
+/* Subpage Navigation Bar (Steps 1, 3, 4) - Option 1: Card & Stepper Style */
+.subpage-nav-bar {
   background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0.85rem 1rem;
-  margin-bottom: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.step-nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #165dfc;
-  text-decoration: none;
-}
-
-.btn-back-nav {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-}
-
-.module-mini-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.meta-strand-pill {
-  font-size: 0.65rem;
-  font-weight: 800;
-  background: #eff6ff;
-  color: #165dfc;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-  border: 1px solid #bfdbfe;
-}
-
-.meta-code {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.module-main-header {
-  margin-bottom: 0.85rem;
-}
-
-.module-heading {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.3;
-  margin: 0 0 0.2rem 0;
-  word-break: break-word;
-}
-
-.module-subheading {
-  font-size: 0.8rem;
-  color: #64748b;
-  margin: 0;
-  word-break: break-word;
-}
-
-/* 4-Step Horizontal Indicator */
-.stepper-track {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  position: relative;
-  margin-top: 0.75rem;
-  padding: 0;
-  gap: 0.25rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.step-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  cursor: pointer;
-  z-index: 2;
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-  transition: all 0.15s ease;
-  padding: 0 2px;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  width: 100%;
   box-sizing: border-box;
 }
 
-.step-item.disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.step-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #f1f5f9;
-  border: 2px solid #cbd5e1;
-  color: #64748b;
+.subpage-nav-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+}
+
+.subpage-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2563eb;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+
+.subpage-back-btn:hover {
+  color: #1d4ed8;
+}
+
+.subpage-heading-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.subpage-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.subpage-step-label {
+  display: inline-block;
   font-size: 0.75rem;
   font-weight: 800;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+  letter-spacing: 0.05em;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  width: fit-content;
+  text-transform: uppercase;
 }
 
-.step-item.active .step-circle {
-  background: #165dfc;
-  border-color: #165dfc;
-  color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(22, 93, 252, 0.2);
-}
-
-.step-item.completed .step-circle {
-  background: #16a34a;
-  border-color: #16a34a;
-  color: #ffffff;
-}
-
-.step-name {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #64748b;
-  text-align: center;
-  line-height: 1.15;
-  word-break: normal;
-  overflow-wrap: break-word;
-  max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.step-item.active .step-name {
-  color: #165dfc;
-}
-
-.step-item.completed .step-name {
+.subpage-completed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 800;
   color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.subpage-title-text {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+  margin: 0;
+  word-break: break-word;
 }
 
 /* Card Content */
@@ -2054,7 +2749,23 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   padding: 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  margin: 0 0.85rem;
+  margin: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.step-content-card.results-view-mode {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Assessment Header */
@@ -2492,6 +3203,15 @@ onMounted(() => {
   border-top: 1px dashed #bbf7d0;
 }
 
+/* Activity Upload Section */
+.activity-upload-section {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding-bottom: 2.5rem;
+  box-sizing: border-box;
+}
+
 /* Dropzone Box */
 .dropzone-box {
   border: 2px dashed #93c5fd;
@@ -2633,6 +3353,395 @@ onMounted(() => {
   color: #ef4444;
 }
 
+/* Toast feedback alert */
+.files-toast-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #15803d;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.08);
+}
+
+/* Sent Success Banner */
+.sent-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.15rem;
+}
+
+.sent-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #166534;
+  margin: 0 0 0.15rem 0;
+}
+
+.sent-subtext {
+  font-size: 0.825rem;
+  color: #15803d;
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Review Finalized Banner */
+.review-finalized-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+
+.review-finalized-banner .banner-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e40af;
+  margin: 0 0 0.25rem 0;
+}
+
+.review-finalized-banner .banner-subtext {
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Three Dot Button and Dropdown */
+.file-menu-wrap {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.three-dot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.three-dot-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.file-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 160px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-action-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #334155;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.menu-action-item:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.menu-action-item.item-danger {
+  color: #dc2626;
+}
+
+.menu-action-item.item-danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* File Actions Row in Submitted State */
+.submitted-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.add-more-btn {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.add-more-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.add-more-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-back-modules {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn-back-modules:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Modals */
+.custom-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.custom-modal-box {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+}
+
+.custom-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.5rem 0;
+}
+
+.custom-modal-text {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 1.25rem 0;
+}
+
+.custom-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  height: 42px;
+  padding: 0 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.modal-cancel-btn {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.modal-cancel-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.modal-danger-btn {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.modal-danger-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+/* Preview Modal */
+.preview-modal-box {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.preview-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.preview-file-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.preview-modal-body {
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  min-height: 250px;
+}
+
+.preview-img-full {
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.preview-doc-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1rem;
+  gap: 0.5rem;
+}
+
+.preview-doc-name {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.preview-doc-sub {
+  color: #64748b;
+  font-size: 0.825rem;
+  margin: 0 0 1rem 0;
+}
+
+.preview-modal-footer {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  background: #ffffff;
+}
+
+.open-in-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.15rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
 /* Activity Actions */
 .submit-activities-btn {
   width: 100%;
@@ -2685,311 +3794,415 @@ onMounted(() => {
   text-decoration: none;
 }
 
-/* Module Overview Styles - Mobile-First */
-.module-overview-wrapper {
+/* ============================================================ */
+/* MODULE DETAILS OVERVIEW (Clean Google Classroom Style)       */
+/* ============================================================ */
+.module-details-container {
   width: 100%;
   max-width: 100%;
+  margin: 0;
+  padding: 0 0 0.5rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
-.overview-header-card {
+/* Section 1: Module Header Card */
+.module-header-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 1.15rem 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   box-sizing: border-box;
   width: 100%;
+  margin: 0;
 }
 
-.overview-header-top {
+.header-top-nav {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.85rem;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-.overview-header-titles {
-  flex: 1;
-  min-width: 0;
+.back-to-modules-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2563eb;
+  text-decoration: none;
+  transition: color 0.15s ease;
 }
 
-.overview-main-heading {
-  font-size: 1.15rem;
+.back-to-modules-link:hover {
+  color: #1d4ed8;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.module-main-title {
+  font-size: 1.25rem;
   font-weight: 800;
   color: #0f172a;
-  margin: 0 0 0.35rem 0;
-  line-height: 1.3;
+  line-height: 1.35;
+  margin: 0;
   word-break: break-word;
 }
 
-.overview-meta-line {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-}
-
-.overview-strand-tag {
-  font-size: 0.7rem;
-  font-weight: 800;
-  background: #eff6ff;
-  color: #165dfc;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-  border: 1px solid #bfdbfe;
-}
-
-.overview-module-code {
-  font-size: 0.75rem;
-  font-weight: 700;
+.module-strand-subtitle {
+  font-size: 0.85rem;
+  font-weight: 600;
   color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
-.overview-status-pill {
-  font-size: 0.725rem;
-  font-weight: 800;
-  padding: 0.3rem 0.65rem;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.status-completed {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
-}
-
-.status-in-progress {
-  background: #eff6ff;
-  color: #165dfc;
-  border: 1px solid #bfdbfe;
-}
-
-.status-not-started {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #cbd5e1;
-}
-
-.overview-progress-strip {
+.header-progress-wrap {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 10px;
-  padding: 0.75rem 0.85rem;
-  box-sizing: border-box;
+  margin-top: 0.15rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #f1f5f9;
 }
 
-.strip-label-row {
+.header-progress-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #334155;
+  gap: 0.5rem;
 }
 
-.strip-title {
+.header-progress-label {
+  font-size: 0.825rem;
+  font-weight: 600;
   color: #475569;
 }
 
-.strip-pct {
-  color: #165dfc;
-  font-weight: 800;
-  font-size: 0.85rem;
+.header-progress-percent {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #2563eb;
 }
 
-.strip-track {
+.header-progress-track {
   width: 100%;
   height: 8px;
   background: #e2e8f0;
-  border-radius: 999px;
+  border-radius: 9999px;
   overflow: hidden;
 }
 
-.strip-fill {
+.header-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #165dfc 0%, #3b82f6 100%);
-  border-radius: 999px;
+  background: #2563eb;
+  border-radius: 9999px;
   transition: width 0.3s ease;
 }
 
-.overview-steps-vertical-list {
+/* Section 2: Learning Activities Section */
+.learning-activities-section {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.65rem;
   width: 100%;
   box-sizing: border-box;
 }
 
-.overview-step-box {
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 1.15rem;
+.activities-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.1rem;
+}
+
+.activities-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.activities-desc {
+  font-size: 0.825rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.activities-checklist {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Activity Card */
+.activity-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
+  margin: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.overview-step-box.active {
-  border-color: #165dfc;
-  box-shadow: 0 0 0 1px #165dfc, 0 2px 8px rgba(22, 93, 252, 0.08);
+/* Highlight only the current available step with subtle blue border */
+.activity-card.is-active-step {
+  border: 2px solid #2563eb;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.08);
 }
 
-.overview-step-box.completed {
-  border-color: #86efac;
-  background: #fcfdfc;
+/* Completed step: light gray border (NO green border or green background!) */
+.activity-card.is-completed {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
-.overview-step-box.locked {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  opacity: 0.85;
+/* Locked step: light gray border */
+.activity-card.is-locked {
+  border: 1px solid #e2e8f0;
+  background: #fbfcfd;
 }
 
-.step-card-header {
+/* Top Row: Icon, Title Group, Status */
+.card-top-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   width: 100%;
-  min-width: 0;
 }
 
-.step-badge-circle {
+.card-icon-badge {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #eff6ff;
-  border: 2px solid #165dfc;
-  color: #165dfc;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.85rem;
   font-weight: 800;
-  font-size: 0.875rem;
   flex-shrink: 0;
-}
-
-.step-badge-circle.circle-done {
-  background: #16a34a;
-  border-color: #16a34a;
-  color: #ffffff;
-}
-
-.step-badge-circle.circle-locked {
   background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #94a3b8;
-}
-
-.step-status-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  min-width: 0;
-  flex: 1;
-}
-
-.step-tag-pill {
-  font-size: 0.7rem;
-  font-weight: 800;
   color: #64748b;
-  text-transform: uppercase;
 }
 
-.step-status-pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 12px;
-  line-height: 1.3;
-}
-
-.step-status-pill.status-ready {
+.card-icon-badge.badge-active {
   background: #eff6ff;
-  color: #165dfc;
-  border: 1px solid #bfdbfe;
+  color: #2563eb;
 }
 
-.step-status-pill.status-locked {
+/* Small green check icon on completed */
+.card-icon-badge.badge-completed {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.card-icon-badge.badge-locked {
   background: #f1f5f9;
   color: #94a3b8;
-  border: 1px solid #e2e8f0;
 }
 
-.step-status-pill.status-completed {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
-}
-
-.step-status-pill.status-in-progress {
-  background: #eff6ff;
-  color: #165dfc;
-  border: 1px solid #bfdbfe;
-}
-
-.step-card-body {
+.card-title-group {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  width: 100%;
+  gap: 0.1rem;
   min-width: 0;
+  flex: 1;
+  margin-right: 0.5rem;
 }
 
-.step-box-title {
+.card-step-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.card-activity-title {
   font-size: 0.95rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
-  line-height: 1.35;
-  word-break: break-word;
+  line-height: 1.25;
 }
 
-.step-box-desc {
-  font-size: 0.8rem;
-  color: #64748b;
-  line-height: 1.45;
-  margin: 0;
-  word-break: break-word;
+.card-status-col {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
-.step-card-footer {
-  width: 100%;
-  margin-top: 0.25rem;
-}
-
-.step-action-btn {
-  width: 100%;
-  max-width: 100%;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  border-radius: 10px;
+.card-status-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
-  box-sizing: border-box;
-  cursor: pointer;
-  text-decoration: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.card-status-pill.status-completed {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.card-status-pill.status-locked {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.card-status-pill.status-in-progress {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.card-status-pill.status-ready {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Middle: Description */
+.card-description {
+  font-size: 0.825rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 0.45rem 0 0.65rem 0;
+}
+
+/* Bottom Row */
+.card-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.65rem;
+}
+
+.card-bottom-left {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  min-width: 0;
+}
+
+.card-score-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.785rem;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.card-score-pill .score-label {
+  font-weight: 600;
+  color: #166534;
+}
+
+.card-score-pill .score-val {
+  font-weight: 800;
+  color: #15803d;
+}
+
+.card-reading-progress {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.card-submission-meta {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.card-bottom-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Standardized Activity Action Buttons */
+.activity-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   min-height: 44px;
+  height: 44px;
+  padding: 0 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: inherit;
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+.activity-btn.btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+  border: 1.5px solid #2563eb;
+}
+
+.activity-btn.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.activity-btn.btn-secondary {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1.5px solid #cbd5e1;
+}
+
+.activity-btn.btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.activity-btn.btn-locked {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1.5px solid #e2e8f0;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -3090,55 +4303,182 @@ onMounted(() => {
   color: #1e293b;
 }
 
+/* Compact Results Score Card */
+.results-score-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.results-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.results-score-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+}
+
+.results-score-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  line-height: 1;
+}
+
+.results-score-percent {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.results-score-confirm {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #15803d;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.results-comp-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.comp-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.comp-pill.pill-gain {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.comp-pill.pill-loss {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.results-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.results-primary-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  box-sizing: border-box;
+}
+
 /* Read-Only Review Section */
 .readonly-review-section {
-  margin-top: 2rem;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   text-align: left;
+  padding-bottom: 2.5rem;
 }
 
 .review-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .review-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
 }
 
 .review-count {
-  font-size: 0.75rem;
+  font-size: 0.725rem;
   font-weight: 700;
   background: #f1f5f9;
   color: #64748b;
-  padding: 0.2rem 0.6rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 12px;
+  white-space: nowrap;
 }
 
 .review-questions-list {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .review-question-card {
-  background: #f8fafc;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 1rem 1.15rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .review-q-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .q-num-pill {
@@ -3152,10 +4492,11 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.75rem;
+  font-size: 0.725rem;
   font-weight: 700;
   padding: 0.2rem 0.55rem;
   border-radius: 6px;
+  white-space: nowrap;
 }
 
 .q-result-tag.tag-correct {
@@ -3172,22 +4513,33 @@ onMounted(() => {
   font-size: 0.95rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 0.85rem 0;
-  line-height: 1.4;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.45;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .review-options-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.65rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .review-opt-item {
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 0.85rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -3195,6 +4547,12 @@ onMounted(() => {
   font-weight: 600;
   color: #334155;
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .review-opt-item.chosen-correct {
@@ -3216,21 +4574,15 @@ onMounted(() => {
   color: #166534;
 }
 
-.review-opt-circle {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #f1f5f9;
+.review-opt-label-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.review-opt-text {
-  flex: 1;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-bottom: 0.15rem;
 }
 
 .badge-user-choice {
@@ -3238,13 +4590,25 @@ onMounted(() => {
   font-weight: 800;
   background: #fee2e2;
   color: #b91c1c;
+  border: 1px solid #fecaca;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
+  line-height: 1.2;
+  width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
-.chosen-correct .badge-user-choice {
+.badge-choice-correct {
   background: #dcfce7;
   color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.badge-choice-wrong {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .badge-correct-choice {
@@ -3252,19 +4616,65 @@ onMounted(() => {
   font-weight: 800;
   background: #dcfce7;
   color: #15803d;
+  border: 1px solid #bbf7d0;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
+  line-height: 1.2;
+  width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.review-opt-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.review-opt-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.725rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.review-opt-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
+  box-sizing: border-box;
 }
 
 .review-feedback-card {
-  background: #ffffff;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-left: 3px solid #165dfc;
+  border-left: 3px solid #2563eb;
   border-radius: 6px;
   padding: 0.65rem 0.85rem;
-  font-size: 0.8rem;
-  color: #475569;
+  font-size: 0.825rem;
+  color: #334155;
   line-height: 1.45;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  margin-top: 0.5rem;
 }
 
 /* Fullscreen Reader Wrapper */
@@ -3280,67 +4690,220 @@ onMounted(() => {
 
 /* Responsive adjustments */
 @media (min-width: 768px) {
-  .module-overview-wrapper {
-    max-width: 720px;
+  .module-details-container {
+    max-width: 680px;
     margin: 0 auto;
+    padding: 2rem 1rem;
   }
 
-  .overview-header-card {
-    padding: 1.5rem;
+  .module-header-card {
+    padding: 1.5rem 1.75rem;
   }
 
-  .overview-main-heading {
-    font-size: 1.35rem;
+  .subpage-nav-bar {
+    padding: 1.5rem 1.75rem;
   }
 
-  .overview-step-box {
-    padding: 1.35rem;
+  .module-main-title,
+  .subpage-title-text {
+    font-size: 1.5rem;
   }
 
-  .step-action-btn {
-    width: auto;
-    align-self: flex-start;
-    padding: 0.7rem 1.5rem;
+  .activities-title {
+    font-size: 1.25rem;
+  }
+
+  .activity-card {
+    padding: 1.35rem 1.5rem;
+  }
+
+  .step-content-card {
+    padding: 1.75rem 2rem;
   }
 }
 
 @media (max-width: 480px) {
+  .module-details-container {
+    padding: 0;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .module-header-card {
+    padding: 1rem 1.15rem;
+    width: 100%;
+    margin: 0;
+  }
+
+  .subpage-nav-bar {
+    padding: 1rem 1.15rem;
+    width: 100%;
+    margin: 0 0 1rem 0;
+  }
+
+  .module-main-title,
+  .subpage-title-text {
+    font-size: 1.15rem;
+  }
+
+  .activity-card {
+    padding: 1rem 1.15rem;
+    width: 100%;
+    margin: 0;
+  }
+
   .step-content-card {
-    margin: 0 0.25rem;
-    padding: 1rem;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    padding: 1.15rem 1rem;
+    box-sizing: border-box;
   }
 
-  .overview-header-card {
-    padding: 1rem;
+  .step-content-card.results-view-mode {
+    padding: 0;
   }
 
-  .overview-step-box {
-    padding: 1rem;
+  .results-score-card {
+    padding: 0.85rem 1rem;
+    gap: 0.65rem;
   }
 
-  .step-name {
-    font-size: 0.625rem;
+  .review-question-card {
+    padding: 0.85rem 0.95rem;
+    border-radius: 10px;
   }
 
-  .step-circle {
-    width: 26px;
-    height: 26px;
-    font-size: 0.7rem;
+  .review-opt-item {
+    padding: 0.55rem 0.65rem;
+  }
+
+  .review-q-text {
+    font-size: 0.9rem;
+  }
+
+  .readonly-review-section {
+    padding-bottom: 3.5rem;
   }
 }
 
 @media (max-width: 360px) {
+  .module-details-container {
+    gap: 0.65rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .module-header-card {
+    padding: 0.9rem 1rem;
+    width: 100%;
+    margin: 0;
+  }
+
+  .subpage-nav-bar {
+    padding: 0.9rem 1rem;
+    width: 100%;
+    margin: 0 0 0.85rem 0;
+  }
+
+  .module-main-title,
+  .subpage-title-text {
+    font-size: 1.05rem;
+  }
+
+  .results-score-card {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .results-score-badge {
+    padding: 0.3rem 0.55rem;
+  }
+
+  .results-score-val {
+    font-size: 1.15rem;
+  }
+
+  .results-score-confirm {
+    font-size: 0.775rem;
+  }
+
+  .review-question-card {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .review-opt-item {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .review-opt-text {
+    font-size: 0.825rem;
+  }
+
+  .activity-card {
+    padding: 0.9rem 1rem;
+    width: 100%;
+    margin: 0;
+  }
+
+  .card-top-row {
+    gap: 0.45rem;
+  }
+
+  .card-icon-badge {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .card-activity-title {
+    font-size: 0.875rem;
+  }
+
+  .card-status-pill {
+    font-size: 0.65rem;
+    padding: 0.18rem 0.45rem;
+  }
+
+  .card-description {
+    font-size: 0.785rem;
+    margin: 0.35rem 0 0.5rem 0;
+  }
+
+  .card-bottom-row {
+    padding-top: 0.5rem;
+  }
+
+  .card-score-pill {
+    font-size: 0.725rem;
+    padding: 0.18rem 0.45rem;
+  }
+
+  .card-reading-progress,
+  .card-submission-meta {
+    font-size: 0.725rem;
+  }
+
+  .activity-btn {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 1rem;
+    font-size: 0.85rem;
+  }
+
   .comparison-grid {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
 
-  .step-name {
-    font-size: 0.575rem;
+  .activity-title {
+    font-size: 0.95rem;
   }
 
-  .overview-main-heading {
-    font-size: 1.05rem;
+  .activity-upload-section {
+    padding-bottom: 4.5rem;
   }
 }
 </style>

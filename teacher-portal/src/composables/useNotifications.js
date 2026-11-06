@@ -12,10 +12,17 @@ function getStoredTeacherParams() {
     const raw = localStorage.getItem('als_teacher_user');
     if (!raw) return { role: 'TEACHER' };
     const parsed = JSON.parse(raw);
+    const resolvedUserId = parsed.userId || parsed.user?.id || undefined;
+    const resolvedTeacherId =
+      parsed.teacherId ||
+      parsed.profileId ||
+      parsed.teacherProfile?.id ||
+      (resolvedUserId && parsed.id !== resolvedUserId ? parsed.id : undefined) ||
+      (!resolvedUserId ? parsed.id : undefined);
     return {
       role: 'TEACHER',
-      userId: parsed.userId || parsed.id || undefined,
-      teacherId: parsed.teacherId || parsed.profileId || parsed.teacherProfile?.id || undefined,
+      userId: resolvedUserId,
+      teacherId: resolvedTeacherId,
     };
   } catch (_err) {
     return { role: 'TEACHER' };

@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
 
 const loading = ref(true);
@@ -251,6 +251,13 @@ async function loadProgress() {
 
 onMounted(() => {
   loadProgress();
+  window.addEventListener('als-progress-updated', loadProgress);
+  window.addEventListener('focus', loadProgress);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('als-progress-updated', loadProgress);
+  window.removeEventListener('focus', loadProgress);
 });
 </script>
 

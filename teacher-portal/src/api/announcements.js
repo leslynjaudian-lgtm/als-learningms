@@ -15,3 +15,11 @@ export function updateAnnouncement(id, data) {
 export function deleteAnnouncement(id) {
   return api.delete(`/announcements/${id}`);
 }
+
+export function publishAnnouncement(id) {
+  return api.post(`/announcements/${id}/publish`);
+}
+
+export function scheduleAnnouncement(id, data) {
+  return api.post(`/announcements/${id}/schedule`, data);
+}

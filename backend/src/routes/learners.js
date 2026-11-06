@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
+import { calculateModuleProgress } from '../utils/progressCalculator.js';
 
 const router = Router();
 
@@ -31,12 +32,18 @@ export function formatLearnerName(l) {
   return '';
 }
 
+function safeIsoDate(val) {
+  if (!val) return '';
+  const d = val instanceof Date ? val : new Date(val);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().split('T')[0];
+}
+
 // Helper to format learner record for frontend
 function formatLearner(l) {
-  let displayLevel = l.level;
-  if (l.level === 'ELEMENTARY' || l.level === 'A&E Elementary') displayLevel = 'A&E Elementary';
-  else if (l.level === 'JUNIOR' || l.level === 'LOWER_SECONDARY' || l.level === 'A&E Junior' || l.level === 'A&E Junior High' || String(l.level || '').toUpperCase().includes('JUN')) displayLevel = 'A&E Junior High';
-  else displayLevel = l.level;
+  const isElementary = l.level === 'ELEMENTARY' || l.level === 'A&E Elementary' || String(l.level || '').toUpperCase().includes('ELEM');
+  const normalizedTargetLevel = isElementary ? 'ELEMENTARY' : 'JUNIOR';
+  let displayLevel = isElementary ? 'A&E Elementary' : 'A&E Junior High';
 
   let progress = 0;
   if (Array.isArray(l.progressRecords) && l.progressRecords.length > 0) {
@@ -56,12 +63,14 @@ function formatLearner(l) {
     name: formattedName,
     fullName: formattedName,
     lrn: l.lrn || '',
-    dob: l.birthDate ? l.birthDate.toISOString().split('T')[0] : '',
+    dob: safeIsoDate(l.birthDate),
     sex: l.gender || '',
     gender: l.gender || '',
     contactNumber: l.contactNo || '',
     address: l.address || '',
     level: displayLevel,
+    targetLevel: normalizedTargetLevel,
+    rawLevel: l.level,
     learningCenterId: l.learningCenterId,
     learningCenter: l.learningCenter?.name || '—',
     learningCenterDetails: l.learningCenter || null,
@@ -73,7 +82,7 @@ function formatLearner(l) {
     progressRecords: l.progressRecords || [],
     profilePhoto: l.user?.profilePhoto || null,
     status: l.status || 'Active',
-    dateRegistered: l.createdAt ? l.createdAt.toISOString().split('T')[0] : '',
+    dateRegistered: safeIsoDate(l.dateRegistered || l.createdAt),
     createdAt: l.createdAt,
     updatedAt: l.updatedAt,
   };
@@ -255,6 +264,7 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
         learningArea: true,
         assessments: {
           include: {
+            questions: { select: { id: true } },
             attempts: {
               where: {
                 learnerId: learner.id,
@@ -268,11 +278,18 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
             learnerId: learner.id,
           },
         },
+        submissions: {
+          where: {
+            learnerId: learner.id,
+          },
+          select: { id: true, status: true, submittedAt: true },
+        },
       },
       orderBy: { id: 'asc' },
     });
 
     let completedModulesCount = 0;
+    let totalProgressSum = 0;
     let totalAssessments = 0;
     let assessmentsTaken = 0;
 
@@ -283,20 +300,27 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
         name: s.name,
         modulesCompleted: 0,
         totalModules: 0,
+        progressSum: 0,
         progress: 0,
       };
     }
 
     for (const m of modules) {
       const prog = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
-      const isCompleted =
-        prog?.status === 'COMPLETED' ||
-        prog?.masteryStatus === 'MASTERED' ||
-        (prog?.totalPages > 0 && (prog?.completedPages || 0) >= prog.totalPages && prog?.postTestScore != null);
+      const attempts = (m.assessments || []).flatMap((a) => a.attempts || []);
+      const submissions = m.submissions || [];
 
-      if (isCompleted) {
+      const calc = calculateModuleProgress({
+        module: m,
+        learnerProgress: prog,
+        attempts,
+        submissions,
+      });
+
+      if (calc.completed) {
         completedModulesCount++;
       }
+      totalProgressSum += calc.progress;
 
       // Assessments count
       if (Array.isArray(m.assessments)) {
@@ -338,7 +362,8 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
 
       if (matchedKey && strandMap[matchedKey]) {
         strandMap[matchedKey].totalModules++;
-        if (isCompleted) {
+        strandMap[matchedKey].progressSum += calc.progress;
+        if (calc.completed) {
           strandMap[matchedKey].modulesCompleted++;
         }
       }
@@ -347,7 +372,9 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
     const strands = OFFICIAL_STRANDS.map((s) => {
       const item = strandMap[s.key];
       const prog = item.totalModules > 0
-        ? Math.round((item.modulesCompleted / item.totalModules) * 100)
+        ? (item.modulesCompleted === item.totalModules
+            ? 100
+            : Math.round(item.progressSum / item.totalModules))
         : 0;
       return {
         code: item.code,
@@ -360,7 +387,9 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
 
     const totalModules = modules.length;
     const overallProgress = totalModules > 0
-      ? Math.round((completedModulesCount / totalModules) * 100)
+      ? (completedModulesCount === totalModules
+          ? 100
+          : Math.round(totalProgressSum / totalModules))
       : 0;
 
     res.json({
@@ -391,18 +420,51 @@ router.get('/', optionalAuth, async (req, res, next) => {
     // 1. Role Scoping:
     // If authenticated as TEACHER, enforce that teacher ONLY sees their assigned learners!
     if (req.user && req.user.role === 'TEACHER') {
-      if (teacherId && parseInt(teacherId, 10) !== req.user.profileId) {
-        return res.status(403).json({
-          error: 'Access denied. You cannot view learners assigned to another teacher.',
+      const currentTeacherId = req.user.profileId;
+      const currentUserId = req.user.userId || req.user.id;
+      if (teacherId) {
+        const requestedTid = parseInt(teacherId, 10);
+        if (!isNaN(requestedTid) && requestedTid !== currentTeacherId && requestedTid !== currentUserId) {
+          return res.status(403).json({
+            error: 'Access denied. You cannot view learners assigned to another teacher.',
+          });
+        }
+      }
+      const teacherProfile = req.user.teacherProfile;
+      const teacherCenterId = teacherProfile?.learningCenterId;
+
+      where.OR = [
+        { assignedTeacherId: currentTeacherId },
+      ];
+
+      if (teacherCenterId) {
+        where.OR.push({
+          learningCenterId: teacherCenterId,
+          assignedTeacherId: null,
         });
       }
-      where.assignedTeacherId = req.user.profileId;
     } else if (req.user && req.user.role === 'LEARNER') {
       where.id = req.user.profileId;
     } else if (teacherId) {
       const tid = parseInt(teacherId, 10);
-      if (!isNaN(tid)) {
-        where.assignedTeacherId = tid;
+      if (isNaN(tid)) {
+        return res.status(400).json({ error: 'Invalid teacher ID' });
+      }
+      const resolvedTeacher = await prisma.teacher.findFirst({
+        where: {
+          OR: [{ id: tid }, { userId: tid }],
+        },
+        select: { id: true, learningCenterId: true },
+      });
+      if (!resolvedTeacher) {
+        return res.json([]);
+      }
+      where.OR = [{ assignedTeacherId: resolvedTeacher.id }];
+      if (resolvedTeacher.learningCenterId) {
+        where.OR.push({
+          learningCenterId: resolvedTeacher.learningCenterId,
+          assignedTeacherId: null,
+        });
       }
     } else if (req.query.portal === 'teacher') {
       return res.json([]);
@@ -410,11 +472,11 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
     const centerFilter = learningCenterId || req.query.learningCenter || req.query.learningCenterName;
     if (centerFilter) {
-      const cid = parseInt(centerFilter, 10);
-      if (!isNaN(cid)) {
-        where.learningCenterId = cid;
+      const trimmedCenter = String(centerFilter).trim();
+      if (/^\d+$/.test(trimmedCenter)) {
+        where.learningCenterId = parseInt(trimmedCenter, 10);
       } else {
-        where.learningCenter = { name: String(centerFilter).trim() };
+        where.learningCenter = { name: trimmedCenter };
       }
     }
 

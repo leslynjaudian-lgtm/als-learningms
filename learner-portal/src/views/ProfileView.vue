@@ -270,6 +270,7 @@ async function handlePhotoChange(event) {
       profilePhoto: savedPhoto.value,
     };
     localStorage.setItem('als_learner_user', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('als-learner-profile-updated'));
 
     feedbackMessage.value = 'Photo updated successfully!';
     feedbackType.value = 'success';
@@ -313,6 +314,7 @@ onMounted(async () => {
         profilePhoto: photo,
       };
       localStorage.setItem('als_learner_user', JSON.stringify(user.value));
+      window.dispatchEvent(new CustomEvent('als-learner-profile-updated'));
     }
   } catch (e) {
     console.error('Failed to load profile:', e);

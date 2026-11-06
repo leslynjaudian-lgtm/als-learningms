@@ -5,7 +5,8 @@
       'controls-hidden': !controlsVisible,
       'is-fullscreen': isFullscreen,
       'is-zoomed': zoomScale > 1.05,
-      'has-post-test-dock': controlsVisible && isPostTestButtonVisible
+      'has-post-test-dock': controlsVisible && isPostTestButtonVisible,
+      'has-thumbnail-dock': controlsVisible && thumbnailsOpen && !loading && !error && viewMode === 'wide'
     }"
     ref="viewerContainerRef"
   >
@@ -184,6 +185,35 @@
         </div>
 
         <div class="top-bar-right">
+          <!-- Download PDF Button -->
+          <button
+            type="button"
+            class="download-pdf-btn"
+            :disabled="isDownloading || loading || !!error"
+            @click.stop="handleDownloadPdf"
+            aria-label="Download PDF"
+            title="Download PDF"
+          >
+            <svg
+              v-if="!isDownloading"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="download-pdf-icon"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span v-else class="download-btn-spinner" aria-hidden="true"></span>
+            <span class="download-pdf-label">{{ isDownloading ? 'Downloading...' : 'Download PDF' }}</span>
+          </button>
+
           <!-- Fullscreen Toggle Button -->
           <button
             type="button"
@@ -283,6 +313,26 @@
         </div>
       </div>
 
+      <!-- Download Error Alert Banner (When download fails) -->
+      <div v-if="downloadError" class="download-error-banner" role="alert" @click.stop>
+        <div class="download-error-content">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span class="download-error-text">{{ downloadError }}</span>
+        </div>
+        <button
+          type="button"
+          class="download-error-dismiss-btn"
+          @click="downloadError = ''"
+          aria-label="Dismiss error"
+        >
+          &times;
+        </button>
+      </div>
+
       <!-- Pre-Reading Instruction Alert Banner (When visible) -->
       <div v-if="showInstructionBanner" class="reading-instruction-banner" @click.stop>
         <div class="instruction-content">
@@ -319,13 +369,14 @@
 
     <!-- 4. BOTTOM CONTROLS OVERLAY (Overlay above PDF, GPU transform/opacity transitions) -->
     <div class="viewer-bottom-overlay" :class="{ 'overlay-hidden': !controlsVisible }">
-      <!-- Wide Strip Horizontal Thumbnail Navigator (Collapsible) -->
-      <div v-if="viewMode === 'wide' && !loading && !error" class="wide-thumbnail-dock" @click.stop>
+      <!-- Horizontal Thumbnail Navigator (Collapsible - Wide Strip Mode Only) -->
+      <div v-if="!loading && !error && viewMode === 'wide'" class="wide-thumbnail-dock" @click.stop>
         <div class="thumbnail-dock-header">
           <button
             type="button"
             class="dock-toggle-btn"
-            @click="thumbnailsOpen = !thumbnailsOpen"
+            @click="toggleThumbnails"
+            aria-label="Toggle Page Strip"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7"/>
@@ -333,26 +384,53 @@
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>{{ thumbnailsOpen ? 'Hide Page Strip' : `Page Thumbnails (${totalPages || 0})` }}</span>
+            <span>{{ thumbnailsOpen ? 'Hide Page Strip' : 'Show Page Strip' }}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline v-if="thumbnailsOpen" points="6 9 12 15 18 9"></polyline>
               <polyline v-else points="18 15 12 9 6 15"></polyline>
             </svg>
           </button>
-          <span class="dock-hint">Swipe page or tap any thumbnail</span>
+          <span class="dock-hint">Tap any page thumbnail to navigate</span>
         </div>
 
-        <div v-show="thumbnailsOpen" class="thumbnail-strip-track" ref="thumbnailTrackRef">
+        <div
+          v-show="thumbnailsOpen"
+          class="thumbnail-strip-track"
+          ref="thumbnailTrackRef"
+          @pointerdown="onThumbTrackPointerDown"
+          @pointerup="onThumbTrackPointerUp"
+          @pointercancel="onThumbTrackPointerUp"
+        >
           <div
             v-for="p in totalPages"
             :key="`thumb-${p}`"
             :id="`thumb-item-${p}`"
             class="thumb-item"
             :class="{ active: currentPage === p }"
-            @click="goToPage(p)"
+            :data-thumb-page="p"
+            @click="onThumbnailClick(p)"
+            role="button"
+            tabindex="0"
+            :aria-label="`Page ${p}`"
+            :aria-current="currentPage === p ? 'page' : undefined"
+            @keydown.enter="onThumbnailClick(p)"
+            @keydown.space.prevent="onThumbnailClick(p)"
           >
-            <div class="thumb-mini-box">
-              <span class="thumb-number">{{ p }}</span>
+            <div class="thumb-preview-wrap">
+              <canvas
+                :ref="el => setThumbCanvasRef(el, p)"
+                class="thumb-canvas"
+                :style="{ display: thumbStatus[p] === 'ready' ? 'block' : 'none' }"
+              ></canvas>
+              <div
+                v-if="thumbStatus[p] !== 'ready'"
+                class="thumb-placeholder"
+                :class="{ 'thumb-error': thumbStatus[p] === 'error' }"
+              >
+                <div v-if="thumbStatus[p] === 'loading'" class="thumb-spinner"></div>
+                <span v-else-if="thumbStatus[p] === 'error'" class="thumb-err-tag" title="Failed to load preview">!</span>
+                <span v-else class="thumb-page-num">{{ p }}</span>
+              </div>
             </div>
             <span class="thumb-label">p. {{ p }}</span>
           </div>
@@ -422,11 +500,16 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, markRaw, watch } from 'vue';
 import * as pdfjsLib from 'pdfjs-dist';
+import api from '../api/axios';
 
 // Static worker in public/ directory
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 const props = defineProps({
+  moduleId: {
+    type: [String, Number],
+    default: null
+  },
   pdfUrl: {
     type: String,
     default: '/modules/animals-love-them-and-care-for-them.pdf'
@@ -440,6 +523,10 @@ const props = defineProps({
     default: ''
   },
   subtitle: {
+    type: String,
+    default: ''
+  },
+  downloadFileName: {
     type: String,
     default: ''
   },
@@ -473,6 +560,9 @@ const currentPage = ref(props.initialPage || 1);
 const viewMode = ref(props.initialMode || 'long');
 const zoomScale = ref(1.0);
 const isFullscreen = ref(false);
+const isDownloading = ref(false);
+const downloadError = ref('');
+let downloadErrorTimer = null;
 
 // Long Strip Bottom Detection State
 const isLongStripAtBottom = ref(false);
@@ -499,6 +589,261 @@ const showInstructionBanner = ref(true);
 const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 768);
 const thumbnailsOpen = ref(!isMobileViewport.value);
 const showConfirmModal = ref(false);
+
+// Thumbnail Strip State & Pipeline
+const thumbCanvasRefs = new Map();
+const renderedThumbs = new Set();
+const renderingThumbs = new Set();
+const thumbQueue = [];
+const activeThumbRenderTasks = new Map();
+const thumbStatus = ref({});
+const MAX_CONCURRENT_THUMBS = 2;
+let runningThumbRenders = 0;
+let thumbIntersectionObserver = null;
+let scrollThumbRafId = null;
+let isUserInteractingWithThumbTrack = false;
+let userThumbInteractionTimer = null;
+
+function setThumbCanvasRef(el, pageNum) {
+  if (el) {
+    thumbCanvasRefs.set(pageNum, el);
+    if (pdfDoc.value && !renderedThumbs.has(pageNum) && !renderingThumbs.has(pageNum)) {
+      if (thumbQueue.includes(pageNum)) {
+        processThumbQueue();
+      }
+    }
+  } else {
+    thumbCanvasRefs.delete(pageNum);
+  }
+}
+
+function onThumbTrackPointerDown() {
+  isUserInteractingWithThumbTrack = true;
+  if (userThumbInteractionTimer) clearTimeout(userThumbInteractionTimer);
+}
+
+function onThumbTrackPointerUp() {
+  if (userThumbInteractionTimer) clearTimeout(userThumbInteractionTimer);
+  userThumbInteractionTimer = setTimeout(() => {
+    isUserInteractingWithThumbTrack = false;
+  }, 800);
+}
+
+function onThumbnailClick(pageNumber) {
+  if (pageNumber < 1 || pageNumber > totalPages.value) return;
+  goToPage(pageNumber);
+  scrollThumbnailIntoView(pageNumber);
+  if (thumbStatus.value[pageNumber] === 'error') {
+    queueThumbRender(pageNumber);
+  }
+}
+
+function toggleThumbnails() {
+  thumbnailsOpen.value = !thumbnailsOpen.value;
+  if (thumbnailsOpen.value) {
+    nextTick(() => {
+      initThumbnailObserver();
+      scrollThumbnailIntoView(currentPage.value);
+      queueThumbRender(currentPage.value);
+      if (currentPage.value > 1) queueThumbRender(currentPage.value - 1);
+      if (currentPage.value < totalPages.value) queueThumbRender(currentPage.value + 1);
+      if (viewMode.value === 'wide') {
+        renderWidePage(currentPage.value);
+      }
+    });
+  } else {
+    if (viewMode.value === 'wide') {
+      nextTick(() => {
+        renderWidePage(currentPage.value);
+      });
+    }
+  }
+}
+
+function scrollThumbnailIntoView(pageNumber) {
+  if (viewMode.value !== 'wide' || !thumbnailsOpen.value || !thumbnailTrackRef.value) return;
+  if (isUserInteractingWithThumbTrack) return;
+
+  if (scrollThumbRafId) cancelAnimationFrame(scrollThumbRafId);
+  scrollThumbRafId = requestAnimationFrame(() => {
+    scrollThumbRafId = null;
+    const track = thumbnailTrackRef.value;
+    const thumbEl = document.getElementById(`thumb-item-${pageNumber}`);
+    if (!track || !thumbEl) return;
+
+    const trackRect = track.getBoundingClientRect();
+    const thumbRect = thumbEl.getBoundingClientRect();
+
+    const thumbLeft = thumbRect.left - trackRect.left + track.scrollLeft;
+    const targetScrollLeft = thumbLeft - (trackRect.width / 2) + (thumbRect.width / 2);
+
+    track.scrollTo({
+      left: Math.max(0, targetScrollLeft),
+      behavior: 'smooth'
+    });
+  });
+}
+
+function initThumbnailObserver() {
+  if (thumbIntersectionObserver) {
+    thumbIntersectionObserver.disconnect();
+    thumbIntersectionObserver = null;
+  }
+  if (!thumbnailTrackRef.value) return;
+
+  thumbIntersectionObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const pageNum = parseInt(entry.target.getAttribute('data-thumb-page'), 10);
+          if (pageNum && !renderedThumbs.has(pageNum)) {
+            queueThumbRender(pageNum);
+            if (pageNum + 1 <= totalPages.value && !renderedThumbs.has(pageNum + 1)) {
+              queueThumbRender(pageNum + 1);
+            }
+            if (pageNum - 1 >= 1 && !renderedThumbs.has(pageNum - 1)) {
+              queueThumbRender(pageNum - 1);
+            }
+          }
+        }
+      });
+    },
+    {
+      root: thumbnailTrackRef.value,
+      rootMargin: '0px 240px 0px 240px',
+      threshold: 0.05
+    }
+  );
+
+  nextTick(() => {
+    for (let p = 1; p <= totalPages.value; p++) {
+      const el = document.getElementById(`thumb-item-${p}`);
+      if (el && thumbIntersectionObserver) {
+        thumbIntersectionObserver.observe(el);
+      }
+    }
+  });
+}
+
+function queueThumbRender(pageNum) {
+  if (!pdfDoc.value || pageNum < 1 || pageNum > totalPages.value) return;
+  if (renderedThumbs.has(pageNum) || renderingThumbs.has(pageNum)) return;
+
+  if (!thumbQueue.includes(pageNum)) {
+    if (Math.abs(pageNum - currentPage.value) <= 1) {
+      thumbQueue.unshift(pageNum);
+    } else {
+      thumbQueue.push(pageNum);
+    }
+  }
+  processThumbQueue();
+}
+
+async function processThumbQueue() {
+  if (!pdfDoc.value) return;
+  if (runningThumbRenders >= MAX_CONCURRENT_THUMBS) return;
+  if (thumbQueue.length === 0) return;
+
+  const pageNum = thumbQueue.shift();
+  if (renderedThumbs.has(pageNum) || renderingThumbs.has(pageNum)) {
+    processThumbQueue();
+    return;
+  }
+
+  const canvas = thumbCanvasRefs.get(pageNum);
+  if (!canvas) {
+    if (thumbnailsOpen.value) {
+      setTimeout(() => {
+        if (!renderedThumbs.has(pageNum) && !renderingThumbs.has(pageNum) && !thumbQueue.includes(pageNum)) {
+          thumbQueue.push(pageNum);
+          processThumbQueue();
+        }
+      }, 50);
+    }
+    processThumbQueue();
+    return;
+  }
+
+  runningThumbRenders++;
+  renderingThumbs.add(pageNum);
+
+  try {
+    await renderThumbnailPage(pageNum);
+  } finally {
+    renderingThumbs.delete(pageNum);
+    runningThumbRenders--;
+    processThumbQueue();
+  }
+}
+
+async function renderThumbnailPage(pageNum) {
+  if (!pdfDoc.value) return;
+  const canvas = thumbCanvasRefs.get(pageNum);
+  if (!canvas) return;
+
+  thumbStatus.value[pageNum] = 'loading';
+
+  let page = null;
+  try {
+    page = await pdfDoc.value.getPage(pageNum);
+    const unscaledViewport = page.getViewport({ scale: 1.0 });
+
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 600;
+    const maxW = isMobile ? 48 : 62;
+    const maxH = isMobile ? 64 : 82;
+
+    const scaleW = maxW / unscaledViewport.width;
+    const scaleH = maxH / unscaledViewport.height;
+    const fitScale = Math.min(scaleW, scaleH);
+    const scale = Math.max(0.08, fitScale);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const renderViewport = page.getViewport({ scale: scale * dpr });
+    const displayViewport = page.getViewport({ scale: scale });
+
+    canvas.width = Math.floor(renderViewport.width);
+    canvas.height = Math.floor(renderViewport.height);
+    canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+    canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+
+    const ctx = canvas.getContext('2d');
+    const renderTask = page.render({
+      canvasContext: ctx,
+      viewport: renderViewport
+    });
+    activeThumbRenderTasks.set(pageNum, renderTask);
+
+    await renderTask.promise;
+
+    renderedThumbs.add(pageNum);
+    thumbStatus.value[pageNum] = 'ready';
+  } catch (err) {
+    if (err?.name === 'RenderingCancelledException') {
+      return;
+    }
+    console.warn(`[MockPdfViewer] Thumbnail render error on page ${pageNum}:`, err);
+    thumbStatus.value[pageNum] = 'error';
+  } finally {
+    activeThumbRenderTasks.delete(pageNum);
+    if (page) {
+      try {
+        page.cleanup();
+      } catch (e) {}
+    }
+  }
+}
+
+function cancelAllThumbnailRenders() {
+  thumbQueue.length = 0;
+  for (const [, task] of activeThumbRenderTasks.entries()) {
+    try {
+      task.cancel();
+    } catch (e) {}
+  }
+  activeThumbRenderTasks.clear();
+  renderingThumbs.clear();
+  runningThumbRenders = 0;
+}
 
 // 2D Pan Offset for Zoomed View
 const panX = ref(0);
@@ -812,6 +1157,162 @@ function onFullscreenChange() {
 }
 
 // ============================================================
+// DOWNLOAD PDF MODULE (Original Teacher-Uploaded PDF)
+// ============================================================
+function getReadableDownloadFilename() {
+  if (props.downloadFileName && props.downloadFileName.toLowerCase().endsWith('.pdf')) {
+    return props.downloadFileName;
+  }
+
+  const rawTitle = String(props.title || 'Learning_Module')
+    .trim()
+    .replace(/\.pdf$/i, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  const rawStrand = String(props.subtitle || props.code || '')
+    .trim()
+    .toUpperCase();
+  const lsMatch = rawStrand.match(/^LS\d+/i);
+  const cleanStrand = lsMatch
+    ? lsMatch[0].toUpperCase()
+    : rawStrand.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+  const baseTitle = rawTitle || 'Learning_Module';
+  if (
+    cleanStrand &&
+    !baseTitle.toUpperCase().endsWith(`_${cleanStrand}`) &&
+    baseTitle.toUpperCase() !== cleanStrand
+  ) {
+    return `${baseTitle}_${cleanStrand}.pdf`;
+  }
+  return `${baseTitle}.pdf`;
+}
+
+function extractFilenameFromHeaders(headers) {
+  const disposition = headers?.['content-disposition'] || headers?.['Content-Disposition'];
+  if (!disposition) return null;
+
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;\s]+)/i);
+  if (utf8Match && utf8Match[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+  if (quotedMatch && quotedMatch[1]) {
+    return quotedMatch[1];
+  }
+
+  const plainMatch = disposition.match(/filename=([^;\s]+)/i);
+  if (plainMatch && plainMatch[1]) {
+    return plainMatch[1].replace(/^["']|["']$/g, '');
+  }
+
+  return null;
+}
+
+function showDownloadErrorMsg(message) {
+  downloadError.value = message;
+  if (downloadErrorTimer) {
+    clearTimeout(downloadErrorTimer);
+  }
+  downloadErrorTimer = setTimeout(() => {
+    downloadError.value = '';
+  }, 7000);
+}
+
+async function handleDownloadPdf() {
+  if (isDownloading.value) return;
+
+  isDownloading.value = true;
+  downloadError.value = '';
+
+  try {
+    let pdfBlob = null;
+    let resolvedFileName = getReadableDownloadFilename();
+
+    if (props.moduleId) {
+      const response = await api.get(`/modules/${props.moduleId}/download`, {
+        responseType: 'blob',
+        timeout: 60000
+      });
+
+      const contentType = String(response.headers?.['content-type'] || response.data?.type || '').toLowerCase();
+      if (contentType.includes('application/json')) {
+        const text = await response.data.text();
+        let parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {}
+        throw new Error(parsed?.error || 'Unable to download PDF module.');
+      }
+
+      const headerFileName = extractFilenameFromHeaders(response.headers);
+      if (headerFileName) {
+        resolvedFileName = headerFileName;
+      }
+
+      pdfBlob = new Blob([response.data], { type: 'application/pdf' });
+    } else if (props.pdfUrl) {
+      const res = await fetch(props.pdfUrl, { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error('Failed to download PDF file.');
+      }
+      const rawBlob = await res.blob();
+      pdfBlob = new Blob([rawBlob], { type: 'application/pdf' });
+    } else {
+      throw new Error('No PDF file is available for this module.');
+    }
+
+    if (!pdfBlob || pdfBlob.size === 0) {
+      throw new Error('The downloaded PDF file is empty or unavailable.');
+    }
+
+    if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
+      window.navigator.msSaveOrOpenBlob(pdfBlob, resolvedFileName);
+    } else {
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', resolvedFileName);
+      link.rel = 'noopener';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 15000);
+    }
+  } catch (err) {
+    let errorMessage = 'Failed to download PDF module. Please check your connection and try again.';
+
+    if (err?.response?.data instanceof Blob) {
+      try {
+        const errText = await err.response.data.text();
+        const errJson = JSON.parse(errText);
+        if (errJson?.error) {
+          errorMessage = errJson.error;
+        }
+      } catch {}
+    } else if (err?.response?.data?.error) {
+      errorMessage = err.response.data.error;
+    } else if (err?.message && !err.message.startsWith('Request failed')) {
+      errorMessage = err.message;
+    }
+
+    showDownloadErrorMsg(errorMessage);
+  } finally {
+    isDownloading.value = false;
+  }
+}
+
+// ============================================================
 // PDF LOADING & RENDERING
 // ============================================================
 async function loadPdfDocument() {
@@ -821,6 +1322,16 @@ async function loadPdfDocument() {
   error.value = null;
   renderedPages.clear();
   renderingPages.clear();
+
+  // Cancel prior thumbnail rendering and clear state
+  cancelAllThumbnailRenders();
+  renderedThumbs.clear();
+  thumbStatus.value = {};
+  thumbCanvasRefs.clear();
+  if (thumbIntersectionObserver) {
+    thumbIntersectionObserver.disconnect();
+    thumbIntersectionObserver = null;
+  }
 
   // Cancel prior loading task if still running
   if (currentLoadingTask) {
@@ -871,6 +1382,18 @@ async function loadPdfDocument() {
     }
 
     initResizeObserver();
+
+    if (viewMode.value === 'wide' && thumbnailsOpen.value) {
+      nextTick(() => {
+        initThumbnailObserver();
+        scrollThumbnailIntoView(currentPage.value);
+        queueThumbRender(currentPage.value);
+        if (currentPage.value > 1) queueThumbRender(currentPage.value - 1);
+        if (currentPage.value < totalPages.value) queueThumbRender(currentPage.value + 1);
+        queueThumbRender(1);
+        queueThumbRender(2);
+      });
+    }
   } catch (err) {
     if (err?.name === 'RenderingCancelledException') return;
     console.error('Failed to load PDF module:', err);
@@ -1113,12 +1636,7 @@ async function renderWidePage(pageNumber) {
     await renderPageToCanvas(pageNumber, wideCanvasRef.value, wideTextRef.value, scale, page);
 
     // Auto-scroll thumbnail strip
-    nextTick(() => {
-      const thumbEl = document.getElementById(`thumb-item-${pageNumber}`);
-      if (thumbEl && thumbnailTrackRef.value) {
-        thumbEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    });
+    scrollThumbnailIntoView(pageNumber);
   } catch (err) {
     if (err?.name !== 'RenderingCancelledException') {
       console.error(`Error rendering wide page ${pageNumber}:`, err);
@@ -1189,6 +1707,7 @@ function goToPage(pageNumber) {
     renderLongPage(pageNumber);
     scrollToLongPage(pageNumber);
   }
+  scrollThumbnailIntoView(pageNumber);
 }
 
 // Mode Switching (Preserves current page)
@@ -1202,7 +1721,20 @@ async function switchViewMode(newMode) {
   if (newMode === 'wide') {
     if (intersectionObserver) intersectionObserver.disconnect();
     renderWidePage(currentPage.value);
+    if (thumbnailsOpen.value) {
+      nextTick(() => {
+        initThumbnailObserver();
+        scrollThumbnailIntoView(currentPage.value);
+        queueThumbRender(currentPage.value);
+        if (currentPage.value > 1) queueThumbRender(currentPage.value - 1);
+        if (currentPage.value < totalPages.value) queueThumbRender(currentPage.value + 1);
+      });
+    }
   } else {
+    if (thumbIntersectionObserver) {
+      thumbIntersectionObserver.disconnect();
+      thumbIntersectionObserver = null;
+    }
     isLongStripAtBottom.value = false;
     initLongStripObserver();
     renderLongPage(currentPage.value);
@@ -1273,6 +1805,10 @@ onBeforeUnmount(() => {
     clearTimeout(orientationTimer);
     orientationTimer = null;
   }
+  if (downloadErrorTimer) {
+    clearTimeout(downloadErrorTimer);
+    downloadErrorTimer = null;
+  }
   if (currentLoadingTask) {
     try {
       currentLoadingTask.destroy();
@@ -1289,11 +1825,54 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(scrollRafId);
     scrollRafId = null;
   }
+  if (scrollThumbRafId) {
+    cancelAnimationFrame(scrollThumbRafId);
+    scrollThumbRafId = null;
+  }
+  if (userThumbInteractionTimer) {
+    clearTimeout(userThumbInteractionTimer);
+    userThumbInteractionTimer = null;
+  }
+  cancelAllThumbnailRenders();
+  if (thumbIntersectionObserver) {
+    thumbIntersectionObserver.disconnect();
+    thumbIntersectionObserver = null;
+  }
+  renderedThumbs.clear();
+  renderingThumbs.clear();
+  thumbCanvasRefs.clear();
   renderedPages.clear();
   renderingPages.clear();
   longCanvasRefs.clear();
   longTextRefs.clear();
 });
+
+// Watch current page to update active thumbnail and follow page position
+watch(
+  () => currentPage.value,
+  (newPage) => {
+    if (viewMode.value === 'wide') {
+      scrollThumbnailIntoView(newPage);
+      queueThumbRender(newPage);
+      if (newPage > 1) queueThumbRender(newPage - 1);
+      if (newPage < totalPages.value) queueThumbRender(newPage + 1);
+    }
+  }
+);
+
+// Watch thumbnailsOpen to initialize observer and scroll to current page when opened (Wide Strip mode only)
+watch(
+  () => thumbnailsOpen.value,
+  (open) => {
+    if (open && viewMode.value === 'wide') {
+      nextTick(() => {
+        initThumbnailObserver();
+        scrollThumbnailIntoView(currentPage.value);
+        queueThumbRender(currentPage.value);
+      });
+    }
+  }
+);
 
 // Controls visibility toggles without rerendering the PDF canvas to prevent flickering and race conditions
 
@@ -1416,6 +1995,68 @@ watch(
   gap: 0.65rem;
   min-width: 0;
   flex: 1;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.download-pdf-btn {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid #475569;
+  color: #f8fafc;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.download-pdf-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: #64748b;
+}
+
+.download-pdf-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.download-pdf-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.download-pdf-icon {
+  flex-shrink: 0;
+}
+
+.download-pdf-label {
+  display: inline;
+  line-height: 1;
+}
+
+.download-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(248, 250, 252, 0.25);
+  border-top-color: #f8fafc;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
 }
 
 .nav-icon-btn {
@@ -1648,6 +2289,46 @@ watch(
   line-height: 1;
   cursor: pointer;
   padding: 0 2px;
+}
+
+/* Download Error Banner */
+.download-error-banner {
+  background: rgba(127, 29, 29, 0.95);
+  border-bottom: 1px solid #ef4444;
+  padding: 0.45rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-shrink: 0;
+  z-index: 22;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.download-error-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.download-error-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fee2e2;
+  line-height: 1.35;
+}
+
+.download-error-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: #fca5a5;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
 }
 
 /* Pre-Reading Instruction Banner */
@@ -1991,6 +2672,22 @@ watch(
   padding-bottom: 0.35rem;
 }
 
+.has-thumbnail-dock .wide-strip-container {
+  padding-bottom: max(148px, calc(env(safe-area-inset-bottom) + 140px));
+}
+
+.has-thumbnail-dock.has-post-test-dock .wide-strip-container {
+  padding-bottom: max(205px, calc(env(safe-area-inset-bottom) + 195px));
+}
+
+.has-post-test-dock:not(.has-thumbnail-dock) .wide-strip-container {
+  padding-bottom: max(140px, calc(env(safe-area-inset-bottom) + 130px));
+}
+
+.has-post-test-dock .long-strip-container {
+  padding-bottom: max(130px, calc(env(safe-area-inset-bottom) + 120px));
+}
+
 .thumbnail-dock-header {
   display: flex;
   align-items: center;
@@ -2019,60 +2716,130 @@ watch(
 
 .thumbnail-strip-track {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.65rem;
   overflow-x: auto;
+  overflow-y: hidden;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.5rem 0.45rem 0.5rem;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.thumbnail-strip-track::-webkit-scrollbar {
+  height: 4px;
+}
+
+.thumbnail-strip-track::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thumbnail-strip-track::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
 }
 
 .thumb-item {
-  flex: 0 0 46px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: 2px 2px;
+  outline: none;
 }
 
-.thumb-mini-box {
-  width: 44px;
-  height: 58px;
-  background: #0f172a;
-  border: 1px solid #475569;
+.thumb-item:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.thumb-item:active {
+  transform: scale(0.97);
+}
+
+.thumb-preview-wrap {
+  width: 62px;
+  height: 82px;
+  background: #ffffff;
+  border: 1.5px solid #475569;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
-.thumb-item.active .thumb-mini-box {
-  border-color: #165dfc;
-  background: #1e3a8a;
-  box-shadow: 0 0 0 2px #165dfc;
+.thumb-item:hover:not(.active) .thumb-preview-wrap {
+  border-color: #94a3b8;
 }
 
-.thumb-number {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: #e2e8f0;
+.thumb-item.active .thumb-preview-wrap {
+  border-color: #165dfc !important;
+  box-shadow: 0 0 0 2px #165dfc, 0 2px 6px rgba(22, 93, 252, 0.4);
 }
 
-.thumb-item.active .thumb-number {
-  color: #ffffff;
+.thumb-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #ffffff;
 }
 
-.thumb-label {
-  font-size: 0.65rem;
+.thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
   color: #94a3b8;
 }
 
-.thumb-item.active .thumb-label {
-  color: #38bdf8;
+.thumb-page-num {
+  font-size: 0.8rem;
   font-weight: 700;
+  color: #64748b;
+}
+
+.thumb-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #165dfc;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.thumb-err-tag {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #ef4444;
+}
+
+.thumb-label {
+  font-size: 0.675rem;
+  font-weight: 600;
+  color: #94a3b8;
+  line-height: 1.2;
+  transition: color 0.15s ease;
+}
+
+.thumb-item.active .thumb-label {
+  color: #38bdf8 !important;
+  font-weight: 800;
 }
 
 /* 5. Bottom Action Dock */
@@ -2264,6 +3031,16 @@ watch(
 
 /* Mobile Responsiveness & Multi-Breakpoint Polish */
 @media (max-width: 600px) {
+  .download-pdf-label {
+    display: none;
+  }
+  .download-pdf-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
   .wide-nav-arrow {
     width: 40px;
     height: 40px;
@@ -2276,6 +3053,17 @@ watch(
   }
   .wide-nav-next {
     right: 0.35rem;
+  }
+  .thumb-preview-wrap {
+    width: 48px;
+    height: 64px;
+  }
+  .thumb-label {
+    font-size: 0.625rem;
+  }
+  .thumbnail-strip-track {
+    gap: 0.45rem;
+    padding: 0.2rem 0.35rem 0.35rem 0.35rem;
   }
 }
 
@@ -2291,11 +3079,16 @@ watch(
   .viewer-top-bar {
     padding: max(0.4rem, env(safe-area-inset-top)) 0.5rem 0.4rem 0.5rem;
   }
+  .top-bar-right {
+    gap: 0.35rem;
+  }
+  .download-pdf-btn,
   .nav-icon-btn {
     width: 40px;
     height: 40px;
     min-width: 40px;
     min-height: 40px;
+    padding: 0;
   }
   .viewer-controls-bar {
     padding: 0.35rem 0.45rem;
