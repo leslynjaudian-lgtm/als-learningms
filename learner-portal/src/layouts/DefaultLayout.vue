@@ -104,8 +104,8 @@
             </div>
 
             <div class="notif-panel-footer">
-              <router-link to="/announcements" class="notif-view-all-link" @click="notifPanelOpen = false">
-                View Announcements
+              <router-link to="/notifications" class="notif-view-all-link" @click="notifPanelOpen = false">
+                View Notifications
               </router-link>
             </div>
           </div>
@@ -199,7 +199,7 @@
 
     <!-- Bottom 5-Tab Navigation -->
     <nav class="bottom-nav">
-      <router-link to="/home" class="bottom-tab-item" :class="{ active: isCurrentRoute('/home') }" exact>
+      <router-link to="/home" class="bottom-tab-item" :class="{ active: isHomeTabActive }" exact>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           <polyline points="9 22 9 12 15 12 15 22"/>
@@ -207,7 +207,7 @@
         <span>Home</span>
       </router-link>
 
-      <router-link to="/modules" class="bottom-tab-item" :class="{ active: isCurrentRoute('/modules') }">
+      <router-link to="/modules" class="bottom-tab-item" :class="{ active: isModulesTabActive }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -215,7 +215,7 @@
         <span>Modules</span>
       </router-link>
 
-      <router-link to="/progress" class="bottom-tab-item" :class="{ active: isCurrentRoute('/progress') }">
+      <router-link to="/progress" class="bottom-tab-item" :class="{ active: isProgressTabActive }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 6 13.5 15.5 8.5 10.5 18"/>
           <polyline points="17 6 23 6 23 12"/>
@@ -223,7 +223,14 @@
         <span>Progress</span>
       </router-link>
 
-      <button type="button" class="bottom-tab-item" @click="drawerOpen = true" aria-label="Open More Menu">
+      <button
+        type="button"
+        class="bottom-tab-item"
+        :class="{ active: isMoreTabActive }"
+        @click="drawerOpen = !drawerOpen"
+        aria-label="Open More Menu"
+        :aria-expanded="drawerOpen"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="1"/>
           <circle cx="12" cy="5" r="1"/>
@@ -250,7 +257,7 @@
         </div>
 
         <nav class="drawer-nav">
-          <router-link to="/home" class="drawer-nav-item" :class="{ active: $route.path === '/home' }" @click="drawerOpen = false">
+          <router-link to="/home" class="drawer-nav-item" :class="{ active: isHomeRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
@@ -258,7 +265,7 @@
             <span>Home</span>
           </router-link>
 
-          <router-link to="/modules" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/modules') }" @click="drawerOpen = false">
+          <router-link to="/modules" class="drawer-nav-item" :class="{ active: isModulesRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -266,23 +273,23 @@
             <span>My Modules</span>
           </router-link>
 
-          <router-link to="/progress" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/progress') }" @click="drawerOpen = false">
+          <router-link to="/progress" class="drawer-nav-item" :class="{ active: isProgressRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+              <polyline points="23 6 13.5 15.5 8.5 10.5 18"/>
               <polyline points="17 6 23 6 23 12"/>
             </svg>
             <span>My Progress</span>
           </router-link>
 
-          <router-link to="/announcements" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/announcements') }" @click="drawerOpen = false">
+          <router-link to="/notifications" class="drawer-nav-item" :class="{ active: isNotificationsRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
-            <span>Announcements</span>
+            <span>Notifications</span>
           </router-link>
 
-          <router-link to="/profile" class="drawer-nav-item" :class="{ active: $route.path.startsWith('/profile') }" @click="drawerOpen = false">
+          <router-link to="/profile" class="drawer-nav-item" :class="{ active: isProfileRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
               <circle cx="12" cy="7" r="4"/>
@@ -399,6 +406,65 @@ const {
 
 let pollTimer = null;
 
+// Route grouping for Navigation Active States
+const isHomeRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return p === '/home' || n === 'Dashboard';
+});
+
+const isModulesRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return p.startsWith('/modules') || n === 'MyModules' || n === 'ModuleDetail';
+});
+
+const isProgressRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return p.startsWith('/progress') || n === 'Progress';
+});
+
+const isNotificationsRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return (
+    p.startsWith('/notifications') ||
+    p.startsWith('/announcements') ||
+    n === 'Notifications'
+  );
+});
+
+const isProfileRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return p.startsWith('/profile') || n === 'Profile';
+});
+
+const isMoreRoute = computed(() => {
+  return isNotificationsRoute.value || isProfileRoute.value;
+});
+
+// Bottom navigation active states (strictly mutually exclusive: only one item active at a time)
+const isMoreTabActive = computed(() => {
+  return drawerOpen.value || isMoreRoute.value;
+});
+
+const isHomeTabActive = computed(() => {
+  if (drawerOpen.value) return false;
+  return isHomeRoute.value && !isMoreRoute.value;
+});
+
+const isModulesTabActive = computed(() => {
+  if (drawerOpen.value) return false;
+  return isModulesRoute.value && !isMoreRoute.value;
+});
+
+const isProgressTabActive = computed(() => {
+  if (drawerOpen.value) return false;
+  return isProgressRoute.value && !isMoreRoute.value;
+});
+
 function isCurrentRoute(path) {
   if (path === '/') return route.path === '/';
   return route.path.startsWith(path);
@@ -444,7 +510,12 @@ async function handleNotificationClick(item) {
     await markAsRead(item.notificationKey);
   }
   notifPanelOpen.value = false;
-  const targetUrl = item?.actionUrl || '/announcements';
+  let targetUrl = item?.actionUrl;
+  if (!targetUrl || targetUrl === '/announcements' || targetUrl === '/notifications') {
+    targetUrl = item?.notificationKey
+      ? `/notifications?key=${encodeURIComponent(item.notificationKey)}`
+      : '/notifications';
+  }
   if (route.fullPath !== targetUrl) {
     router.push(targetUrl);
   }
@@ -477,6 +548,7 @@ function handleStorageChange(e) {
 watch(
   () => route.fullPath,
   () => {
+    drawerOpen.value = false;
     notifPanelOpen.value = false;
     profileMenuOpen.value = false;
     fetchNotifications();

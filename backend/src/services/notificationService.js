@@ -61,11 +61,14 @@ export function formatTime12h(timeStr) {
  */
 export function formatRelativeTime(dateInput) {
   if (!dateInput) return '';
-  const d = new Date(dateInput);
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
   if (isNaN(d.getTime())) return '';
   const diffMs = Date.now() - d.getTime();
+  if (diffMs < 60 * 1000 && diffMs >= -30 * 1000) return 'Just now';
+  if (diffMs < 0) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
@@ -124,19 +127,67 @@ export async function createNotification({
     return null;
   }
 
+  const cleanTitle = title.trim();
+  const cleanMessage = message.trim();
+
   try {
+    // 1. Deduplicate by notificationKey
     if (notificationKey) {
       const existing = await prisma.notification.findUnique({
         where: { notificationKey },
       });
-      if (existing) return existing;
+      if (existing) {
+        if (
+          existing.title !== cleanTitle ||
+          existing.message !== cleanMessage ||
+          (createdByName && existing.createdByName !== createdByName)
+        ) {
+          return await prisma.notification.update({
+            where: { id: existing.id },
+            data: {
+              title: cleanTitle,
+              message: cleanMessage,
+              createdByName: createdByName || existing.createdByName,
+              isImportant: Boolean(isImportant),
+              priority: String(priority).toUpperCase(),
+              linkUrl: linkUrl || existing.linkUrl,
+            },
+          });
+        }
+        return existing;
+      }
+    }
+
+    // 2. Deduplicate by (sourceType, sourceId, targetUserId)
+    if (sourceType && sourceId && targetUserId) {
+      const existingBySource = await prisma.notification.findFirst({
+        where: {
+          targetUserId: Number(targetUserId),
+          sourceType: String(sourceType),
+          sourceId: Number(sourceId),
+        },
+      });
+      if (existingBySource) {
+        return await prisma.notification.update({
+          where: { id: existingBySource.id },
+          data: {
+            notificationKey: notificationKey || existingBySource.notificationKey,
+            title: cleanTitle,
+            message: cleanMessage,
+            createdByName: createdByName || existingBySource.createdByName,
+            isImportant: Boolean(isImportant),
+            priority: String(priority).toUpperCase(),
+            linkUrl: linkUrl || existingBySource.linkUrl,
+          },
+        });
+      }
     }
 
     const item = await prisma.notification.create({
       data: {
         notificationKey: notificationKey || null,
-        title: title.trim(),
-        message: message.trim(),
+        title: cleanTitle,
+        message: cleanMessage,
         type: String(type).toUpperCase(),
         priority: String(priority).toUpperCase(),
         isImportant: Boolean(isImportant),
@@ -157,7 +208,6 @@ export async function createNotification({
     });
     return item;
   } catch (err) {
-    // If unique constraint collided, return existing
     if (err.code === 'P2002' && notificationKey) {
       return await prisma.notification.findUnique({ where: { notificationKey } }).catch(() => null);
     }
@@ -284,14 +334,24 @@ export async function notifyAnnouncementPublished(announcementId) {
     const ann = await prisma.announcement.findUnique({
       where: { id: Number(announcementId) },
       include: {
-        author: true,
+        author: {
+          include: {
+            adminProfile: true,
+            teacherProfile: true,
+          },
+        },
       },
     });
 
     if (!ann || ann.status !== 'PUBLISHED') return;
+    // If scheduled for a future date, do not publish notification yet
+    if (ann.scheduledAt && new Date(ann.scheduledAt) > new Date()) return;
 
     const isAuthorAdmin = ann.creatorRole === 'ADMIN' || ann.author?.role === 'ADMIN';
     const isAuthorTeacher = ann.creatorRole === 'TEACHER' || ann.author?.role === 'TEACHER' || ann.teacherId != null;
+
+    const annTitle = (ann.title || 'Announcement').trim();
+    const annMessage = (ann.content || '').trim();
 
     // 1. Admin Announcement:
     if (isAuthorAdmin) {
@@ -311,12 +371,13 @@ export async function notifyAnnouncementPublished(announcementId) {
           select: { id: true, userId: true },
         });
 
+        const adminSender = ann.author?.adminProfile?.fullName || 'District Coordinator';
         for (const t of teachers) {
           if (!t.userId) continue;
           await createNotification({
-            notificationKey: `announcement:${ann.id}:teacher:${t.userId}`,
-            title: 'New Announcement',
-            message: 'The District Coordinator posted a new announcement for Teachers.',
+            notificationKey: `announcement:${ann.id}:user:${t.userId}`,
+            title: annTitle,
+            message: annMessage,
             type: 'ANNOUNCEMENT',
             priority: ann.priority || 'NORMAL',
             isImportant: Boolean(ann.isImportant || ann.isPinned),
@@ -327,7 +388,7 @@ export async function notifyAnnouncementPublished(announcementId) {
             sourceType: 'announcement',
             sourceId: ann.id,
             linkUrl: '/dashboard/announcements',
-            createdByName: 'District Coordinator',
+            createdByName: adminSender,
             createdByRole: 'ADMIN',
             createdAt: ann.createdAt,
           });
@@ -355,12 +416,13 @@ export async function notifyAnnouncementPublished(announcementId) {
           select: { id: true, userId: true },
         });
 
+        const adminSender = ann.author?.adminProfile?.fullName || 'District Coordinator';
         for (const l of learners) {
           if (!l.userId) continue;
           await createNotification({
-            notificationKey: `announcement:${ann.id}:learner:${l.userId}`,
-            title: 'New Announcement',
-            message: 'The District Coordinator posted a new announcement.',
+            notificationKey: `announcement:${ann.id}:user:${l.userId}`,
+            title: annTitle,
+            message: annMessage,
             type: 'ANNOUNCEMENT',
             priority: ann.priority || 'NORMAL',
             isImportant: Boolean(ann.isImportant || ann.isPinned),
@@ -370,8 +432,8 @@ export async function notifyAnnouncementPublished(announcementId) {
             learningCenterId: ann.learningCenterId,
             sourceType: 'announcement',
             sourceId: ann.id,
-            linkUrl: '/announcements',
-            createdByName: 'District Coordinator',
+            linkUrl: '/notifications',
+            createdByName: adminSender,
             createdByRole: 'ADMIN',
             createdAt: ann.createdAt,
           });
@@ -404,12 +466,22 @@ export async function notifyAnnouncementPublished(announcementId) {
         select: { id: true, userId: true },
       });
 
+      let teacherSender = ann.author?.teacherProfile?.fullName;
+      if (!teacherSender && ann.teacherId) {
+        const t = await prisma.teacher.findUnique({
+          where: { id: ann.teacherId },
+          select: { fullName: true },
+        });
+        teacherSender = t?.fullName;
+      }
+      if (!teacherSender) teacherSender = 'Assigned Teacher';
+
       for (const l of learners) {
         if (!l.userId) continue;
         await createNotification({
-          notificationKey: `announcement:${ann.id}:learner:${l.userId}`,
-          title: 'Message from Your Teacher',
-          message: 'Your teacher posted a new announcement.',
+          notificationKey: `announcement:${ann.id}:user:${l.userId}`,
+          title: annTitle,
+          message: annMessage,
           type: 'ANNOUNCEMENT',
           priority: ann.priority || 'NORMAL',
           isImportant: Boolean(ann.isImportant || ann.isPinned),
@@ -419,8 +491,8 @@ export async function notifyAnnouncementPublished(announcementId) {
           learningCenterId: ann.learningCenterId,
           sourceType: 'announcement',
           sourceId: ann.id,
-          linkUrl: '/announcements',
-          createdByName: 'Assigned Teacher',
+          linkUrl: '/notifications',
+          createdByName: teacherSender,
           createdByRole: 'TEACHER',
           createdAt: ann.createdAt,
         });
@@ -476,12 +548,14 @@ export async function notifyModulePublished(moduleId) {
       select: { id: true, userId: true },
     });
 
+    const teacherName = mod.teacher?.fullName || 'Assigned Teacher';
+
     for (const l of learners) {
       if (!l.userId) continue;
       await createNotification({
         notificationKey: `module_published:${mod.id}:user:${l.userId}`,
-        title: 'New Module Available',
-        message: `Your teacher added a new module: ${mod.title}. You can start learning now.`,
+        title: 'New Learning Module Available',
+        message: `Your teacher, ${teacherName}, added a new learning module: ${mod.title}.`,
         type: 'MODULE',
         priority: 'NORMAL',
         isImportant: false,
@@ -492,7 +566,7 @@ export async function notifyModulePublished(moduleId) {
         sourceType: 'module',
         sourceId: mod.id,
         linkUrl: `/modules/${mod.id}`,
-        createdByName: mod.teacher?.fullName || 'Assigned Teacher',
+        createdByName: teacherName,
         createdByRole: 'TEACHER',
         createdAt: mod.createdAt,
       });
@@ -639,7 +713,7 @@ export async function checkScheduleReminders() {
 export async function checkModuleDeadlineReminders() {
   const now = new Date();
   const pastCutoff = new Date(now.getTime() - 24 * 3600 * 1000);
-  const futureHorizon = new Date(now.getTime() + 72 * 3600 * 1000);
+  const futureHorizon = new Date(now.getTime() + 96 * 3600 * 1000);
 
   try {
     const modules = await prisma.module.findMany({
@@ -735,16 +809,31 @@ export async function checkModuleDeadlineReminders() {
           submissions: learnerSubs,
         });
 
-        // If learner has completely finished module workflow, do NOT send reminder!
-        if (progressResult.completed) continue;
+        // If learner has completely finished module workflow, stop and delete future deadline reminders
+        if (progressResult.completed) {
+          await prisma.notification.deleteMany({
+            where: {
+              sourceType: 'module_deadline',
+              sourceId: m.id,
+              targetUserId: learner.userId,
+            },
+          }).catch(() => {});
+          continue;
+        }
 
-        // 2 Days Before (between 24h and 48h)
-        if (diffHours <= 48 && diffHours > 24) {
-          const key = `module_deadline_2d:${m.id}:user:${learner.userId}`;
+        const formattedDeadline = deadline.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+
+        // 3 Days Before (between 48h and 72h)
+        if (diffHours <= 72 && diffHours > 48) {
+          const key = `module_deadline_3d:${m.id}:user:${learner.userId}`;
           await createNotification({
             notificationKey: key,
-            title: 'Module Ending Soon',
-            message: `Your module "${m.title}" ends in 2 days. Please finish your remaining activities.`,
+            title: 'Module Deadline Reminder',
+            message: `Your learning module, ${m.title}, is due on ${formattedDeadline}. Please complete your remaining activities.`,
             type: 'REMINDER',
             priority: 'IMPORTANT',
             isImportant: true,
@@ -759,13 +848,34 @@ export async function checkModuleDeadlineReminders() {
           });
         }
 
-        // On End Date (between 0h and 24h)
-        if (diffHours <= 24 && diffHours > 0) {
+        // 1 Day Before (between 12h and 24h)
+        if (diffHours <= 24 && diffHours > 12) {
+          const key = `module_deadline_1d:${m.id}:user:${learner.userId}`;
+          await createNotification({
+            notificationKey: key,
+            title: 'Module Deadline Reminder',
+            message: `Your learning module, ${m.title}, is due tomorrow (${formattedDeadline}). Please complete your remaining activities.`,
+            type: 'REMINDER',
+            priority: 'IMPORTANT',
+            isImportant: true,
+            targetRole: 'LEARNER',
+            targetUserId: learner.userId,
+            targetLearnerId: learner.id,
+            learningCenterId: m.learningCenterId,
+            sourceType: 'module_deadline',
+            sourceId: m.id,
+            linkUrl: `/modules/${m.id}`,
+            deadlineAt: deadline,
+          });
+        }
+
+        // On End Date (between 0h and 12h)
+        if (diffHours <= 12 && diffHours > 0) {
           const key = `module_deadline_0d:${m.id}:user:${learner.userId}`;
           await createNotification({
             notificationKey: key,
-            title: 'Module Ending Soon',
-            message: `Your module "${m.title}" ends today. Please finish your remaining activities.`,
+            title: 'Module Deadline Reminder',
+            message: `Your learning module, ${m.title}, is due today (${formattedDeadline}). Please complete your remaining activities.`,
             type: 'REMINDER',
             priority: 'IMPORTANT',
             isImportant: true,
@@ -881,11 +991,144 @@ export async function publishDueScheduledAnnouncements() {
   }
 }
 
+let cleanupCompleted = false;
+let cleanupRunningPromise = null;
+
+/**
+ * One-time startup cleanup to resolve duplicate notifications,
+ * populate actual announcement titles/content, and remove invalid or orphaned records.
+ * Idempotent: executes only once per server startup.
+ */
+export async function cleanupLegacyNotificationDuplicates() {
+  if (cleanupCompleted) return;
+  if (cleanupRunningPromise) return cleanupRunningPromise;
+
+  cleanupRunningPromise = (async () => {
+    try {
+      // 1. Remove generic placeholder notifications without a real source
+      await prisma.notification.deleteMany({
+        where: {
+          sourceId: null,
+          OR: [
+            { title: 'New Announcement' },
+            { title: 'Message from Your Teacher' },
+            { message: { contains: 'The District Coordinator posted a new announcement' } },
+            { message: { contains: 'Your teacher posted a new announcement' } },
+          ],
+        },
+      });
+
+      // 2. Deduplicate records with the same (sourceType, sourceId, targetUserId)
+      const duplicates = await prisma.$queryRawUnsafe(`
+        SELECT source_type, source_id, target_user_id, COUNT(*) as cnt, MIN(id) as keep_id
+        FROM notifications
+        WHERE source_type IS NOT NULL AND source_id IS NOT NULL AND target_user_id IS NOT NULL
+        GROUP BY source_type, source_id, target_user_id
+        HAVING cnt > 1
+      `);
+
+      if (Array.isArray(duplicates)) {
+        for (const d of duplicates) {
+          const keepId = Number(d.keep_id);
+          const sourceId = Number(d.source_id);
+          const targetUserId = Number(d.target_user_id);
+          const sourceType = String(d.source_type);
+
+          await prisma.notification.deleteMany({
+            where: {
+              sourceType,
+              sourceId,
+              targetUserId,
+              id: { not: keepId },
+            },
+          });
+        }
+      }
+
+      // 3. For any announcement notifications that have legacy generic title/message, upgrade from announcements table
+      const legacyNotifs = await prisma.notification.findMany({
+        where: {
+          sourceType: 'announcement',
+          sourceId: { not: null },
+          OR: [
+            { title: 'New Announcement' },
+            { title: 'Message from Your Teacher' },
+            { message: { contains: 'The District Coordinator posted a new announcement' } },
+            { message: { contains: 'Your teacher posted a new announcement' } },
+          ],
+        },
+      });
+
+      for (const notif of legacyNotifs) {
+        if (!notif.sourceId) continue;
+        const ann = await prisma.announcement.findUnique({
+          where: { id: Number(notif.sourceId) },
+          include: {
+            author: {
+              include: { adminProfile: true, teacherProfile: true },
+            },
+          },
+        });
+
+        if (ann && ann.status === 'PUBLISHED') {
+          let sender = ann.author?.adminProfile?.fullName || 'District Coordinator';
+          if (ann.creatorRole === 'TEACHER') {
+            let teacherName = ann.author?.teacherProfile?.fullName;
+            if (!teacherName && ann.teacherId) {
+              const t = await prisma.teacher.findUnique({
+                where: { id: ann.teacherId },
+                select: { fullName: true },
+              });
+              teacherName = t?.fullName;
+            }
+            sender = teacherName || 'Assigned Teacher';
+          }
+
+          await prisma.notification.update({
+            where: { id: notif.id },
+            data: {
+              title: ann.title.trim(),
+              message: ann.content.trim(),
+              createdByName: sender,
+              createdAt: ann.createdAt,
+              linkUrl: '/notifications',
+            },
+          });
+        } else if (!ann || ann.status !== 'PUBLISHED') {
+          // Orphaned draft/deleted announcement notification: clean it up
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+        }
+      }
+
+      // 4. Delete ANY remaining notification records that still have legacy placeholder titles or messages
+      await prisma.notification.deleteMany({
+        where: {
+          OR: [
+            { title: 'New Announcement' },
+            { title: 'Message from Your Teacher' },
+            { message: { contains: 'The District Coordinator posted a new announcement' } },
+            { message: { contains: 'Your teacher posted a new announcement' } },
+          ],
+        },
+      });
+
+      cleanupCompleted = true;
+    } catch (err) {
+      console.error('[NotificationCleanup] cleanupLegacyNotificationDuplicates error:', err.message);
+    } finally {
+      cleanupRunningPromise = null;
+    }
+  })();
+
+  return cleanupRunningPromise;
+}
+
 /**
  * Start background timer running reminder checks every 60 seconds
  * and scheduled announcement checks every 15 seconds
  */
 export function startNotificationScheduler() {
+  cleanupLegacyNotificationDuplicates().catch(() => {});
   publishDueScheduledAnnouncements().catch(() => {});
   runReminderChecks(true).catch(() => {});
   setInterval(() => {

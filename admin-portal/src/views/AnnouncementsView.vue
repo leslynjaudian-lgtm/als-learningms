@@ -92,7 +92,7 @@
             <tr>
               <th class="th-num">#</th>
               <th class="th-title">TITLE</th>
-              <th class="th-message">MESSAGE</th>
+              <th class="th-message">ANNOUNCEMENT</th>
               <th class="th-audience">AUDIENCE</th>
               <th class="th-date">DATE POSTED</th>
               <th class="th-status">STATUS</th>
@@ -263,15 +263,15 @@
               <span v-if="formErrors.title" class="form-error">{{ formErrors.title }}</span>
             </div>
 
-            <!-- Message * -->
+            <!-- Announcement * -->
             <div class="form-group">
-              <label class="form-label">Message <span class="required">*</span></label>
+              <label class="form-label">Announcement <span class="required">*</span></label>
               <textarea
                 v-model="form.message"
                 class="form-input form-textarea"
                 :class="{ 'has-error': formErrors.message }"
                 rows="4"
-                placeholder="Type your announcement details here..."
+                placeholder="Write your announcement here..."
                 @input="clearFieldError('message')"
               ></textarea>
               <span v-if="formErrors.message" class="form-error">{{ formErrors.message }}</span>
@@ -519,7 +519,7 @@
             </div>
 
             <div class="detail-item details-full-width">
-              <span class="detail-label">Message Content</span>
+              <span class="detail-label">Announcement</span>
               <p class="detail-value-content">{{ viewingAnnouncement?.message || viewingAnnouncement?.content }}</p>
             </div>
           </div>
@@ -883,7 +883,7 @@ function validateForm(isDraft = false, isSchedule = false) {
     isValid = false;
   }
   if (!form.message || !form.message.trim()) {
-    formErrors.message = 'Message content is required.';
+    formErrors.message = 'Announcement is required.';
     isValid = false;
   }
 
@@ -1661,8 +1661,10 @@ onBeforeUnmount(() => {
 }
 
 .modal-subtitle {
-  font-size: 0.825rem;
-  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
   margin: 0.2rem 0 0 0;
 }
 

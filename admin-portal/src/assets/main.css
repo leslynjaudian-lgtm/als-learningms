@@ -203,6 +203,7 @@ input::-webkit-contacts-auto-fill-button {
   /* Layout */
   --sidebar-width: 250px;
   --header-height: 64px;
+  --footer-height: 60px;
 
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -227,17 +228,20 @@ input::-webkit-contacts-auto-fill-button {
   flex-direction: column;
   z-index: 100;
   transition: transform var(--transition-base), width var(--transition-base);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
 }
 
 .sidebar-header {
-  padding: 1.25rem 1rem;
+  height: var(--header-height);
+  box-sizing: border-box;
+  padding: 0 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-sidebar-border);
+  flex-shrink: 0;
 }
 
 .logo-brand {
@@ -264,6 +268,7 @@ input::-webkit-contacts-auto-fill-button {
 .logo-info {
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .logo-name {
@@ -308,6 +313,8 @@ input::-webkit-contacts-auto-fill-button {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-link {
@@ -345,11 +352,17 @@ input::-webkit-contacts-auto-fill-button {
 }
 
 .sidebar-footer {
-  padding: 0.75rem;
+  height: var(--footer-height);
+  box-sizing: border-box;
+  padding: 0 0.75rem;
   border-top: 1px solid var(--color-sidebar-border);
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sidebar-footer .nav-link {
+  width: 100%;
 }
 
 /* Main Wrapper */
@@ -369,6 +382,7 @@ input::-webkit-contacts-auto-fill-button {
   position: sticky;
   top: 0;
   height: var(--header-height);
+  box-sizing: border-box;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   display: flex;
@@ -1584,7 +1598,9 @@ input::-webkit-contacts-auto-fill-button {
 /* --- District Footer Banner --- */
 .portal-footer {
   margin-top: auto;
-  padding: 1.25rem 1.75rem;
+  height: var(--footer-height);
+  box-sizing: border-box;
+  padding: 0 1.75rem;
   border-top: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -1645,6 +1661,14 @@ input::-webkit-contacts-auto-fill-button {
   font-size: 1.15rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.modal-subtitle {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-top: 0.2rem;
 }
 
 .modal-close {

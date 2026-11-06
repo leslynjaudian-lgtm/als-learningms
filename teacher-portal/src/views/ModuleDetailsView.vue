@@ -40,25 +40,6 @@
         <div class="hero-header-split">
           <div class="hero-header-main">
             <h1 class="hero-module-title">{{ moduleData.title }}</h1>
-
-            <div class="hero-meta-row">
-              <div class="meta-item">
-                <span class="meta-label">Created By:</span>
-                <span class="meta-value">{{ moduleData.teacherName || 'ALS Facilitator' }}</span>
-              </div>
-              <span class="meta-divider">&bull;</span>
-              <div class="meta-item">
-                <span class="meta-label">Published:</span>
-                <span class="meta-value">{{ formatDisplayDate(moduleData.createdAt || moduleData.datePublished) }}</span>
-              </div>
-              <template v-if="moduleData.dateStarted && moduleData.dateEnded">
-                <span class="meta-divider">&bull;</span>
-                <div class="meta-item">
-                  <span class="meta-label">Schedule:</span>
-                  <span class="meta-value">{{ formatDisplayDate(moduleData.dateStarted) }} &ndash; {{ formatDisplayDate(moduleData.dateEnded) }}</span>
-                </div>
-              </template>
-            </div>
           </div>
 
           <!-- Top-Right Actions: Edit & Delete -->
@@ -211,8 +192,8 @@
             </div>
           </div>
 
-          <!-- Side-by-Side Instructions and Related Activities -->
-          <div class="instructions-activities-grid">
+          <!-- Instructions and Related Activities (Full-Width Vertically Arranged) -->
+          <div class="instructions-activities-stack">
             <!-- Instructions Panel -->
             <div class="detail-note-panel">
               <div class="detail-note-header">
@@ -3663,16 +3644,16 @@ watch(
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 1.75rem 2rem 0;
+  padding: 1.5rem 2rem 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .hero-header-split {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
 
@@ -3686,7 +3667,7 @@ watch(
   align-items: center;
   gap: 0.65rem;
   flex-shrink: 0;
-  margin-top: 0.15rem;
+  margin-top: 0;
 }
 
 .btn-module-action {
@@ -3802,11 +3783,11 @@ watch(
 }
 
 .hero-module-title {
-  font-size: 1.625rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
-  line-height: 1.35;
-  margin: 0 0 0.85rem;
+  line-height: 1.3;
+  margin: 0;
 }
 
 .hero-meta-row {
@@ -4055,11 +4036,13 @@ watch(
   font-weight: 700;
 }
 
-/* Side-by-Side Instructions and Related Activities */
+/* Full-Width Vertical Instructions and Related Activities */
+.instructions-activities-stack,
 .instructions-activities-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
+  width: 100%;
 }
 
 .detail-note-panel {
@@ -4070,6 +4053,8 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
 }
 
@@ -4286,8 +4271,8 @@ watch(
     padding-top: 0;
   }
 
+  .instructions-activities-stack,
   .instructions-activities-grid {
-    grid-template-columns: 1fr;
     gap: 1rem;
   }
 

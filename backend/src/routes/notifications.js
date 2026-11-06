@@ -5,13 +5,14 @@ import {
   runReminderChecks,
   createNotification,
   formatRelativeTime,
+  cleanupLegacyNotificationDuplicates,
 } from '../services/notificationService.js';
 
 const router = Router();
 
 export async function resolveUserContext(req) {
-  // 1. Bearer Token Verification
-  const authHeader = req.headers.authorization;
+  // 1. Bearer Token Verification (Enforced when Authorization header is sent)
+  const authHeader = req.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     if (token) {
@@ -26,12 +27,14 @@ export async function resolveUserContext(req) {
               learnerProfile: true,
             },
           });
-          if (user) return user;
+          if (user && user.status === 'ACTIVE') return user;
         }
       } catch (_err) {
-        // Fallback to query/body context
+        // Token was provided but invalid/expired -> strictly reject, do not fall back to query spoofing
+        return null;
       }
     }
+    return null;
   }
 
   // 2. Already attached by authMiddleware
@@ -63,6 +66,20 @@ export async function resolveUserContext(req) {
       },
     });
     if (user && (!rawRole || user.role === rawRole)) return user;
+
+    // Fallback: if caller passed learner profile ID in userId parameter
+    if (!rawLearnerId && rawRole === 'LEARNER') {
+      const learner = await prisma.learner.findUnique({
+        where: { id: Number(rawUserId) },
+        include: { user: true },
+      });
+      if (learner?.user) {
+        return {
+          ...learner.user,
+          learnerProfile: learner,
+        };
+      }
+    }
   }
 
   if (rawTeacherId && !isNaN(Number(rawTeacherId))) {
@@ -103,52 +120,235 @@ export async function resolveUserContext(req) {
 }
 
 /**
- * Build recipient-specific notifications for the authenticated user
+ * Build recipient-specific notifications for the authenticated user (Read-Only query)
  */
 export async function buildUserNotifications(user) {
   const userId = Number(user.id);
   const role = user.role;
 
-  // 1. Ensure scheduled reminders are updated
-  await runReminderChecks();
-
-  // 2. Fetch read statuses for this recipient
+  // 1. Fetch read statuses for this recipient
   const reads = await prisma.notificationRead.findMany({
     where: { userId },
     select: { notificationKey: true, readAt: true },
   });
   const readMap = new Map(reads.map((r) => [r.notificationKey, r.readAt]));
 
-  // 3. Query role-based and recipient-specific notifications from MySQL
-  const notifications = await prisma.notification.findMany({
+  // 2. Query role-based and recipient-specific notifications from MySQL
+  const rawNotifications = await prisma.notification.findMany({
     where: {
       targetUserId: userId,
       targetRole: role,
     },
     orderBy: { createdAt: 'desc' },
-    take: 50,
+    take: 100,
   });
 
-  const formatted = notifications.map((n) => {
+  // 3. Deduplicate and filter out stale legacy placeholder records
+  const seenSources = new Set();
+  const seenKeys = new Set();
+  const uniqueNotifications = [];
+
+  for (const n of rawNotifications) {
+    if (!n.title || !n.message) continue;
+
+    // Filter out old fake placeholder records that have no source announcement
+    const isLegacyPlaceholder =
+      (n.title === 'New Announcement' && n.message.includes('The District Coordinator posted a new announcement')) ||
+      (n.title === 'Message from Your Teacher' && n.message.includes('Your teacher posted a new announcement'));
+    if (isLegacyPlaceholder && !n.sourceId) {
+      continue;
+    }
+
+    // Deduplicate by source event (e.g. announcement:5, module:2)
+    if (n.sourceType && n.sourceId) {
+      const srcKey = `${n.sourceType}:${n.sourceId}`;
+      if (seenSources.has(srcKey)) continue;
+      seenSources.add(srcKey);
+    }
+
+    // Deduplicate by notificationKey
+    if (n.notificationKey) {
+      if (seenKeys.has(n.notificationKey)) continue;
+      seenKeys.add(n.notificationKey);
+    }
+
+    uniqueNotifications.push(n);
+  }
+
+  // 4. Batch fetch real announcement metadata for announcement notifications
+  const announcementIds = uniqueNotifications
+    .filter((n) => n.sourceType === 'announcement' && n.sourceId)
+    .map((n) => Number(n.sourceId));
+
+  const announcementMap = new Map();
+  if (announcementIds.length > 0) {
+    try {
+      const anns = await prisma.announcement.findMany({
+        where: { id: { in: announcementIds } },
+        include: {
+          author: {
+            include: { adminProfile: true, teacherProfile: true },
+          },
+        },
+      });
+      for (const a of anns) {
+        announcementMap.set(a.id, a);
+      }
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  // 5. Format notification records with actual metadata
+  const formatted = [];
+  const now = new Date();
+
+  for (const n of uniqueNotifications) {
+    let title = n.title;
+    let message = n.message;
+    let sender = n.createdByName;
+    let createdAt = n.createdAt;
+    let isImportant = Boolean(n.isImportant);
+
+    if (n.sourceType === 'announcement' && n.sourceId && announcementMap.has(Number(n.sourceId))) {
+      const ann = announcementMap.get(Number(n.sourceId));
+      // Never show draft announcements or future scheduled announcements
+      if (ann.status !== 'PUBLISHED') continue;
+      if (ann.scheduledAt && new Date(ann.scheduledAt) > now) continue;
+
+      title = ann.title ? ann.title.trim() : title;
+      message = ann.content ? ann.content.trim() : message;
+      createdAt = ann.createdAt || createdAt;
+      isImportant = Boolean(ann.isImportant || ann.isPinned);
+      sender =
+        ann.creatorRole === 'TEACHER'
+          ? (ann.author?.teacherProfile?.fullName || 'Assigned Teacher')
+          : (ann.author?.adminProfile?.fullName || 'District Coordinator');
+    }
+
+    // Never return generic placeholder notifications
+    if (
+      title === 'New Announcement' ||
+      title === 'Message from Your Teacher' ||
+      message.includes('The District Coordinator posted a new announcement') ||
+      message.includes('Your teacher posted a new announcement')
+    ) {
+      continue;
+    }
+
     const key = n.notificationKey || `notif:${n.id}`;
     const isRead = readMap.has(key);
-    return {
+
+    formatted.push({
       id: n.id,
       notificationKey: key,
-      title: n.title,
-      message: n.message,
+      title,
+      message,
       type: n.type || 'ANNOUNCEMENT',
       priority: n.priority || 'NORMAL',
-      isImportant: Boolean(n.isImportant),
-      sender: n.createdByName || (role === 'LEARNER' ? 'ALS System' : 'System'),
-      actionUrl: n.linkUrl || (role === 'LEARNER' ? '/announcements' : '/dashboard/announcements'),
+      isImportant,
+      sender: sender || (role === 'LEARNER' ? 'ALS System' : 'System'),
+      actionUrl: n.linkUrl || (role === 'LEARNER' ? '/notifications' : '/dashboard/announcements'),
       deadlineAt: n.deadlineAt,
       isRead,
       readAt: readMap.get(key) || null,
-      relativeTime: formatRelativeTime(n.createdAt),
-      createdAt: n.createdAt,
-    };
-  });
+      relativeTime: formatRelativeTime(createdAt),
+      createdAt,
+    });
+  }
+
+  // 6. For learners, include any published announcements matching their audience not yet in notifications
+  if (role === 'LEARNER') {
+    try {
+      const learner = await prisma.learner.findFirst({
+        where: { userId },
+        select: { id: true, learningCenterId: true, assignedTeacherId: true, level: true },
+      });
+
+      if (learner) {
+        const publishedAnnouncements = await prisma.announcement.findMany({
+          where: {
+            status: 'PUBLISHED',
+            OR: [
+              // Admin announcement for all learners
+              {
+                creatorRole: 'ADMIN',
+                audience: 'ALL_LEARNERS',
+                targetLearnerId: null,
+                OR: [
+                  { learningCenterId: null },
+                  { learningCenterId: learner.learningCenterId },
+                ],
+              },
+              // Individual learner announcement targeted to this learner
+              {
+                audience: 'INDIVIDUAL_LEARNER',
+                targetLearnerId: learner.id,
+              },
+              // Teacher announcement for assigned learners
+              ...(learner.assignedTeacherId
+                ? [
+                    {
+                      creatorRole: 'TEACHER',
+                      teacherId: learner.assignedTeacherId,
+                      audience: 'ALL_LEARNERS',
+                      targetLearnerId: null,
+                      OR: [
+                        { learningCenterId: null },
+                        { learningCenterId: learner.learningCenterId },
+                      ],
+                    },
+                  ]
+                : []),
+            ],
+          },
+          include: {
+            author: {
+              include: { adminProfile: true, teacherProfile: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+
+        for (const ann of publishedAnnouncements) {
+          if (ann.scheduledAt && new Date(ann.scheduledAt) > now) continue;
+          const srcKey = `announcement:${ann.id}`;
+          if (!seenSources.has(srcKey)) {
+            seenSources.add(srcKey);
+            const key = `announcement:${ann.id}:user:${userId}`;
+            const isRead = readMap.has(key);
+            const sender =
+              ann.creatorRole === 'TEACHER'
+                ? (ann.author?.teacherProfile?.fullName || 'Assigned Teacher')
+                : (ann.author?.adminProfile?.fullName || 'District Coordinator');
+
+            formatted.push({
+              id: ann.id,
+              notificationKey: key,
+              title: (ann.title || 'Announcement').trim(),
+              message: (ann.content || '').trim(),
+              type: 'ANNOUNCEMENT',
+              priority: ann.priority || 'NORMAL',
+              isImportant: Boolean(ann.isImportant || ann.isPinned),
+              sender,
+              actionUrl: '/notifications',
+              deadlineAt: ann.deadlineAt || null,
+              isRead,
+              readAt: readMap.get(key) || null,
+              relativeTime: formatRelativeTime(ann.createdAt),
+              createdAt: ann.createdAt,
+            });
+          }
+        }
+      }
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  // 7. Sort by createdAt desc
+  formatted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const unreadCount = formatted.filter((n) => !n.isRead).length;
   const shouldAnimateBell = unreadCount > 0 && formatted.some((n) => !n.isRead && n.isImportant);
@@ -167,8 +367,17 @@ export async function buildUserNotifications(user) {
 // GET /api/notifications
 // Retrieve recipient-scoped notifications
 // ---------------------
+let hasRunStartupCleanup = false;
+
 router.get('/', async (req, res, next) => {
   try {
+    if (!hasRunStartupCleanup) {
+      hasRunStartupCleanup = true;
+      cleanupLegacyNotificationDuplicates().catch((err) =>
+        console.error('[NotificationCleanup] background cleanup error:', err)
+      );
+    }
+
     const user = await resolveUserContext(req);
     if (!user) {
       return res.json({

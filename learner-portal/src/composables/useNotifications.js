@@ -15,7 +15,7 @@ function getStoredLearnerParams() {
     return {
       role: 'LEARNER',
       userId: parsed.userId || parsed.id || undefined,
-      learnerId: parsed.learnerId || parsed.profileId || parsed.learnerProfile?.id || undefined,
+      learnerId: parsed.learnerId || parsed.profileId || parsed.learnerProfile?.id || (parsed.role === 'LEARNER' ? parsed.id : undefined),
     };
   } catch (_err) {
     return { role: 'LEARNER' };

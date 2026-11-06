@@ -522,6 +522,7 @@ model Schedule {
   id               Int            @id @default(autoincrement())
   title            String         @db.VarChar(255)
   date             DateTime       @db.Date
+  endDate          DateTime?      @map("end_date") @db.Date
   startTime        String         @map("start_time") @db.VarChar(50)
   endTime          String         @map("end_time") @db.VarChar(50)
   activityType     String         @default("Learning Session") @map("activity_type") @db.VarChar(100)
@@ -529,6 +530,8 @@ model Schedule {
   learningCenter   LearningCenter @relation(fields: [learningCenterId], references: [id], onDelete: Cascade)
   teacherId        Int?           @map("teacher_id")
   teacher          Teacher?       @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  createdByUserId  Int?           @map("created_by_user_id")
+  createdByRole    String?        @map("created_by_role") @db.VarChar(50)
   description      String?        @db.Text
   status           String         @default("Upcoming") @db.VarChar(50)
   isImportant      Boolean        @default(false) @map("is_important")

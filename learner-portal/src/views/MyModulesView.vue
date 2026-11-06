@@ -7,20 +7,65 @@
     </div>
 
     <!-- Horizontally Scrollable Learning Strand Filters -->
-    <div class="strand-filters-scroll-wrapper" role="region" aria-label="Learning Strand Filters">
-      <div class="strand-filters-track">
-        <button
-          v-for="strand in availableStrands"
-          :key="strand.key"
-          type="button"
-          class="strand-filter-pill"
-          :class="{ active: currentStrand === strand.key }"
-          @click="selectStrand(strand.key)"
-          :aria-label="strand.fullName"
-        >
-          <span class="pill-label">{{ strand.shortLabel }}</span>
-          <span class="pill-badge">{{ getModuleCount(strand.key) }}</span>
-        </button>
+    <div class="strand-filters-section" role="region" aria-label="Learning Strand Filters">
+      <div
+        ref="scrollContainerRef"
+        class="strand-filters-scroll-wrapper"
+        @scroll="updateScrollPosition"
+      >
+        <div class="strand-filters-track">
+          <button
+            v-for="filter in availableFilters"
+            :key="filter.key"
+            type="button"
+            class="strand-filter-pill"
+            :class="{ active: currentStrand === filter.key }"
+            @click="selectStrand(filter.key, $event)"
+            :aria-label="filter.fullName"
+          >
+            <!-- Green check-circle icon for Completed filter -->
+            <svg
+              v-if="filter.isCompleted"
+              class="filter-check-icon"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span class="pill-label">{{ filter.shortLabel }}</span>
+            <span class="pill-badge">{{ getModuleCount(filter.key) }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Thin Horizontal Scrollbar directly underneath the filter buttons -->
+      <div
+        v-if="canScroll"
+        class="horizontal-scrollbar-track"
+        @click="handleTrackClick"
+        role="scrollbar"
+        aria-orientation="horizontal"
+        :aria-valuenow="Math.round(scrollProgressRatio * 100)"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <div
+          class="horizontal-scrollbar-thumb"
+          :style="{
+            width: `${thumbWidthPercent}%`,
+            left: `${thumbLeftPercent}%`
+          }"
+          @mousedown.prevent="startThumbDrag"
+          @touchstart.prevent="startThumbTouch"
+        ></div>
       </div>
     </div>
 
@@ -28,7 +73,7 @@
     <div class="active-strand-banner">
       <div class="strand-banner-text">
         <span class="strand-banner-eyebrow">
-          {{ currentStrand === 'all' ? 'Category' : 'Learning Strand' }}
+          {{ currentStrand === 'all' || currentStrand === 'completed' ? 'Category' : 'Learning Strand' }}
         </span>
         <h2 class="strand-banner-title">{{ currentStrandFullName }}</h2>
       </div>
@@ -68,16 +113,23 @@
       </p>
     </div>
 
-    <!-- Strand Empty State: Specific learning strand has no modules -->
+    <!-- Strand Empty State: Specific learning strand or completed has no modules -->
     <div v-else-if="filteredModules.length === 0" class="learner-card empty-card-box strand-empty-box">
       <div class="empty-icon-circle strand-empty-circle">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
       </div>
-      <h3 class="empty-title">No modules available for this learning strand yet.</h3>
+      <h3 class="empty-title">
+        {{ currentStrand === 'completed' ? 'No completed modules yet' : 'No modules available for this learning strand yet.' }}
+      </h3>
       <p class="empty-desc">
-        There are currently no published modules for <strong>{{ currentStrandFullName }}</strong>. You can explore other learning strands above.
+        <template v-if="currentStrand === 'completed'">
+          You have not finished any learning modules yet. Complete your modules to see them here.
+        </template>
+        <template v-else>
+          There are currently no published modules for <strong>{{ currentStrandFullName }}</strong>. You can explore other learning strands above.
+        </template>
       </p>
       <button type="button" class="btn-all-strands-action" @click="selectStrand('all')">
         View All Modules ({{ allCount }})
@@ -105,11 +157,11 @@
           <!-- Title, Strand, Code & Status -->
           <div class="card-content-wrap">
             <h3 class="card-module-title">{{ mod.title }}</h3>
-            <div class="card-module-strand">{{ mod.strand || mod.learningArea?.name || 'General Strand' }}</div>
+            <div class="card-module-strand">{{ getModuleStrandName(mod) }}</div>
 
             <div class="card-pills-row">
-              <span v-if="mod.code || mod.strandCode" class="pill-code-badge">
-                {{ mod.code || mod.strandCode }}
+              <span v-if="getModuleBadgeCode(mod)" class="pill-code-badge">
+                {{ getModuleBadgeCode(mod) }}
               </span>
               <span class="pill-status-badge" :class="getStatusClass(mod)">
                 {{ getProgressStatusLabel(mod) }}
@@ -130,11 +182,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
+import {
+  formatStrandCode,
+  formatStrandName,
+  formatStrandAndCode,
+  formatStrandDisplay,
+} from '../utils/formatStrand.js';
 
-// 8 Learning Strand Categories
-const LEARNING_STRANDS = [
+// All Filters: All -> Completed -> LS1 English -> LS1 Filipino -> LS2 -> LS3 -> LS4 -> LS5 -> LS6
+const MODULE_FILTERS = ref([
   {
     key: 'all',
     code: 'ALL',
@@ -142,24 +200,31 @@ const LEARNING_STRANDS = [
     fullName: 'All Modules',
   },
   {
+    key: 'completed',
+    code: 'COMPLETED',
+    shortLabel: 'Completed',
+    fullName: 'Completed Modules',
+    isCompleted: true,
+  },
+  {
     key: 'LS1-ENG',
-    code: 'LS1-ENG',
+    code: 'LS1',
     shortLabel: 'LS1 English',
-    fullName: 'LS 1 – Communication Skills (English)',
+    fullName: 'LS1 · Communication Skills (English)',
     aliases: ['ls1-eng', 'english', 'communication skills (english)', 'ls1 english', 'ls 1 english'],
   },
   {
     key: 'LS1-FIL',
-    code: 'LS1-FIL',
+    code: 'LS1',
     shortLabel: 'LS1 Filipino',
-    fullName: 'LS 1 – Communication Skills (Filipino)',
+    fullName: 'LS1 · Communication Skills (Filipino)',
     aliases: ['ls1-fil', 'filipino', 'communication skills (filipino)', 'ls1 filipino', 'ls 1 filipino'],
   },
   {
     key: 'LS2-SCI',
-    code: 'LS2-SCI',
+    code: 'LS2',
     shortLabel: 'LS2',
-    fullName: 'LS 2 – Scientific Literacy and Critical Thinking Skills',
+    fullName: 'LS2 · Scientific & Critical Thinking Skills',
     aliases: [
       'ls2-sci',
       'ls2',
@@ -173,9 +238,9 @@ const LEARNING_STRANDS = [
   },
   {
     key: 'LS3-MATH',
-    code: 'LS3-MATH',
+    code: 'LS3',
     shortLabel: 'LS3',
-    fullName: 'LS 3 – Mathematical & Problem Solving Skills',
+    fullName: 'LS3 · Mathematical & Problem Solving Skills',
     aliases: [
       'ls3-math',
       'ls3',
@@ -188,9 +253,9 @@ const LEARNING_STRANDS = [
   },
   {
     key: 'LS4-LIFE',
-    code: 'LS4-LIFE',
+    code: 'LS4',
     shortLabel: 'LS4',
-    fullName: 'LS 4 – Life & Career Skills',
+    fullName: 'LS4 · Life and Career Skills',
     aliases: [
       'ls4-life',
       'ls4',
@@ -201,9 +266,9 @@ const LEARNING_STRANDS = [
   },
   {
     key: 'LS5-SOC',
-    code: 'LS5-SOC',
+    code: 'LS5',
     shortLabel: 'LS5',
-    fullName: 'LS 5 – Understanding Self & Society',
+    fullName: 'LS5 · Understanding Self & Society',
     aliases: [
       'ls5-soc',
       'ls5',
@@ -215,9 +280,9 @@ const LEARNING_STRANDS = [
   },
   {
     key: 'LS6-DIGI',
-    code: 'LS6-DIGI',
+    code: 'LS6',
     shortLabel: 'LS6',
-    fullName: 'LS 6 – Digital Citizenship',
+    fullName: 'LS6 · Digital Citizenship',
     aliases: [
       'ls6-digi',
       'ls6',
@@ -226,14 +291,18 @@ const LEARNING_STRANDS = [
       'digital citizenship & literacy',
     ],
   },
-];
+]);
 
 const currentStrand = ref('all');
 const rawModules = ref([]);
 const loading = ref(false);
 
-// Always display all 8 categories
-const availableStrands = computed(() => LEARNING_STRANDS);
+const scrollContainerRef = ref(null);
+const canScroll = ref(true);
+const scrollProgressRatio = ref(0);
+const thumbWidthPercent = ref(35);
+
+const availableFilters = computed(() => MODULE_FILTERS.value);
 
 // All published and assigned teacher modules (excluding any demo/mock entries)
 const allModules = computed(() => {
@@ -245,17 +314,49 @@ const allModules = computed(() => {
 // Total count
 const allCount = computed(() => allModules.value.length);
 
-// Full name of selected strand
+// Helper to safely access a filter item by key from MODULE_FILTERS
+function getFilterByKey(key) {
+  const filters = Array.isArray(MODULE_FILTERS.value)
+    ? MODULE_FILTERS.value
+    : (Array.isArray(MODULE_FILTERS) ? MODULE_FILTERS : []);
+  return filters.find((s) => s.key === key) || null;
+}
+
+// Full name of selected filter
 const currentStrandFullName = computed(() => {
-  const strand = LEARNING_STRANDS.find((s) => s.key === currentStrand.value);
-  return strand ? strand.fullName : 'All Modules';
+  const filter = getFilterByKey(currentStrand.value);
+  return filter ? filter.fullName : 'All Modules';
 });
+
+// Module card strand helpers
+function getModuleStrandName(mod) {
+  if (!mod) return 'General Strand';
+  const raw = mod.learningArea?.name || mod.strand || 'General Strand';
+  return formatStrandName(raw, mod.learningArea?.code || mod.strandCode || mod.code);
+}
+
+function getModuleBadgeCode(mod) {
+  if (!mod) return '';
+  const raw = mod.code || mod.strandCode || mod.learningArea?.code || '';
+  return formatStrandCode(raw);
+}
+
+// Check if a module is completed by the learner
+function isModuleCompleted(mod) {
+  if (!mod) return false;
+  return Boolean(
+    mod.completed ||
+    mod.progressStatus === 'COMPLETED' ||
+    (mod.progress != null && Number(mod.progress) >= 100)
+  );
+}
 
 // Strand matching function
 function matchesStrand(mod, strandKey) {
   if (strandKey === 'all') return true;
+  if (strandKey === 'completed') return isModuleCompleted(mod);
 
-  const targetStrand = LEARNING_STRANDS.find((s) => s.key === strandKey);
+  const targetStrand = getFilterByKey(strandKey);
   if (!targetStrand) return false;
 
   const areaCode = (mod.learningArea?.code || mod.strandCode || mod.code || '').toUpperCase().trim();
@@ -281,13 +382,16 @@ function matchesStrand(mod, strandKey) {
     return true;
   }
 
-  return targetStrand.aliases.some((alias) => fullText.includes(alias));
+  return Array.isArray(targetStrand.aliases) && targetStrand.aliases.some((alias) => fullText.includes(alias));
 }
 
-// Module count for strand badge
+// Module count for filter pill badge
 function getModuleCount(strandKey) {
   if (strandKey === 'all') {
     return allModules.value.length;
+  }
+  if (strandKey === 'completed') {
+    return allModules.value.filter(isModuleCompleted).length;
   }
   return allModules.value.filter((m) => matchesStrand(m, strandKey)).length;
 }
@@ -297,16 +401,26 @@ const filteredModules = computed(() => {
   if (currentStrand.value === 'all') {
     return allModules.value;
   }
+  if (currentStrand.value === 'completed') {
+    return allModules.value.filter(isModuleCompleted);
+  }
   return allModules.value.filter((m) => matchesStrand(m, currentStrand.value));
 });
 
-function selectStrand(key) {
+function selectStrand(key, event) {
   currentStrand.value = key;
+  if (event?.currentTarget?.scrollIntoView) {
+    event.currentTarget.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'nearest',
+      block: 'nearest',
+    });
+  }
 }
 
 // Progress status label: Not Started, In Progress, Completed
 function getProgressStatusLabel(mod) {
-  if (mod.completed || mod.progressStatus === 'COMPLETED' || (mod.progress || 0) >= 100) {
+  if (isModuleCompleted(mod)) {
     return 'Completed';
   }
   if ((mod.progress || 0) > 0 || mod.progressStatus === 'IN_PROGRESS') {
@@ -322,18 +436,157 @@ function getStatusClass(mod) {
   return 'status-not-started';
 }
 
-// Load backend modules
+// Scrollbar calculations
+function updateScrollMetrics() {
+  const el = scrollContainerRef.value;
+  if (!el) return;
+  const clientW = el.clientWidth;
+  const scrollW = el.scrollWidth;
+  const maxScroll = scrollW - clientW;
+
+  if (maxScroll > 2) {
+    canScroll.value = true;
+    const ratio = clientW / scrollW;
+    thumbWidthPercent.value = Math.max(18, Math.min(65, ratio * 100));
+    scrollProgressRatio.value = Math.max(0, Math.min(1, el.scrollLeft / maxScroll));
+  } else {
+    canScroll.value = false;
+    scrollProgressRatio.value = 0;
+  }
+}
+
+function updateScrollPosition() {
+  const el = scrollContainerRef.value;
+  if (!el) return;
+  const maxScroll = el.scrollWidth - el.clientWidth;
+  if (maxScroll > 0) {
+    scrollProgressRatio.value = Math.max(0, Math.min(1, el.scrollLeft / maxScroll));
+  }
+}
+
+const thumbLeftPercent = computed(() => {
+  return scrollProgressRatio.value * (100 - thumbWidthPercent.value);
+});
+
+function handleTrackClick(e) {
+  const el = scrollContainerRef.value;
+  if (!el) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+  const maxScroll = el.scrollWidth - el.clientWidth;
+  if (maxScroll > 0) {
+    el.scrollTo({
+      left: ratio * maxScroll,
+      behavior: 'smooth',
+    });
+  }
+}
+
+let isDragging = false;
+let startX = 0;
+let startScrollLeft = 0;
+
+function startThumbDrag(e) {
+  isDragging = true;
+  startX = e.clientX;
+  startScrollLeft = scrollContainerRef.value?.scrollLeft || 0;
+  window.addEventListener('mousemove', onThumbDrag);
+  window.addEventListener('mouseup', stopThumbDrag);
+}
+
+function onThumbDrag(e) {
+  if (!isDragging || !scrollContainerRef.value) return;
+  const deltaX = e.clientX - startX;
+  const clientW = scrollContainerRef.value.clientWidth;
+  const scrollW = scrollContainerRef.value.scrollWidth;
+  const maxScroll = scrollW - clientW;
+  if (maxScroll <= 0) return;
+
+  const scrollRatio = scrollW / clientW;
+  scrollContainerRef.value.scrollLeft = startScrollLeft + deltaX * scrollRatio;
+}
+
+function stopThumbDrag() {
+  isDragging = false;
+  window.removeEventListener('mousemove', onThumbDrag);
+  window.removeEventListener('mouseup', stopThumbDrag);
+}
+
+function startThumbTouch(e) {
+  if (!e.touches[0]) return;
+  isDragging = true;
+  startX = e.touches[0].clientX;
+  startScrollLeft = scrollContainerRef.value?.scrollLeft || 0;
+  window.addEventListener('touchmove', onThumbTouchMove, { passive: false });
+  window.addEventListener('touchend', stopThumbTouch);
+}
+
+function onThumbTouchMove(e) {
+  if (!isDragging || !scrollContainerRef.value || !e.touches[0]) return;
+  const deltaX = e.touches[0].clientX - startX;
+  const clientW = scrollContainerRef.value.clientWidth;
+  const scrollW = scrollContainerRef.value.scrollWidth;
+  const maxScroll = scrollW - clientW;
+  if (maxScroll <= 0) return;
+
+  const scrollRatio = scrollW / clientW;
+  scrollContainerRef.value.scrollLeft = startScrollLeft + deltaX * scrollRatio;
+  e.preventDefault();
+}
+
+function stopThumbTouch() {
+  isDragging = false;
+  window.removeEventListener('touchmove', onThumbTouchMove);
+  window.removeEventListener('touchend', stopThumbTouch);
+}
+
+function handleWheel(e) {
+  const el = scrollContainerRef.value;
+  if (!el) return;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.deltaY !== 0) {
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }
+}
+
+// Load backend modules and registered learning strands
 async function loadModules() {
   loading.value = true;
   try {
-    const res = await api.get('/modules');
-    const data = res.data?.data || res.data || [];
-    rawModules.value = Array.isArray(data) ? data : [];
+    const [modRes, strandRes] = await Promise.allSettled([
+      api.get('/modules'),
+      api.get('/modules/strands'),
+    ]);
+
+    if (modRes.status === 'fulfilled') {
+      const data = modRes.value.data?.data || modRes.value.data || [];
+      rawModules.value = Array.isArray(data) ? data : [];
+    } else {
+      rawModules.value = [];
+    }
+
+    if (strandRes.status === 'fulfilled') {
+      const strandList = Array.isArray(strandRes.value.data) ? strandRes.value.data : [];
+      if (strandList.length > 0) {
+        const filters = Array.isArray(MODULE_FILTERS.value) ? MODULE_FILTERS.value : [];
+        strandList.forEach((area) => {
+          const key = area.code;
+          const target = filters.find(
+            (f) => f.key === key || (f.code && f.code === formatStrandCode(area.code))
+          );
+          if (target) {
+            target.fullName = formatStrandAndCode(area.code, area.name);
+          }
+        });
+      }
+    }
   } catch (err) {
     console.error('Failed to load backend modules:', err);
     rawModules.value = [];
   } finally {
     loading.value = false;
+    nextTick(updateScrollMetrics);
   }
 }
 
@@ -341,11 +594,28 @@ onMounted(() => {
   loadModules();
   window.addEventListener('als-progress-updated', loadModules);
   window.addEventListener('focus', loadModules);
+  window.addEventListener('resize', updateScrollMetrics);
+
+  const el = scrollContainerRef.value;
+  if (el) {
+    el.addEventListener('wheel', handleWheel, { passive: false });
+  }
+  nextTick(() => {
+    setTimeout(updateScrollMetrics, 100);
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener('als-progress-updated', loadModules);
   window.removeEventListener('focus', loadModules);
+  window.removeEventListener('resize', updateScrollMetrics);
+  stopThumbDrag();
+  stopThumbTouch();
+
+  const el = scrollContainerRef.value;
+  if (el) {
+    el.removeEventListener('wheel', handleWheel);
+  }
 });
 </script>
 
@@ -378,13 +648,20 @@ onUnmounted(() => {
 }
 
 /* Horizontally Scrollable Learning Strand Filters */
+.strand-filters-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .strand-filters-scroll-wrapper {
   width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 4px 1px 6px 1px;
+  padding: 4px 1px 4px 1px;
   margin: 0;
 }
 
@@ -434,6 +711,16 @@ onUnmounted(() => {
   box-shadow: 0 2px 6px rgba(22, 93, 252, 0.25);
 }
 
+.filter-check-icon {
+  color: #16a34a;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.strand-filter-pill.active .filter-check-icon {
+  color: #86efac;
+}
+
 .pill-label {
   line-height: 1;
 }
@@ -459,6 +746,39 @@ onUnmounted(() => {
   color: #ffffff;
 }
 
+/* Thin Horizontal Scrollbar */
+.horizontal-scrollbar-track {
+  position: relative;
+  width: 100%;
+  height: 3.5px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  margin-top: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.horizontal-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #165dfc;
+  border-radius: 9999px;
+  cursor: grab;
+  will-change: left;
+  transition: background-color 0.15s ease;
+}
+
+.horizontal-scrollbar-thumb:hover,
+.horizontal-scrollbar-thumb:active {
+  background: #0d47a1;
+}
+
+.horizontal-scrollbar-track:hover {
+  background: #cbd5e1;
+}
+
 /* Active Strand Banner */
 .active-strand-banner {
   display: flex;
@@ -477,6 +797,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .strand-banner-eyebrow {
@@ -492,9 +813,9 @@ onUnmounted(() => {
   font-weight: 800;
   color: #0f172a;
   margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .strand-banner-count-badge {
@@ -507,6 +828,8 @@ onUnmounted(() => {
   border-radius: 9999px;
   white-space: nowrap;
   flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 /* Empty & Loading States */

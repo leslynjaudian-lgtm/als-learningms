@@ -487,6 +487,13 @@ function formatModule(m, reqUser) {
     strand: m.learningArea?.name || 'General Curriculum',
     strandCode: m.learningArea?.code || m.code || 'LS1',
     learningAreaId: m.learningAreaId,
+    learningArea: m.learningArea
+      ? {
+          id: m.learningArea.id,
+          code: m.learningArea.code,
+          name: m.learningArea.name,
+        }
+      : null,
     level: displayLevel,
     programLevel: displayLevel,
     targetLevel: m.targetLevel,

@@ -15,7 +15,6 @@
           <div class="logo-info">
             <span class="logo-name">ALS LMS</span>
             <span class="logo-district">Naawan District</span>
-            <span class="logo-badge">Admin Portal</span>
           </div>
         </div>
         <button class="sidebar-close-btn" @click="sidebarOpen = false" aria-label="Close sidebar">

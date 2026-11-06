@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 import prisma from './config/prisma.js';
 import routes from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { startNotificationScheduler, backfillExistingNotifications } from './services/notificationService.js';
+import { startNotificationScheduler } from './services/notificationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,7 +86,6 @@ function startServer(port, retriesLeft = 15) {
 
 startServer(PORT);
 startNotificationScheduler();
-backfillExistingNotifications().catch((e) => console.warn('[NotificationService] backfill error:', e));
 
 async function gracefulShutdown(signal) {
   try {

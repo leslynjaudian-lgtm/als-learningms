@@ -120,7 +120,7 @@
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          <span>Assigned Teacher</span>
+          <span>Teacher</span>
         </div>
         <div style="font-size: 0.875rem; font-weight: 700; color: #0f172a;">
           {{ user.teacher || 'None Assigned' }}
@@ -151,7 +151,7 @@
           <span>Learning Strand</span>
         </div>
         <div style="font-size: 0.875rem; font-weight: 700; color: #0f172a;">
-          {{ user.strand || '—' }}
+          {{ displayStrand }}
         </div>
       </div>
 
@@ -173,9 +173,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import api from '../api/axios';
+import { formatStrandName } from '../utils/formatStrand.js';
 
 const stored = localStorage.getItem('als_learner_user');
 const user = ref(stored ? JSON.parse(stored) : {});
+
+const displayStrand = computed(() => {
+  if (!user.value.strand || user.value.strand === '—') return '—';
+  return formatStrandName(user.value.strand);
+});
 
 const savedPhoto = ref(user.value.profilePhoto || user.value.user?.profilePhoto || '');
 const previewPhoto = ref('');

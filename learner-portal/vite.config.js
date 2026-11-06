@@ -11,7 +11,7 @@ export default defineConfig({
         name: 'ALS Learning Portal',
         short_name: 'ALS Learn',
         description: 'Mobile learning portal for ALS learners',
-        theme_color: '#7c3aed',
+        theme_color: '#ffffff',
         background_color: '#f8fafc',
         display: 'standalone',
         start_url: '/',
@@ -34,12 +34,23 @@ export default defineConfig({
     port: 5175,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            console.warn(`[vite proxy] Backend request failed (${err.code || err.message}). Ensure backend server is running on port 3000.`);
+            if (res && !res.headersSent && typeof res.writeHead === 'function') {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Backend server unavailable. Please ensure backend is running.' }));
+            }
+          });
+        },
       },
       '/uploads': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

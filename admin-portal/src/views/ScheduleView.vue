@@ -23,7 +23,7 @@
     <div class="page-header-row">
       <div class="page-title-group">
         <h1>Schedule</h1>
-        <p>Manage learning sessions and activities across all learning centers.</p>
+        <p>Create, view, and manage your schedules in one place.</p>
       </div>
       <button type="button" class="btn btn-primary" @click="openAddModal">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -81,21 +81,8 @@
         />
       </div>
 
-      <!-- 3. Dropdowns Row -->
+      <!-- 3. Month Date Selector -->
       <div class="filter-dropdown-group">
-        <!-- Activity Type Filter -->
-        <div class="filter-dropdown-item">
-          <label>Activity Type</label>
-          <select v-model="selectedActivityType" class="filter-select">
-            <option value="">All Activities</option>
-            <option value="Learning Session">Learning Session</option>
-            <option value="Module Consultation">Module Consultation</option>
-            <option value="Assessment">Assessment</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        <!-- Month Date Selector -->
         <div class="filter-dropdown-item">
           <label>Month</label>
           <div class="month-selector-wrap">
@@ -116,44 +103,41 @@
           <thead>
             <tr>
               <th style="width: 45px;">#</th>
-              <th style="width: 130px;">Date</th>
-              <th style="width: 165px;">Time</th>
-              <th>Activity</th>
-              <th>Learning Center</th>
-              <th>Teacher</th>
-              <th>Description</th>
-              <th style="width: 110px;">Status</th>
-              <th class="th-actions" style="text-align: right; width: 130px;">Actions</th>
+              <th>TITLE</th>
+              <th>DESCRIPTION</th>
+              <th style="width: 195px;">START DATE &amp; TIME</th>
+              <th style="width: 195px;">END DATE &amp; TIME</th>
+              <th style="width: 110px;">STATUS</th>
+              <th class="th-actions" style="text-align: right; width: 130px;">ACTIONS</th>
             </tr>
           </thead>
           <tbody v-if="filteredSchedules.length > 0">
             <tr v-for="(item, idx) in filteredSchedules" :key="item.id">
               <td>{{ idx + 1 }}</td>
-              <td style="font-weight: 500; white-space: nowrap;">{{ item.formattedDate }}</td>
-              <td class="col-time" style="white-space: nowrap;">
+              <td class="col-title">
+                <span class="schedule-title-text">{{ item.title }}</span>
+              </td>
+              <td class="col-description">
+                <span class="schedule-desc-text">{{ item.description || '—' }}</span>
+              </td>
+              <td class="col-datetime" style="white-space: nowrap;">
+                <span class="time-badge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  {{ item.formattedStartDateTime }}
+                </span>
+              </td>
+              <td class="col-datetime" style="white-space: nowrap;">
                 <span class="time-badge">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
                     <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                   </svg>
-                  {{ item.formattedTime }}
+                  {{ item.formattedEndDateTime }}
                 </span>
-              </td>
-              <td>
-                <div class="activity-title-cell">
-                  <span class="activity-name">{{ item.title }}</span>
-                  <span class="activity-type-tag" :class="getTypeTagClass(item.activityType || item.type)">
-                    {{ item.activityType || item.type }}
-                  </span>
-                </div>
-              </td>
-              <td>
-                <span class="center-pill">{{ item.learningCenter }}</span>
-              </td>
-              <td>
-                <span class="teacher-pill font-medium">{{ item.teacher }}</span>
-              </td>
-              <td class="col-description">
-                {{ item.description || '—' }}
               </td>
               <td>
                 <span class="badge" :class="getStatusBadgeClass(item.status)">
@@ -222,7 +206,7 @@
           </svg>
         </div>
         <h3>No schedules yet</h3>
-        <p>Schedules created by the Admin will appear here.</p>
+        <p>Your schedules will appear here once you create one.</p>
         <button type="button" class="btn btn-primary" style="margin-top: 1rem;" @click="openAddModal">
           + Add Schedule
         </button>
@@ -290,11 +274,11 @@
               v-for="event in cell.events"
               :key="event.id"
               class="cal-event-chip"
-              :class="getEventChipClass(event.activityType || event.type)"
-              :title="`${event.title} (${event.formattedTime}) - ${event.teacher}`"
+              :class="getEventChipClass(event.status)"
+              :title="`${event.title} (${event.formattedTime})`"
               @click.stop="openViewModal(event)"
             >
-              <span class="event-time-short">{{ event.startTime }}</span>
+              <span class="event-time-short">{{ event.formattedStartTime }}</span>
               <span class="event-title-short">{{ event.title }}</span>
             </div>
           </div>
@@ -309,7 +293,7 @@
           <div>
             <h2>{{ editingSchedule ? 'Edit Schedule' : 'Add Schedule' }}</h2>
             <p class="modal-subtitle">
-              {{ editingSchedule ? 'Update schedule information across learning centers.' : 'Create a new learning session or activity.' }}
+              Add a schedule to keep teachers and learners informed of important dates and events.
             </p>
           </div>
           <button type="button" class="modal-close" @click="closeFormModal" title="Close" aria-label="Close modal">
@@ -321,47 +305,29 @@
 
         <div class="modal-body">
           <form @submit.prevent="saveSchedule">
-            <!-- Date * -->
-            <div class="form-group">
-              <label class="form-label" for="sched-date">
-                Date <span class="required">*</span>
-              </label>
-              <input
-                id="sched-date"
-                v-model="form.date"
-                type="date"
-                class="form-input"
-                required
-              />
+            <!-- Inline Validation Error -->
+            <div v-if="validationError" class="form-error-banner" role="alert">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>{{ validationError }}</span>
             </div>
 
-            <!-- Start Time & End Time * -->
-            <div class="form-row-2">
-              <div class="form-group">
-                <label class="form-label" for="sched-start">
-                  Start Time <span class="required">*</span>
-                </label>
-                <input
-                  id="sched-start"
-                  v-model="form.startTime"
-                  type="time"
-                  class="form-input"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="sched-end">
-                  End Time <span class="required">*</span>
-                </label>
-                <input
-                  id="sched-end"
-                  v-model="form.endTime"
-                  type="time"
-                  class="form-input"
-                  required
-                />
-              </div>
+            <!-- Title * -->
+            <div class="form-group">
+              <label class="form-label" for="sched-title">
+                Title <span class="required">*</span>
+              </label>
+              <input
+                id="sched-title"
+                v-model="form.title"
+                type="text"
+                class="form-input"
+                placeholder="Enter schedule title"
+                required
+              />
             </div>
 
             <!-- Description -->
@@ -374,8 +340,72 @@
                 v-model="form.description"
                 rows="4"
                 class="form-input"
-                placeholder="Module discussion, activities, etc."
+                placeholder="Enter schedule details..."
               ></textarea>
+            </div>
+
+            <!-- Start Date & Time * -->
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label" for="sched-start-date">
+                  Start Date <span class="required">*</span>
+                </label>
+                <input
+                  id="sched-start-date"
+                  v-model="form.startDate"
+                  type="date"
+                  class="form-input"
+                  required
+                  @change="onStartDateChange"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sched-start-time">
+                  Start Time <span class="required">*</span>
+                </label>
+                <input
+                  id="sched-start-time"
+                  v-model="form.startTime"
+                  type="time"
+                  class="form-input"
+                  required
+                  @change="onStartTimeChange"
+                />
+              </div>
+            </div>
+
+            <!-- End Date & Time * -->
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label" for="sched-end-date">
+                  End Date <span class="required">*</span>
+                </label>
+                <input
+                  id="sched-end-date"
+                  v-model="form.endDate"
+                  type="date"
+                  class="form-input"
+                  required
+                  @input="onEndDateChange"
+                  @change="onEndDateChange"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="sched-end-time">
+                  End Time <span class="required">*</span>
+                </label>
+                <input
+                  id="sched-end-time"
+                  v-model="form.endTime"
+                  type="time"
+                  class="form-input"
+                  required
+                  @input="onEndTimeChange"
+                  @change="onEndTimeChange"
+                />
+              </div>
             </div>
 
             <!-- Modal Footer Buttons -->
@@ -383,7 +413,7 @@
               <button type="button" class="btn btn-secondary" @click="closeFormModal" :disabled="submitting">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" :disabled="submitting">
+              <button type="submit" class="btn btn-primary" :disabled="submitting || !!validationError">
                 {{ submitting ? 'Saving...' : editingSchedule ? 'Save Changes' : 'Save Schedule' }}
               </button>
             </div>
@@ -409,27 +439,37 @@
 
         <div class="modal-body">
           <div class="details-list">
-            <!-- Activity Title -->
+            <!-- Title -->
             <div class="detail-row">
-              <span class="detail-label">Activity Title</span>
+              <span class="detail-label">Title</span>
               <span class="detail-value font-bold" style="font-size: 1.05rem;">
                 {{ viewingSchedule?.title }}
               </span>
             </div>
 
-            <!-- Date -->
+            <!-- Start Date & Time -->
             <div class="detail-row">
-              <span class="detail-label">Date</span>
+              <span class="detail-label">Start Date &amp; Time</span>
               <span class="detail-value font-medium">
-                {{ viewingSchedule?.formattedDate }}
+                {{ viewingSchedule?.formattedStartDateTime }}
               </span>
             </div>
 
-            <!-- Time -->
+            <!-- End Date & Time -->
             <div class="detail-row">
-              <span class="detail-label">Time</span>
+              <span class="detail-label">End Date &amp; Time</span>
               <span class="detail-value font-medium">
-                {{ viewingSchedule?.formattedTime }}
+                {{ viewingSchedule?.formattedEndDateTime }}
+              </span>
+            </div>
+
+            <!-- Status -->
+            <div class="detail-row">
+              <span class="detail-label">Status</span>
+              <span class="detail-value">
+                <span class="badge" :class="getStatusBadgeClass(viewingSchedule?.status)">
+                  {{ viewingSchedule?.status }}
+                </span>
               </span>
             </div>
 
@@ -497,10 +537,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { getSchedules, createSchedule, updateSchedule, deleteSchedule } from '../api/schedules.js';
-import { getLearningCenters } from '../api/learningCenters.js';
-import { getTeachers } from '../api/teachers.js';
+import {
+  getManilaTodayKey,
+  getManilaMonthKey,
+  toDateKey,
+  formatMonthLabel,
+  shiftMonthKey,
+  toTimeInputValue,
+  formatTime12h,
+  formatDisplayDate,
+  formatTimestampDate,
+  compareSchedules,
+  validateScheduleTimes,
+  getDefaultScheduleDateTimes,
+  calculateDefaultEndTime,
+  validateScheduleDateTimeRange,
+  formatScheduleDisplayDate,
+  calculateScheduleStatus,
+  formatDateTimeDisplay,
+} from '../utils/manilaTime.js';
 
 // --- Toast Notifications ---
 const toasts = ref([]);
@@ -521,131 +578,65 @@ const currentView = ref('list');
 
 // --- Filter State ---
 const searchQuery = ref('');
-const selectedActivityType = ref('');
 
-// Month Options for dropdown filter
-const monthOptions = [
-  { key: '2026-08', label: 'August 2026', year: 2026, month: 7 },
-  { key: '2026-09', label: 'September 2026', year: 2026, month: 8 },
-  { key: '2026-10', label: 'October 2026', year: 2026, month: 9 },
-  { key: '2026-11', label: 'November 2026', year: 2026, month: 10 },
-  { key: '2026-12', label: 'December 2026', year: 2026, month: 11 },
-  { key: '2027-01', label: 'January 2027', year: 2027, month: 0 },
-];
+// --- Current Philippine date (Asia/Manila), refreshed every minute ---
+const todayKey = ref(getManilaTodayKey());
+let todayTimer = null;
 
-const selectedMonthKey = ref('2026-09');
+// Month filter and calendar share one source of truth ("YYYY-MM"), defaulting to the
+// current Philippine month. It only changes when the user navigates or picks a month.
+const selectedMonthKey = ref(getManilaMonthKey());
 
-// Calendar active month / year tracker
-const calYear = ref(2026);
-const calMonth = ref(8); // 8 is September (0-indexed)
+// Calendar active month / year tracker (derived from selectedMonthKey)
+const calYear = computed(() => parseInt(selectedMonthKey.value.split('-')[0], 10));
+const calMonth = computed(() => parseInt(selectedMonthKey.value.split('-')[1], 10) - 1); // 0-indexed
 
-const currentCalendarMonthLabel = computed(() => {
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  return `${months[calMonth.value]} ${calYear.value}`;
+// Month Options for dropdown filter: 12 months before/after the current Philippine month,
+// plus any month that has schedules or is currently selected.
+const monthOptions = computed(() => {
+  const keys = new Set();
+  const current = getManilaMonthKey();
+  for (let i = -12; i <= 12; i++) keys.add(shiftMonthKey(current, i));
+  schedules.value.forEach((s) => {
+    const k = toDateKey(s.startDate || s.date).slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(k)) keys.add(k);
+    if (s.endDate) {
+      const ek = toDateKey(s.endDate).slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(ek)) keys.add(ek);
+    }
+  });
+  keys.add(selectedMonthKey.value);
+  return [...keys].sort().map((key) => ({ key, label: formatMonthLabel(key) }));
 });
 
+const currentCalendarMonthLabel = computed(() => formatMonthLabel(selectedMonthKey.value));
+
 function prevMonth() {
-  if (calMonth.value === 0) {
-    calMonth.value = 11;
-    calYear.value -= 1;
-  } else {
-    calMonth.value -= 1;
-  }
-  syncSelectedMonthDropdown();
+  selectedMonthKey.value = shiftMonthKey(selectedMonthKey.value, -1);
 }
 
 function nextMonth() {
-  if (calMonth.value === 11) {
-    calMonth.value = 0;
-    calYear.value += 1;
-  } else {
-    calMonth.value += 1;
-  }
-  syncSelectedMonthDropdown();
+  selectedMonthKey.value = shiftMonthKey(selectedMonthKey.value, 1);
 }
 
 function jumpToToday() {
-  calYear.value = 2026;
-  calMonth.value = 8; // September
-  syncSelectedMonthDropdown();
+  todayKey.value = getManilaTodayKey();
+  selectedMonthKey.value = todayKey.value.slice(0, 7);
 }
 
-function syncSelectedMonthDropdown() {
-  const m = String(calMonth.value + 1).padStart(2, '0');
-  selectedMonthKey.value = `${calYear.value}-${m}`;
-}
-
-watch(selectedMonthKey, (newVal) => {
-  if (newVal) {
-    const parts = newVal.split('-');
-    if (parts.length === 2) {
-      calYear.value = parseInt(parts[0], 10);
-      calMonth.value = parseInt(parts[1], 10) - 1;
-    }
-  }
-});
-
-// --- Date & Time Formatting Helpers ---
+// --- Date & Time Formatting Helpers (Philippine Standard Time) ---
 function formatToPhilippineTime(timeStr) {
-  if (!timeStr) return '';
-  const [hours, minutes] = timeStr.split(':');
-  let h = parseInt(hours, 10);
-  const m = minutes || '00';
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  h = h % 12;
-  h = h ? h : 12;
-  return `${h}:${m} ${ampm}`;
-}
-
-function formatDisplayDate(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-  const monthName = months[parseInt(m, 10) - 1] || m;
-  return `${monthName} ${parseInt(d, 10)}, ${y}`;
+  return formatTime12h(timeStr);
 }
 
 function formatCreatedDate(createdAt) {
-  if (!createdAt) return '—';
-  try {
-    const d = new Date(createdAt);
-    if (isNaN(d.getTime())) return String(createdAt);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-  } catch (e) {
-    return String(createdAt);
-  }
+  return formatTimestampDate(createdAt);
 }
 
 // --- Data Lists ---
 const schedules = ref([]);
-const learningCentersList = ref([]);
-const teachersList = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
-
-async function loadLearningCenters() {
-  try {
-    const res = await getLearningCenters();
-    const data = res.data?.data || res.data || [];
-    learningCentersList.value = Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error('Failed to load learning centers:', err);
-  }
-}
-
-async function loadTeachers() {
-  try {
-    const res = await getTeachers();
-    const data = res.data?.data || res.data || [];
-    teachersList.value = Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error('Failed to load teachers:', err);
-  }
-}
 
 async function fetchSchedules() {
   loading.value = true;
@@ -661,13 +652,27 @@ async function fetchSchedules() {
   }
 }
 
-// Enriched schedules for formatting
+// Enriched schedules for formatting (dates normalized to "YYYY-MM-DD", sorted by date + start time)
 const enrichedSchedules = computed(() => {
-  return schedules.value.map((s) => ({
-    ...s,
-    formattedDate: formatDisplayDate(s.date),
-    formattedTime: `${formatToPhilippineTime(s.startTime)} - ${formatToPhilippineTime(s.endTime)}`,
-  }));
+  return schedules.value
+    .map((s) => {
+      const sDate = toDateKey(s.startDate || s.date);
+      const eDate = toDateKey(s.endDate || s.startDate || s.date);
+      const computedStatus = s.status === 'Cancelled' ? 'Cancelled' : calculateScheduleStatus(sDate, s.startTime, eDate, s.endTime);
+      return {
+        ...s,
+        date: sDate,
+        startDate: sDate,
+        endDate: eDate,
+        status: computedStatus,
+        formattedDate: formatScheduleDisplayDate(sDate, eDate),
+        formattedStartTime: formatToPhilippineTime(s.startTime),
+        formattedStartDateTime: formatDateTimeDisplay(sDate, s.startTime),
+        formattedEndDateTime: formatDateTimeDisplay(eDate, s.endTime),
+        formattedTime: `${formatToPhilippineTime(s.startTime)} - ${formatToPhilippineTime(s.endTime)}`,
+      };
+    })
+    .sort(compareSchedules);
 });
 
 // Filtered schedules for List View
@@ -678,48 +683,21 @@ const filteredSchedules = computed(() => {
     const matchesSearch =
       !q ||
       s.title?.toLowerCase().includes(q) ||
-      s.description?.toLowerCase().includes(q) ||
-      s.learningCenter?.toLowerCase().includes(q) ||
-      s.teacher?.toLowerCase().includes(q);
+      s.description?.toLowerCase().includes(q);
 
-    // 2. Activity Type
-    const actType = s.activityType || s.type;
-    const matchesType = !selectedActivityType.value || actType === selectedActivityType.value;
-
-    // 3. Month Filter
+    // 2. Month Filter: schedule active during the month
     let matchesMonth = true;
-    if (selectedMonthKey.value && s.date) {
-      matchesMonth = s.date.startsWith(selectedMonthKey.value);
+    if (selectedMonthKey.value) {
+      const sDate = s.startDate || s.date;
+      const eDate = s.endDate || sDate;
+      const startMonth = sDate ? sDate.slice(0, 7) : '';
+      const endMonth = eDate ? eDate.slice(0, 7) : startMonth;
+      matchesMonth = selectedMonthKey.value >= startMonth && selectedMonthKey.value <= endMonth;
     }
 
-    return matchesSearch && matchesType && matchesMonth;
+    return matchesSearch && matchesMonth;
   });
 });
-
-// --- Dynamic Teacher Filter based on selected Learning Center ---
-const availableTeachers = computed(() => {
-  if (!form.learningCenterId) return [];
-  const selectedCid = Number(form.learningCenterId);
-  return teachersList.value.filter((t) => {
-    if (t.learningCenterId === selectedCid) return true;
-    if (Array.isArray(t.learningCenters) && t.learningCenters.some((c) => c.id === selectedCid)) return true;
-    return false;
-  });
-});
-
-function onCenterChange() {
-  // If the currently selected teacher is no longer assigned to this center, reset teacherId
-  if (form.teacherId) {
-    const stillValid = availableTeachers.value.some((t) => t.id === Number(form.teacherId));
-    if (!stillValid) {
-      form.teacherId = '';
-    }
-  }
-  // If there's only 1 teacher for this center, pre-select it for admin convenience
-  if (!form.teacherId && availableTeachers.value.length === 1) {
-    form.teacherId = availableTeachers.value[0].id;
-  }
-}
 
 // --- Calendar Matrix Calculation ---
 const calendarDays = computed(() => {
@@ -750,7 +728,7 @@ const calendarDays = computed(() => {
   // Current month days
   for (let d = 1; d <= daysInCurrentMonth; d++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const isToday = dateStr === '2026-09-21';
+    const isToday = dateStr === todayKey.value;
     days.push({
       dayNumber: d,
       dateStr,
@@ -781,16 +759,14 @@ const calendarDays = computed(() => {
 
 function getEventsForDate(dateStr) {
   return enrichedSchedules.value.filter((s) => {
-    if (s.date !== dateStr) return false;
-    const actType = s.activityType || s.type;
-    if (selectedActivityType.value && actType !== selectedActivityType.value) return false;
+    const sDate = s.startDate || s.date;
+    const eDate = s.endDate || sDate;
+    if (dateStr < sDate || dateStr > eDate) return false;
     if (searchQuery.value) {
       const q = searchQuery.value.trim().toLowerCase();
       const m =
         s.title?.toLowerCase().includes(q) ||
-        s.description?.toLowerCase().includes(q) ||
-        s.learningCenter?.toLowerCase().includes(q) ||
-        s.teacher?.toLowerCase().includes(q);
+        s.description?.toLowerCase().includes(q);
       if (!m) return false;
     }
     return true;
@@ -818,59 +794,79 @@ function getStatusBadgeClass(status) {
   }
 }
 
-function getTypeTagClass(type) {
-  switch (type) {
-    case 'Learning Session':
-      return 'tag-blue';
-    case 'Module Consultation':
-      return 'tag-purple';
-    case 'Assessment':
-      return 'tag-emerald';
-    default:
-      return 'tag-amber';
-  }
-}
-
-function getEventChipClass(type) {
-  switch (type) {
-    case 'Learning Session':
-      return 'chip-blue';
-    case 'Module Consultation':
-      return 'chip-purple';
-    case 'Assessment':
-      return 'chip-emerald';
-    default:
+function getEventChipClass(status) {
+  switch (status) {
+    case 'Completed':
+      return 'chip-slate';
+    case 'Ongoing':
       return 'chip-amber';
+    case 'Cancelled':
+      return 'chip-rose';
+    case 'Upcoming':
+    default:
+      return 'chip-blue';
   }
 }
 
 // --- Modal State: Add / Edit ---
 const showFormModal = ref(false);
 const editingSchedule = ref(null);
+const hasManuallySetEndDate = ref(false);
+const hasManuallySetEndTime = ref(false);
 
 const form = reactive({
   title: '',
-  date: '2026-09-21',
-  startTime: '09:00',
-  endTime: '11:00',
-  activityType: 'Learning Session',
-  learningCenterId: '',
-  teacherId: '',
   description: '',
-  status: 'Upcoming',
+  startDate: '',
+  startTime: '',
+  endDate: '',
+  endTime: '',
 });
+
+// Inline validation error: End Date & Time must be later than Start Date & Time
+const validationError = computed(() => {
+  if (!form.startDate || !form.startTime || !form.endDate || !form.endTime) {
+    return '';
+  }
+  return validateScheduleDateTimeRange(form.startDate, form.startTime, form.endDate, form.endTime);
+});
+
+function onStartDateChange() {
+  if (!hasManuallySetEndDate.value) {
+    const defaults = calculateDefaultEndTime(form.startDate, form.startTime);
+    form.endDate = defaults.endDate || form.startDate;
+  }
+}
+
+function onStartTimeChange() {
+  if (!hasManuallySetEndTime.value) {
+    const defaults = calculateDefaultEndTime(form.startDate, form.startTime);
+    form.endTime = defaults.endTime;
+    if (!hasManuallySetEndDate.value) {
+      form.endDate = defaults.endDate || form.startDate;
+    }
+  }
+}
+
+function onEndDateChange() {
+  hasManuallySetEndDate.value = true;
+}
+
+function onEndTimeChange() {
+  hasManuallySetEndTime.value = true;
+}
 
 function openAddModal() {
   editingSchedule.value = null;
+  const defaults = getDefaultScheduleDateTimes();
   form.title = '';
-  form.date = new Date().toISOString().split('T')[0];
-  form.startTime = '09:00';
-  form.endTime = '17:00';
   form.description = '';
-  form.activityType = 'Learning Session';
-  form.learningCenterId = learningCentersList.value.length > 0 ? learningCentersList.value[0].id : '';
-  form.teacherId = '';
-  form.status = 'Upcoming';
+  form.startDate = defaults.startDate;
+  form.startTime = defaults.startTime;
+  form.endDate = defaults.endDate;
+  form.endTime = defaults.endTime;
+  hasManuallySetEndDate.value = false;
+  hasManuallySetEndTime.value = false;
 
   showFormModal.value = true;
 }
@@ -878,21 +874,27 @@ function openAddModal() {
 function openAddModalWithDate(dateStr) {
   openAddModal();
   if (dateStr) {
-    form.date = dateStr;
+    form.startDate = dateStr;
+    const defaults = calculateDefaultEndTime(form.startDate, form.startTime);
+    form.endDate = defaults.endDate || dateStr;
+    form.endTime = defaults.endTime;
+    hasManuallySetEndDate.value = false;
+    hasManuallySetEndTime.value = false;
   }
 }
 
 function openEditModal(item) {
   editingSchedule.value = item;
   form.title = item.title || '';
-  form.date = item.date || new Date().toISOString().split('T')[0];
-  form.startTime = item.startTime || '09:00';
-  form.endTime = item.endTime || '17:00';
-  form.activityType = item.activityType || item.type || 'Learning Session';
-  form.learningCenterId = item.learningCenterId || '';
-  form.teacherId = item.teacherId || '';
   form.description = item.description || '';
-  form.status = item.status || 'Upcoming';
+  const sDate = toDateKey(item.startDate || item.date) || getManilaTodayKey();
+  const eDate = toDateKey(item.endDate || item.startDate || item.date) || sDate;
+  form.startDate = sDate;
+  form.endDate = eDate;
+  form.startTime = toTimeInputValue(item.startTime) || '09:00';
+  form.endTime = toTimeInputValue(item.endTime) || '10:00';
+  hasManuallySetEndDate.value = true;
+  hasManuallySetEndTime.value = true;
 
   showFormModal.value = true;
 }
@@ -903,36 +905,49 @@ function closeFormModal() {
 }
 
 async function saveSchedule() {
-  if (!form.date) {
-    showToast('Please select a date.', 'error');
+  if (!form.title || !form.title.trim()) {
+    showToast('Please enter a schedule title.', 'error');
+    return;
+  }
+  if (!form.startDate) {
+    showToast('Please select a start date.', 'error');
     return;
   }
   if (!form.startTime) {
     showToast('Please enter a start time.', 'error');
     return;
   }
+  if (!form.endDate) {
+    showToast('Please select an end date.', 'error');
+    return;
+  }
   if (!form.endTime) {
     showToast('Please enter an end time.', 'error');
+    return;
+  }
+  const rangeError = validateScheduleDateTimeRange(
+    form.startDate,
+    form.startTime,
+    form.endDate,
+    form.endTime
+  );
+  if (rangeError) {
+    showToast(rangeError, 'error');
     return;
   }
 
   submitting.value = true;
   try {
     const descText = form.description ? form.description.trim() : '';
-    const autoTitle = descText ? descText.split('\n')[0].slice(0, 60) : 'Learning Session';
-
-    const defaultCenterId = learningCentersList.value.length > 0 ? learningCentersList.value[0].id : 1;
 
     const payload = {
-      title: editingSchedule.value?.title || form.title || autoTitle,
-      date: form.date,
+      title: form.title.trim(),
+      description: descText || null,
+      startDate: form.startDate,
+      date: form.startDate,
+      endDate: form.endDate,
       startTime: form.startTime,
       endTime: form.endTime,
-      description: descText || null,
-      activityType: editingSchedule.value?.activityType || form.activityType || 'Learning Session',
-      learningCenterId: editingSchedule.value?.learningCenterId || form.learningCenterId || defaultCenterId,
-      teacherId: editingSchedule.value?.teacherId || (form.teacherId ? Number(form.teacherId) : null),
-      status: editingSchedule.value?.status || form.status || 'Upcoming',
     };
 
     if (editingSchedule.value) {
@@ -943,8 +958,11 @@ async function saveSchedule() {
       showToast('Schedule created successfully.');
     }
 
+    const savedMonthKey = form.startDate.slice(0, 7);
     closeFormModal();
     await fetchSchedules();
+    // Show the month of the saved schedule so the change is visible right away
+    selectedMonthKey.value = savedMonthKey;
   } catch (err) {
     console.error('Error saving schedule:', err);
     const msg = err.response?.data?.error || 'Failed to save schedule.';
@@ -1003,8 +1021,15 @@ async function confirmDelete() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadLearningCenters(), loadTeachers()]);
+  // Keep "today" accurate (e.g. across midnight) without moving the user's selected month
+  todayTimer = setInterval(() => {
+    todayKey.value = getManilaTodayKey();
+  }, 60 * 1000);
   await fetchSchedules();
+});
+
+onBeforeUnmount(() => {
+  if (todayTimer) clearInterval(todayTimer);
 });
 </script>
 
@@ -1063,52 +1088,37 @@ onMounted(async () => {
   position: relative;
 }
 
-/* Table Activity Styling */
-.activity-title-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+/* Schedule Table Styling */
+.col-title {
+  max-width: 240px;
+  min-width: 140px;
 }
 
-.activity-name {
+.schedule-title-text {
   font-weight: 600;
   color: var(--color-text);
   font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
-.activity-type-tag {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.725rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  width: fit-content;
+.col-description {
+  max-width: 280px;
+  min-width: 160px;
 }
 
-.tag-blue {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.tag-purple {
-  background: #faf5ff;
-  color: #7e22ce;
-}
-
-.tag-emerald {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.tag-amber {
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.tag-slate {
-  background: #f1f5f9;
-  color: #475569;
+.schedule-desc-text {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .time-badge {
@@ -1341,7 +1351,21 @@ onMounted(async () => {
   border-left-color: #64748b;
 }
 
+.chip-rose {
+  background: #fff1f2;
+  color: #9f1239;
+  border-left-color: #e11d48;
+}
+
 /* Modals */
+.modal-subtitle {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-top: 0.2rem;
+}
+
 .modal-schedule-form {
   max-width: 540px;
   width: 100%;
@@ -1356,6 +1380,27 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+.form-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md, 6px);
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
 }
 
 /* View Modal Details */

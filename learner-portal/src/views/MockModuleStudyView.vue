@@ -1312,6 +1312,11 @@ import { useRoute, useRouter } from 'vue-router';
 import api from '../api/axios';
 import MockPdfViewer from '../components/MockPdfViewer.vue';
 import {
+  formatStrandCode,
+  formatStrandName,
+  formatStrandAndCode,
+} from '../utils/formatStrand.js';
+import {
   MOCK_MODULE,
   PRE_TEST_QUESTIONS,
   POST_TEST_QUESTIONS,
@@ -1723,25 +1728,29 @@ const moduleCode = computed(() => {
 });
 
 const moduleStrandCode = computed(() => {
-  if (isMock.value) return MOCK_MODULE.strandCode;
-  return moduleData.value?.strandCode || moduleData.value?.learningArea?.code || 'LS';
+  if (isMock.value) return formatStrandCode(MOCK_MODULE.strandCode);
+  const candidate =
+    moduleData.value?.learningArea?.code ||
+    (moduleData.value?.code && /^LS/i.test(moduleData.value.code) ? moduleData.value.code : null) ||
+    moduleData.value?.strandCode ||
+    moduleData.value?.code ||
+    'LS';
+  return formatStrandCode(candidate);
 });
 
 const moduleSubheading = computed(() => {
-  if (isMock.value) return MOCK_MODULE.strand;
-  return moduleData.value?.strand || moduleData.value?.learningArea?.name || 'General Curriculum';
+  if (isMock.value) return formatStrandName(MOCK_MODULE.strand, MOCK_MODULE.strandCode);
+  const raw = moduleData.value?.learningArea?.name || moduleData.value?.strand || 'General Curriculum';
+  return formatStrandName(raw, moduleData.value?.learningArea?.code || moduleStrandCode.value);
 });
 
 const strandAndCodeText = computed(() => {
-  const strand = moduleSubheading.value || 'General Curriculum';
-  const strandCode = moduleStrandCode.value || '';
-  const code = moduleCode.value || '';
-  const displayCode = strandCode && strandCode !== 'LS' ? strandCode : (code || strandCode || '');
-
-  if (displayCode && !strand.toLowerCase().includes(displayCode.toLowerCase())) {
-    return `${strand} · ${displayCode}`;
+  const code = moduleStrandCode.value;
+  const name = moduleSubheading.value;
+  if (code && name && code !== 'LS') {
+    return `${code} · ${name}`;
   }
-  return strand;
+  return name || code || '';
 });
 
 const pdfUrl = computed(() => {
@@ -3820,6 +3829,7 @@ onMounted(() => {
   gap: 0.85rem;
   box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
   margin: 0;
 }
 
@@ -3917,14 +3927,22 @@ onMounted(() => {
   flex-direction: column;
   gap: 0.65rem;
   width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
 .activities-header {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  margin-bottom: 0.1rem;
+  gap: 0.2rem;
+  margin: 0 0 0.15rem 0;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  align-items: flex-start;
 }
 
 .activities-title {
@@ -3932,12 +3950,22 @@ onMounted(() => {
   font-weight: 800;
   color: #0f172a;
   margin: 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.3;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .activities-desc {
   font-size: 0.825rem;
   color: #64748b;
   margin: 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.4;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .activities-checklist {
@@ -3945,6 +3973,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 0.75rem;
   width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -3957,8 +3988,10 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   box-sizing: border-box;
   width: 100%;
+  max-width: 100%;
   margin: 0;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
 }
 
 /* Highlight only the current available step with subtle blue border */
@@ -4693,28 +4726,56 @@ onMounted(() => {
   .module-details-container {
     max-width: 680px;
     margin: 0 auto;
-    padding: 2rem 1rem;
+    padding: 1.5rem 0 1rem;
   }
 
   .module-header-card {
     padding: 1.5rem 1.75rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
   }
 
-  .subpage-nav-bar {
-    padding: 1.5rem 1.75rem;
+  .learning-activities-section {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
   }
 
-  .module-main-title,
-  .subpage-title-text {
-    font-size: 1.5rem;
+  .activities-header {
+    width: 100%;
+    margin: 0 0 0.2rem 0;
+    padding: 0;
+    text-align: left;
+    align-items: flex-start;
   }
 
   .activities-title {
     font-size: 1.25rem;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-desc {
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-checklist {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
   }
 
   .activity-card {
     padding: 1.35rem 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
   }
 
   .step-content-card {
@@ -4724,7 +4785,7 @@ onMounted(() => {
 
 @media (max-width: 480px) {
   .module-details-container {
-    padding: 0;
+    padding: 0 0 0.5rem;
     gap: 0.75rem;
     width: 100%;
     max-width: 100%;
@@ -4734,6 +4795,7 @@ onMounted(() => {
   .module-header-card {
     padding: 1rem 1.15rem;
     width: 100%;
+    max-width: 100%;
     margin: 0;
   }
 
@@ -4748,9 +4810,45 @@ onMounted(() => {
     font-size: 1.15rem;
   }
 
+  .learning-activities-section {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-header {
+    width: 100%;
+    margin: 0 0 0.15rem 0;
+    padding: 0;
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .activities-title {
+    font-size: 1.05rem;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-desc {
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-checklist {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   .activity-card {
     padding: 1rem 1.15rem;
     width: 100%;
+    max-width: 100%;
     margin: 0;
   }
 
@@ -4795,12 +4893,49 @@ onMounted(() => {
     width: 100%;
     max-width: 100%;
     margin: 0;
+    padding: 0 0 0.5rem;
   }
 
   .module-header-card {
     padding: 0.9rem 1rem;
     width: 100%;
+    max-width: 100%;
     margin: 0;
+  }
+
+  .learning-activities-section {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-header {
+    width: 100%;
+    margin: 0 0 0.15rem 0;
+    padding: 0;
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .activities-title {
+    font-size: 1rem;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-desc {
+    text-align: left;
+    margin: 0;
+    padding: 0;
+  }
+
+  .activities-checklist {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
   }
 
   .subpage-nav-bar {
@@ -4845,6 +4980,7 @@ onMounted(() => {
   .activity-card {
     padding: 0.9rem 1rem;
     width: 100%;
+    max-width: 100%;
     margin: 0;
   }
 

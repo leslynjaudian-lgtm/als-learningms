@@ -159,6 +159,8 @@ function processSuccessfulAuth(data) {
     localStorage.setItem('als_learner_authenticated', 'true');
     localStorage.setItem('als_learner_user', JSON.stringify({
       ...u,
+      userId: u.id,
+      learnerId: u.profile?.id || u.id,
       role: 'LEARNER',
       name: u.profile?.fullName || u.fullName || u.name,
       fullName: u.profile?.fullName || u.fullName || u.name,

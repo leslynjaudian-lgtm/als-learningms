@@ -62,10 +62,11 @@ const routes = [
         meta: { title: 'My Progress', requiresAuth: true },
       },
       {
-        path: '/announcements',
-        name: 'Announcements',
+        path: '/notifications',
+        alias: ['/announcements'],
+        name: 'Notifications',
         component: AnnouncementsView,
-        meta: { title: 'Announcements', requiresAuth: true },
+        meta: { title: 'Notifications', requiresAuth: true },
       },
       {
         path: '/profile',

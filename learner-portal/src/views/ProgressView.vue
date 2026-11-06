@@ -161,6 +161,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
+import { formatStrandDisplay } from '../utils/formatStrand.js';
 
 const loading = ref(true);
 const error = ref(null);
@@ -171,53 +172,53 @@ const totalModules = ref(0);
 const assessmentsTaken = ref(0);
 const totalAssessments = ref(0);
 
-// All 7 official ALS Learning Strands initialized
+// All 7 official ALS Learning Strands initialized with standard Code · Name format
 const strands = ref([
   {
-    code: 'LS1-ENG',
-    name: 'LS1 — Communication Skills (English)',
+    code: 'LS1',
+    name: 'LS1 · Communication Skills (English)',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
-    code: 'LS1-FIL',
-    name: 'LS1 — Communication Skills (Filipino)',
+    code: 'LS1',
+    name: 'LS1 · Communication Skills (Filipino)',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
     code: 'LS2',
-    name: 'LS2 — Scientific Literacy and Critical Thinking Skills',
+    name: 'LS2 · Scientific & Critical Thinking Skills',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
     code: 'LS3',
-    name: 'LS3 — Mathematical and Problem Solving Skills',
+    name: 'LS3 · Mathematical & Problem Solving Skills',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
     code: 'LS4',
-    name: 'LS4 — Life and Career Skills',
+    name: 'LS4 · Life and Career Skills',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
     code: 'LS5',
-    name: 'LS5 — Understanding the Self and Society',
+    name: 'LS5 · Understanding Self & Society',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
   },
   {
     code: 'LS6',
-    name: 'LS6 — Digital Citizenship',
+    name: 'LS6 · Digital Citizenship',
     progress: 0,
     modulesCompleted: 0,
     totalModules: 0,
@@ -238,7 +239,10 @@ async function loadProgress() {
       totalAssessments.value = Number(d.totalAssessments) || 0;
 
       if (Array.isArray(d.strands) && d.strands.length > 0) {
-        strands.value = d.strands;
+        strands.value = d.strands.map((s) => ({
+          ...s,
+          name: formatStrandDisplay(s.name || s),
+        }));
       }
     }
   } catch (err) {
@@ -317,7 +321,10 @@ onUnmounted(() => {
 
 .strand-title {
   color: #334155;
-  line-height: 1.3;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  flex: 1;
 }
 
 .strand-pct {

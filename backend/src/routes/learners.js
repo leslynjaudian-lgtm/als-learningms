@@ -151,78 +151,53 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
       return res.status(404).json({ error: 'Learner profile not found' });
     }
 
-    const OFFICIAL_STRANDS = [
-      {
-        key: 'LS1-ENG',
-        code: 'LS1-ENG',
-        name: 'LS1 — Communication Skills (English)',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS1-ENG' || areaCode.includes('ENG')) return true;
-          if (text.includes('english') && (text.includes('ls1') || text.includes('communication'))) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS1-FIL',
-        code: 'LS1-FIL',
-        name: 'LS1 — Communication Skills (Filipino)',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS1-FIL' || areaCode.includes('FIL')) return true;
-          if (text.includes('filipino') && (text.includes('ls1') || text.includes('communication'))) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS2-SCI',
-        code: 'LS2',
-        name: 'LS2 — Scientific Literacy and Critical Thinking Skills',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS2-SCI' || areaCode === 'LS2' || areaCode.startsWith('LS2')) return true;
-          if (text.includes('scientific') || text.includes('science')) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS3-MATH',
-        code: 'LS3',
-        name: 'LS3 — Mathematical and Problem Solving Skills',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS3-MATH' || areaCode === 'LS3' || areaCode.startsWith('LS3')) return true;
-          if (text.includes('math') || text.includes('mathematical')) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS4-LIFE',
-        code: 'LS4',
-        name: 'LS4 — Life and Career Skills',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS4-LIFE' || areaCode === 'LS4' || areaCode.startsWith('LS4')) return true;
-          if (text.includes('life and career') || text.includes('life & career')) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS5-SOC',
-        code: 'LS5',
-        name: 'LS5 — Understanding the Self and Society',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS5-SOC' || areaCode === 'LS5' || areaCode.startsWith('LS5')) return true;
-          if (text.includes('self and society') || text.includes('self & society') || text.includes('understanding self')) return true;
-          return false;
-        },
-      },
-      {
-        key: 'LS6-DIGI',
-        code: 'LS6',
-        name: 'LS6 — Digital Citizenship',
-        match: (areaCode, text) => {
-          if (areaCode === 'LS6-DIGI' || areaCode === 'LS6' || areaCode.startsWith('LS6')) return true;
-          if (text.includes('digital')) return true;
-          return false;
-        },
-      },
+    // Retrieve actual registered Learning Areas from the database
+    const dbAreas = await prisma.learningArea.findMany({
+      where: { status: 'active' },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const cleanStrandCode = (c) => {
+      const match = String(c || '').replace(/\s+/g, '').match(/^LS\d+/i);
+      return match ? match[0].toUpperCase() : String(c || '').replace(/\s+/g, '').replace(/-[A-Za-z0-9]+$/, '').toUpperCase();
+    };
+
+    const fallbackAreas = [
+      { id: 1, code: 'LS1-ENG', name: 'Communication Skills (English)' },
+      { id: 2, code: 'LS1-FIL', name: 'Communication Skills (Filipino)' },
+      { id: 3, code: 'LS2-SCI', name: 'Scientific & Critical Thinking Skills' },
+      { id: 4, code: 'LS3-MATH', name: 'Mathematical & Problem Solving Skills' },
+      { id: 5, code: 'LS4-LIFE', name: 'Life and Career Skills' },
+      { id: 6, code: 'LS5-SOC', name: 'Understanding Self & Society' },
+      { id: 7, code: 'LS6-DIGI', name: 'Digital Citizenship' },
     ];
+
+    const sourceAreas = Array.isArray(dbAreas) && dbAreas.length > 0 ? dbAreas : fallbackAreas;
+
+    const OFFICIAL_STRANDS = sourceAreas.map((area) => {
+      const code = cleanStrandCode(area.code);
+      return {
+        key: area.code,
+        code,
+        name: `${code} · ${area.name}`,
+        rawName: area.name,
+        match: (areaCode, text) => {
+          if (areaCode === area.code) return true;
+          if (area.code.includes('ENG') && (areaCode.includes('ENG') || (text.includes('english') && (text.includes('ls1') || text.includes('communication'))))) return true;
+          if (area.code.includes('FIL') && (areaCode.includes('FIL') || (text.includes('filipino') && (text.includes('ls1') || text.includes('communication'))))) return true;
+          if (areaCode === code || areaCode.startsWith(code)) {
+            if (code === 'LS1') {
+              if (area.code.includes('ENG') && text.includes('english')) return true;
+              if (area.code.includes('FIL') && text.includes('filipino')) return true;
+              return false;
+            }
+            return true;
+          }
+          const lowerName = area.name.toLowerCase();
+          return text.includes(lowerName);
+        },
+      };
+    });
 
     if (!learner.learningCenterId) {
       return res.json({
