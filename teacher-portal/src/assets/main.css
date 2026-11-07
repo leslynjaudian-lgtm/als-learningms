@@ -772,81 +772,360 @@ input::-webkit-contacts-auto-fill-button {
 .action-purple { background: #faf5ff; border-color: #e9d5ff; color: #7e22ce; }
 .action-purple:hover { background: #f3e8ff; }
 
-/* --- Filter Bar Card --- */
-.filter-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 0.85rem 1rem;
-  margin-bottom: 1rem;
+/* ==========================================================================
+   --- Standard ALS LMS Filter System (Unified Design Tokens & Components) ---
+   ========================================================================== */
+
+/* 1. Filter Containers */
+.filter-card,
+.dashboard-filter-card,
+.report-filter-bar,
+.filters-card {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  gap: 1.25rem;
   flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/* 2. Filter Search Wrappers */
 .filter-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  height: 42px;
+  min-height: 42px;
+  padding: 0 0.85rem;
   flex: 1;
-  min-width: 220px;
+  min-width: 240px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   position: relative;
 }
 
+.filter-search-wrap:hover {
+  border-color: #94a3b8;
+}
+
+.filter-search-wrap:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  background-color: #ffffff;
+}
+
 .filter-search-wrap svg {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--color-text-muted);
+  color: #94a3b8;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
-.filter-search-input {
-  width: 100%;
-  padding: 0.45rem 0.75rem 0.45rem 2.1rem;
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  color: var(--color-text);
+.filter-search-wrap input {
+  border: none;
+  background: transparent;
   outline: none;
+  font-size: 0.875rem;
+  color: #0f172a;
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+  padding: 0;
+  box-shadow: none;
 }
 
-.filter-search-input:focus {
-  border-color: var(--color-primary);
+.filter-search-wrap input::placeholder {
+  color: #94a3b8;
 }
 
-.filter-dropdown-group {
+.search-clear-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.search-clear-btn:hover {
+  color: #0f172a;
+}
+
+/* 3. Filter Groups & Items */
+.filter-dropdown-group,
+.announcement-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
 .filter-dropdown-item {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
-.filter-dropdown-item label {
-  font-size: 0.775rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+.filter-field,
+.filter-field-col,
+.filter-control-item,
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* 4. Labels */
+.filter-dropdown-item label,
+.filter-control-item label,
+.filter-field-col label,
+.filter-field label,
+.filter-group .filter-label,
+.filter-label,
+.filter-item-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
   white-space: nowrap;
+  line-height: normal;
+  margin: 0;
 }
 
-.filter-select {
-  padding: 0.4rem 1.8rem 0.4rem 0.65rem;
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 0.825rem;
-  color: var(--color-text);
-  outline: none;
+/* 5. Dropdown Selects */
+.filter-select,
+.filter-select-input,
+.filter-field-col select,
+.filter-field select,
+.select-wrapper select,
+.sort-select {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  padding: 0 2.25rem 0 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #0f172a;
   cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  line-height: normal;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M4.646 5.646a.5.5 0 01.708 0L8 8.293l2.646-2.647a.5.5 0 01.708.708l-3 3a.5.5 0 01-.708 0l-3-3a.5.5 0 010-.708z'/%3E%3C/svg%3E");
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.5rem center;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.select-wrapper select:has(~ .select-chevron) {
+  background-image: none;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+}
+
+.filter-select:hover,
+.filter-select-input:hover,
+.filter-field-col select:hover,
+.filter-field select:hover,
+.select-wrapper select:hover,
+.sort-select:hover {
+  border-color: #94a3b8;
+}
+
+.filter-select:focus,
+.filter-select-input:focus,
+.filter-field-col select:focus,
+.filter-field select:focus,
+.select-wrapper select:focus,
+.sort-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+  background-color: #ffffff;
+}
+
+.filter-select:disabled,
+.filter-select-input:disabled,
+.filter-field-col select:disabled,
+.filter-field select:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+  opacity: 0.8;
+}
+
+/* 6. Date Inputs */
+.filter-date-input,
+.filter-input[type="date"],
+.filter-field-col input[type="date"],
+.filter-field input[type="date"],
+.col-date input {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  padding: 0 0.85rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.filter-date-input:hover,
+.filter-input[type="date"]:hover,
+.filter-field-col input[type="date"]:hover,
+.filter-field input[type="date"]:hover,
+.col-date input:hover {
+  border-color: #94a3b8;
+}
+
+.filter-date-input:focus,
+.filter-input[type="date"]:focus,
+.filter-field-col input[type="date"]:focus,
+.filter-field input[type="date"]:focus,
+.col-date input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  background-color: #ffffff;
+}
+
+/* 7. Clear / Reset Filters Buttons */
+.btn-reset-filters,
+.btn-clear-filters,
+.filter-reset-btn,
+.btn-reset-filter,
+.clear-filters-btn {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.btn-reset-filters:hover:not(:disabled),
+.btn-clear-filters:hover:not(:disabled),
+.filter-reset-btn:hover:not(:disabled),
+.btn-reset-filter:hover:not(:disabled),
+.clear-filters-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.btn-reset-filters:focus,
+.btn-clear-filters:focus,
+.filter-reset-btn:focus,
+.btn-reset-filter:focus,
+.clear-filters-btn:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.btn-reset-filters:disabled,
+.btn-clear-filters:disabled,
+.filter-reset-btn:disabled,
+.btn-reset-filter:disabled,
+.clear-filters-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 8. Action Buttons Paired with Filters */
+.filter-btn-col,
+.filter-actions,
+.filter-actions-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.filter-actions .btn,
+.filter-actions-group .btn,
+.btn-generate-report,
+.btn-apply-filters {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  border-radius: var(--radius-md, 8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 9. Responsive Rules */
+@media (max-width: 900px) {
+  .filter-card,
+  .dashboard-filter-card,
+  .report-filter-bar,
+  .filters-card {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .btn-reset-filters,
+  .btn-clear-filters,
+  .clear-filters-btn,
+  .filter-reset-btn,
+  .btn-reset-filter {
+    width: 100%;
+  }
 }
 
 /* --- Table Card & Data Table --- */
@@ -898,6 +1177,41 @@ input::-webkit-contacts-auto-fill-button {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* --- Standard Table Text Formatting --- */
+.table-cell-name {
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+
+.table-cell-als-level {
+  font-weight: 400 !important;
+  color: inherit !important;
+  vertical-align: middle !important;
+  text-align: left;
+}
+
+/* Ensure any nested span/badge inside an ALS Level cell renders as plain unstyled text */
+.table-cell-als-level .badge,
+.table-cell-als-level .level-pill,
+.table-cell-als-level .status-badge,
+.table-cell-als-level .pill-level,
+.table-cell-als-level span:not(.learner-name-text) {
+  font-weight: 400 !important;
+  color: inherit !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: inline !important;
+  line-height: inherit !important;
+}
+
+.table-cell-plain {
+  font-weight: 400 !important;
 }
 
 /* --- Empty State --- */

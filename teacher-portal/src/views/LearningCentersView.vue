@@ -66,14 +66,14 @@
                 <span class="address-text">{{ center.address || '—' }}</span>
               </td>
 
-              <!-- 3. ALS Level (Clean Blue Badge/Pill Style) -->
-              <td class="td-level">
-                <span class="level-pill">{{ center.programLevel }}</span>
+              <!-- 3. ALS Level (Plain Text) -->
+              <td class="td-level table-cell-als-level">
+                {{ formatAlsLevel(center.programLevel) }}
               </td>
 
               <!-- 4. Total Learner -->
               <td class="td-total">
-                <span class="total-learner-badge">{{ center.totalLearners }}</span>
+                <span class="total-learner-text">{{ center.totalLearners }}</span>
               </td>
 
               <!-- 5. Actions (Far Right Aligned, View Eye Icon Only) -->
@@ -109,6 +109,14 @@ import { getAssignedLearners } from '../api/learners.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 
 const { currentTeacher, teacherId, assignedProgramLevel } = useTeacherSession();
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
 
 const loading = ref(true);
 const assignedLearners = ref([]);
@@ -380,7 +388,7 @@ onMounted(() => {
 
 .th-actions {
   width: 6%;
-  text-align: right;
+  text-align: center;
 }
 
 /* Data Rows with Comfortable Height & Padding */
@@ -412,7 +420,7 @@ onMounted(() => {
 
 .center-name-text {
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 400;
   color: #0f172a;
   line-height: 1.4;
 }
@@ -451,24 +459,15 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.total-learner-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 32px;
-  padding: 0 0.65rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-weight: 700;
+.total-learner-text {
+  font-size: 0.875rem;
+  font-weight: 400;
   color: #0f172a;
-  font-size: 0.9rem;
 }
 
-/* 5. Actions (Far Right Aligned) */
+/* 5. Actions (Centered) */
 .td-actions {
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 

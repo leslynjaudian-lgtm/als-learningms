@@ -166,7 +166,7 @@
                 </div>
                 <span v-else class="text-muted text-sm">—</span>
               </td>
-              <td class="col-learners text-center font-mono font-bold">{{ row.totalLearners }}</td>
+              <td class="col-learners text-center font-mono">{{ row.totalLearners }}</td>
               <td class="col-elem text-center font-mono">{{ row.elementaryLearners }}</td>
               <td class="col-jhs text-center font-mono">{{ row.juniorLearners }}</td>
               <td class="col-rate text-center">
@@ -491,7 +491,7 @@ const filteredAvgAttendanceRate = computed(() => {
 }
 
 .center-name {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text, #0f172a);
   font-size: 0.875rem;
   line-height: 1.35;
@@ -544,13 +544,13 @@ const filteredAvgAttendanceRate = computed(() => {
 
 .teacher-pill {
   display: inline-block;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  margin-right: 4px;
+  background: none;
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0;
+  border-radius: 0;
+  margin-right: 6px;
   margin-bottom: 2px;
 }
 

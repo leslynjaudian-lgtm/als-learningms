@@ -594,18 +594,18 @@
               </thead>
               <tbody>
                 <tr v-for="sub in filteredSubmissions" :key="sub.id" class="sub-table-row">
-                  <td class="td-learner-name font-medium text-dark">
+                  <td class="td-learner-name table-cell-name">
                     {{ sub.learnerName }}
                   </td>
                   <td class="td-lrn text-muted font-mono">
                     {{ sub.lrn || '—' }}
                   </td>
-                  <td class="td-level">
-                    <span class="sub-level-tag">{{ formatAlsLevelDisplay(sub.programLevel || moduleData.level) }}</span>
+                  <td class="td-level table-cell-als-level">
+                    {{ formatAlsLevelDisplay(sub.programLevel || moduleData.level) }}
                   </td>
                   <td class="td-activity">
                     <div class="activity-cell-wrap">
-                      <span class="font-medium text-dark">{{ sub.activity || sub.title || moduleData.title }}</span>
+                      <span class="text-dark">{{ sub.activity || sub.title || moduleData.title }}</span>
                       <span v-if="getSubmissionFilesList(sub).length > 1" class="activity-files-count-badge">
                         {{ getSubmissionFilesList(sub).length }} files
                       </span>
@@ -4545,7 +4545,9 @@ watch(
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.55rem 0.85rem;
+  padding: 0 0.85rem;
+  height: 42px;
+  min-height: 42px;
   width: 100%;
   max-width: 360px;
   box-sizing: border-box;
@@ -6050,7 +6052,9 @@ watch(
   padding-left: 2.25rem !important;
   padding-right: 2rem !important;
   font-size: 0.875rem;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
+  border-radius: 8px;
   width: 100%;
   background: #ffffff;
 }

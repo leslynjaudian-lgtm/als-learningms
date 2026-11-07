@@ -257,13 +257,8 @@
                   <span class="learner-name-text">{{ learner.name }}</span>
                   <span v-if="learner.lrn" class="learner-lrn-sub">LRN: {{ learner.lrn }}</span>
                 </td>
-                <td class="col-level">
-                  <span
-                    class="level-badge"
-                    :class="selectedProgramLevel === 'A&E Elementary' ? 'badge-elem' : 'badge-jhs'"
-                  >
-                    {{ learner.level || selectedProgramLevel }}
-                  </span>
+                <td class="col-level table-cell-als-level">
+                  {{ formatAlsLevel(learner.level || selectedProgramLevel) }}
                 </td>
                 <td class="col-center">
                   {{ learner.learningCenter || selectedCenter }}
@@ -340,6 +335,14 @@ import { getAssignedLearners } from '../api/learners.js';
 import { recordAttendanceBatch } from '../api/attendance.js';
 
 const { currentTeacher, teacherId, assignedCenters } = useTeacherSession();
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
 
 // Session Information Fields (Only 1. Learning Center, 2. ALS Level, 3. Date)
 const selectedCenter = ref('');
@@ -805,12 +808,10 @@ async function saveAttendance() {
 }
 
 .form-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #475569;
-  letter-spacing: 0.03em;
-  margin-bottom: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.35rem;
 }
 
 .select-wrapper {
@@ -935,11 +936,12 @@ async function saveAttendance() {
 
 .sort-select {
   width: 100%;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 0 1.85rem 0 0.75rem;
-  font-size: 0.85rem;
+  border-radius: 8px;
+  padding: 0 1.85rem 0 0.85rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #0f172a;
   background: #ffffff;
@@ -947,11 +949,16 @@ async function saveAttendance() {
   appearance: none;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.sort-select:hover {
+  border-color: #94a3b8;
 }
 
 .sort-select:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .toolbar-search-wrapper {
@@ -970,19 +977,21 @@ async function saveAttendance() {
 
 .toolbar-search-wrapper .search-input {
   width: 100%;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   padding-left: 2.25rem;
   padding-right: 2rem;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 0.85rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
   outline: none;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 
 .toolbar-search-wrapper .search-input:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .clear-search-btn {
@@ -1002,15 +1011,20 @@ async function saveAttendance() {
 }
 
 .btn-apply-filters {
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
   padding: 0 1.15rem;
   background: #2563eb;
   color: #ffffff;
   border: none;
-  border-radius: 6px;
-  font-size: 0.85rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.15s ease;
   white-space: nowrap;
 }

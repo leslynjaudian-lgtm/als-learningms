@@ -133,24 +133,22 @@
                 <th>Learner Name</th>
                 <th>LRN</th>
                 <th>ALS Level</th>
-                <th>Status</th>
-                <th style="text-align: right; width: 100px;">Action</th>
+                <th style="text-align: center;">Status</th>
+                <th style="text-align: center; width: 100px;">Action</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(learner, idx) in assignedLearnersInCenter" :key="learner.id">
                 <td class="col-num">{{ idx + 1 }}</td>
-                <td class="col-name font-semibold">{{ learner.name }}</td>
+                <td class="col-name font-semibold" style="color: #0f172a;">{{ learner.name }}</td>
                 <td class="col-lrn text-muted">{{ learner.lrn || '—' }}</td>
-                <td class="col-level">
-                  <span class="level-pill">{{ formatLearnerLevel(learner.level) }}</span>
-                </td>
-                <td class="col-status">
+                <td class="col-level table-cell-als-level">{{ formatLearnerLevel(learner.level) }}</td>
+                <td class="col-status" style="text-align: center;">
                   <span class="status-badge" :class="learner.status === 'Active' ? 'badge-active' : 'badge-inactive'">
                     {{ learner.status || 'Active' }}
                   </span>
                 </td>
-                <td class="col-action" style="text-align: right;">
+                <td class="col-action" style="text-align: center;">
                   <router-link
                     :to="`/dashboard/learners/${learner.id}`"
                     class="btn-view-icon"

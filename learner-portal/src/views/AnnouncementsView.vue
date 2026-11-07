@@ -16,38 +16,36 @@
       </button>
 
       <div class="learner-card notification-details-card">
-        <!-- Details Header -->
-        <div class="details-header">
-          <div class="details-badge-row">
-            <span class="details-type-tag" :class="'type-' + (selectedNotification.type || 'ANNOUNCEMENT').toLowerCase()">
-              {{ formatType(selectedNotification.type) }}
-            </span>
-            <span v-if="selectedNotification.isImportant" class="details-important-tag">
-              Important
-            </span>
-          </div>
-
-          <h1 class="details-title">
-            {{ selectedNotification.title }}
-          </h1>
-
-          <div class="details-meta-bar">
-            <div class="meta-item sender-meta">
-              <span class="meta-label">From:</span>
-              <span class="meta-value">{{ selectedNotification.sender || 'ALS Administrator' }}</span>
-            </div>
-            <div class="meta-item date-meta">
-              <span class="meta-label">Date posted:</span>
-              <span class="meta-value">{{ formatFullDate(selectedNotification.createdAt || selectedNotification.datePosted) }}</span>
-            </div>
-          </div>
+        <!-- 1. ANNOUNCEMENT Badge -->
+        <div class="details-badge-row">
+          <span class="details-type-tag" :class="'type-' + (selectedNotification.type || 'ANNOUNCEMENT').toLowerCase()">
+            {{ formatType(selectedNotification.type) }}
+          </span>
         </div>
 
+        <!-- 2. Title -->
+        <h1 class="details-title">
+          {{ selectedNotification.title }}
+        </h1>
+
+        <!-- 3. Description -->
+        <div class="details-description">
+          {{ selectedNotification.message || selectedNotification.content }}
+        </div>
+
+        <!-- 4. Divider -->
         <div class="details-divider"></div>
 
-        <!-- Details Body Message -->
-        <div class="details-body">
-          <div class="details-message-text">{{ selectedNotification.message || selectedNotification.content }}</div>
+        <!-- 5. From & 6. Date Posted -->
+        <div class="details-meta-footer">
+          <div class="meta-row">
+            <span class="meta-label">From:</span>
+            <span class="meta-value">{{ selectedNotification.sender || 'ALS Administrator' }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Date Posted:</span>
+            <span class="meta-value">{{ formatFullDate(selectedNotification.createdAt || selectedNotification.datePosted) }}</span>
+          </div>
         </div>
 
         <!-- Optional action link if module, schedule, or assessment -->
@@ -135,7 +133,6 @@
 
             <div class="notif-card-footer">
               <span class="notif-card-sender">From: {{ item.sender || item.createdBy || item.author || 'ALS System' }}</span>
-              <span v-if="item.isImportant" class="notif-important-chip">Important</span>
             </div>
           </div>
 
@@ -217,14 +214,15 @@ function formatDateShort(val) {
 }
 
 function getRelativeTime(item) {
+  if (item?.relativeTime) return item.relativeTime;
   const rawDate = item?.createdAt || item?.datePosted;
-  if (!rawDate) return item?.relativeTime || '';
+  if (!rawDate) return '';
   const d = new Date(rawDate);
-  if (isNaN(d.getTime())) return item?.relativeTime || String(rawDate);
+  if (isNaN(d.getTime())) return String(rawDate);
 
   const diffMs = Date.now() - d.getTime();
-  if (diffMs < 60 * 1000 && diffMs >= -30 * 1000) return 'Just now';
-  if (diffMs < 0) return formatDateShort(d);
+  if (diffMs >= -120 * 1000 && diffMs < 60 * 1000) return 'Just now';
+  if (diffMs < -120 * 1000) return formatDateShort(d);
 
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 60) return `${diffMins}m ago`;
@@ -239,14 +237,30 @@ function formatFullDate(val) {
   if (!val) return 'Recently';
   const d = new Date(val);
   if (isNaN(d.getTime())) return String(val);
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
+  try {
+    const datePart = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(d);
+
+    const timePart = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(d);
+
+    return `${datePart} at ${timePart}`;
+  } catch (_e) {
+    return d.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
 }
 
 // Map notifications directly from backend (single source of truth)
@@ -528,18 +542,6 @@ onMounted(() => {
   color: #64748b;
 }
 
-.notif-important-chip {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  font-size: 0.675rem;
-  font-weight: 700;
-  padding: 0.1rem 0.45rem;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 /* Chevron */
 .notif-chevron-wrapper {
   color: #94a3b8;
@@ -582,24 +584,18 @@ onMounted(() => {
   padding: 1.5rem;
 }
 
-.details-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
 .details-badge-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
 }
 
 .details-type-tag {
+  display: inline-block;
   font-size: 0.725rem;
   font-weight: 700;
-  padding: 0.2rem 0.6rem;
-  border-radius: 8px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -624,51 +620,24 @@ onMounted(() => {
   color: #7c3aed;
 }
 
-.details-important-tag {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  font-size: 0.725rem;
-  font-weight: 700;
-  padding: 0.2rem 0.55rem;
-  border-radius: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .details-title {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 800;
   color: #0f172a;
-  line-height: 1.4;
-  margin: 0.2rem 0 0.35rem 0;
+  line-height: 1.35;
+  margin: 0 0 0.85rem 0;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-.details-meta-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem;
-  font-size: 0.825rem;
-  color: #64748b;
-  padding-top: 0.25rem;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.meta-label {
-  font-weight: 600;
-  color: #64748b;
-}
-
-.meta-value {
-  font-weight: 700;
-  color: #1e293b;
+.details-description {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  margin: 0;
 }
 
 .details-divider {
@@ -677,17 +646,30 @@ onMounted(() => {
   margin: 1.25rem 0;
 }
 
-.details-body {
-  width: 100%;
+.details-meta-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.details-message-text {
-  font-size: 0.95rem;
-  line-height: 1.7;
-  color: #1e293b;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+.meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.5;
+  flex-wrap: wrap;
+}
+
+.meta-label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.meta-value {
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .details-action-box {
@@ -760,11 +742,14 @@ onMounted(() => {
     padding: 1.15rem;
   }
   .details-title {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
   }
-  .details-meta-bar {
-    gap: 0.65rem;
-    flex-direction: column;
+  .details-description {
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .meta-row {
+    font-size: 0.85rem;
   }
 }
 </style>

@@ -84,7 +84,7 @@
       <!-- 3. Month Date Selector -->
       <div class="filter-dropdown-group">
         <div class="filter-dropdown-item">
-          <label>Month</label>
+          <label class="filter-label">Month</label>
           <div class="month-selector-wrap">
             <select v-model="selectedMonthKey" class="filter-select">
               <option v-for="m in monthOptions" :key="m.key" :value="m.key">
@@ -293,7 +293,7 @@
           <div>
             <h2>{{ editingSchedule ? 'Edit Schedule' : 'Add Schedule' }}</h2>
             <p class="modal-subtitle">
-              Add a schedule to keep teachers and learners informed of important dates and events.
+              Add a new schedule to keep track of important dates and events.
             </p>
           </div>
           <button type="button" class="modal-close" @click="closeFormModal" title="Close" aria-label="Close modal">
@@ -1048,6 +1048,28 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-xs);
 }
 
+.filter-dropdown-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.filter-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-dropdown-item label,
+.filter-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  line-height: normal;
+  margin: 0;
+}
+
 .view-toggle-container {
   display: flex;
   align-items: center;
@@ -1106,8 +1128,11 @@ onBeforeUnmount(() => {
 }
 
 .col-description {
-  max-width: 280px;
+  max-width: 320px;
   min-width: 160px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
 }
 
 .schedule-desc-text {
@@ -1130,25 +1155,6 @@ onBeforeUnmount(() => {
   padding: 0.25rem 0.55rem;
   border-radius: 6px;
   border: 1px solid var(--color-border-light);
-}
-
-.center-pill {
-  font-weight: 500;
-  color: var(--color-text);
-  font-size: 0.875rem;
-}
-
-.teacher-pill {
-  font-weight: 500;
-  color: var(--color-text);
-  font-size: 0.875rem;
-}
-
-.col-description {
-  max-width: 280px;
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
 }
 
 /* CALENDAR VIEW STYLES */

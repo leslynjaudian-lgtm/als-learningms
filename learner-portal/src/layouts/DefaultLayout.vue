@@ -80,7 +80,6 @@
                     <span class="notif-type-badge" :class="'type-' + (item.type || 'ANNOUNCEMENT').toLowerCase()">
                       {{ formatNotifType(item.type) }}
                     </span>
-                    <span v-if="item.isImportant" class="notif-important-badge">Important</span>
                   </div>
                   <span class="notif-time">{{ item.relativeTime }}</span>
                 </div>

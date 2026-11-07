@@ -993,7 +993,22 @@
           </div>
         </div>
 
-        <!-- Success Message if Submitted & Not Finalized -->
+        <!-- Submission Closed Notice if Deadline Passed (and review not finalized) -->
+        <div v-else-if="isSubmissionClosed" class="submission-closed-banner">
+          <div class="banner-icon-col">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="banner-text-col">
+            <h3 class="banner-title">Submission Closed</h3>
+            <p class="banner-subtext">The deadline has passed. You can still view your submitted files, but you can no longer make changes.</p>
+          </div>
+        </div>
+
+        <!-- Success Message if Submitted & Not Finalized & Not Closed -->
         <div v-else-if="progress.activitySubmitted" class="sent-success-banner">
           <div class="banner-icon-col">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1007,9 +1022,9 @@
           </div>
         </div>
 
-        <!-- File Upload Area (Dropzone) if Not Submitted Yet -->
+        <!-- File Upload Area (Dropzone) if Not Submitted Yet and Not Closed -->
         <div
-          v-if="!progress.activitySubmitted"
+          v-if="!progress.activitySubmitted && !isSubmissionClosed"
           class="dropzone-box"
           :class="{ 'is-dragging': isDragging }"
           @dragover.prevent="isDragging = true"
@@ -1056,6 +1071,12 @@
               v-for="f in displayFilesList"
               :key="`file-${f.index}-${f.name}`"
               class="file-item-card"
+              role="button"
+              tabindex="0"
+              :aria-label="`View ${f.name}`"
+              @click="handleViewFile(f)"
+              @keydown.enter="handleViewFile(f)"
+              @keydown.space.prevent="handleViewFile(f)"
             >
               <!-- Thumbnail / File Icon -->
               <div class="file-thumb-wrap">
@@ -1113,7 +1134,7 @@
                   </button>
 
                   <button
-                    v-if="!isReviewFinalized"
+                    v-if="!isReviewFinalized && !isSubmissionClosed"
                     type="button"
                     class="menu-action-item"
                     @click="promptReplaceFile(f.index)"
@@ -1128,7 +1149,7 @@
                   </button>
 
                   <button
-                    v-if="!isReviewFinalized"
+                    v-if="!isReviewFinalized && !isSubmissionClosed"
                     type="button"
                     class="menu-action-item item-danger"
                     @click="promptRemoveFile(f.index)"
@@ -1167,7 +1188,18 @@
         <div class="activity-actions">
           <!-- When Not Submitted Yet: Initial Submit Button -->
           <div v-if="!progress.activitySubmitted" class="submitted-actions-wrap">
+            <div
+              v-if="isSubmissionClosed"
+              class="submission-closed-indicator"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Submission Closed</span>
+            </div>
             <button
+              v-else
               type="button"
               class="btn-primary submit-activities-btn"
               :disabled="selectedFiles.length === 0 || isSubmittingActivity"
@@ -1195,9 +1227,9 @@
 
           <!-- When Already Submitted -->
           <div v-else class="submitted-actions-wrap">
-            <!-- Add More Files Button (if review not finalized) -->
+            <!-- Add More Files Button (if review not finalized and not closed) -->
             <button
-              v-if="!isReviewFinalized"
+              v-if="!isReviewFinalized && !isSubmissionClosed"
               type="button"
               class="btn-primary add-more-btn"
               :disabled="isUpdatingFiles"
@@ -1209,6 +1241,18 @@
               </svg>
               <span>Add More Files</span>
             </button>
+
+            <!-- Clear Submission Closed indicator if deadline passed and not finalized -->
+            <div
+              v-else-if="isSubmissionClosed && !isReviewFinalized"
+              class="submission-closed-indicator"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Submission Closed</span>
+            </div>
 
             <!-- Back to My Modules Button -->
             <router-link
@@ -1576,6 +1620,40 @@ const fileToRemove = ref(null);
 const isUpdatingFiles = ref(false);
 const toastMessage = ref('');
 const replaceTargetIndex = ref(null);
+const deadlinePassedOverride = ref(false);
+
+const isSubmissionClosed = computed(() => {
+  if (isMock.value) return false;
+  if (deadlinePassedOverride.value) return true;
+  if (moduleData.value?.isSubmissionClosed) return true;
+  if (submissionRecord.value?.isSubmissionClosed) return true;
+
+  const rawDeadline =
+    moduleData.value?.dueDate ||
+    moduleData.value?.submissionDeadline ||
+    moduleData.value?.dateEnded ||
+    submissionRecord.value?.dueDate ||
+    submissionRecord.value?.dateEnded;
+
+  if (!rawDeadline) return false;
+
+  try {
+    const rawStr = String(rawDeadline).trim();
+    const ymd = rawStr.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+      // End of day in Asia/Manila (UTC+8) is 23:59:59.999+08:00
+      const deadlineDate = new Date(`${ymd}T23:59:59.999+08:00`);
+      return Date.now() > deadlineDate.getTime();
+    }
+    const d = new Date(rawDeadline);
+    if (!isNaN(d.getTime())) {
+      return Date.now() > d.getTime();
+    }
+  } catch (err) {
+    console.warn('Error evaluating submission deadline:', err);
+  }
+  return false;
+});
 
 function showToast(msg) {
   toastMessage.value = msg;
@@ -1630,10 +1708,16 @@ function resolveFileUrl(url) {
 
 function isImageFile(f) {
   if (!f) return false;
-  const type = String(f.type || f.fileType || '').toLowerCase();
+  const type = String(f.type || f.fileType || f.mimeType || '').toLowerCase();
   if (type.startsWith('image/')) return true;
-  const name = String(f.name || f.fileName || '').toLowerCase();
-  return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.webp') || name.endsWith('.gif');
+  const name = String(f.name || f.fileName || f.fileUrl || '').toLowerCase();
+  return (
+    name.endsWith('.jpg') ||
+    name.endsWith('.jpeg') ||
+    name.endsWith('.png') ||
+    name.endsWith('.webp') ||
+    name.endsWith('.gif')
+  );
 }
 
 const displayFilesList = computed(() => {
@@ -1642,7 +1726,7 @@ const displayFilesList = computed(() => {
       index: idx,
       name: f.name || f.fileName || `Activity File ${idx + 1}`,
       size: f.size || f.fileSize || 0,
-      type: f.type || f.fileType || '',
+      type: f.type || f.fileType || f.mimeType || '',
       fileUrl: f.fileUrl || '',
       previewUrl: f.previewUrl || (f.fileUrl ? resolveFileUrl(f.fileUrl) : null),
       isSaved: true
@@ -1674,7 +1758,7 @@ function closeFilePreview() {
 
 function promptReplaceFile(idx) {
   activeMenuFileIndex.value = null;
-  if (isReviewFinalized.value) return;
+  if (isReviewFinalized.value || isSubmissionClosed.value) return;
   replaceTargetIndex.value = idx;
   if (replaceFileInputRef.value) {
     replaceFileInputRef.value.value = '';
@@ -1684,7 +1768,7 @@ function promptReplaceFile(idx) {
 
 function promptRemoveFile(idx) {
   activeMenuFileIndex.value = null;
-  if (isReviewFinalized.value) return;
+  if (isReviewFinalized.value || isSubmissionClosed.value) return;
   fileToRemove.value = idx;
 }
 
@@ -2009,6 +2093,7 @@ function proceedToActivitySubmission() {
 // STEP 4: ACTIVITY SUBMISSION
 // ==========================================
 function triggerFileInput() {
+  if (isSubmissionClosed.value) return;
   if (fileInputRef.value) {
     fileInputRef.value.click();
   }
@@ -2046,6 +2131,8 @@ function addFiles(files) {
     let previewUrl = null;
     if (file.type.startsWith('image/')) {
       previewUrl = URL.createObjectURL(file);
+    } else if (file.type === 'application/pdf' || ext === '.pdf') {
+      previewUrl = URL.createObjectURL(file);
     }
 
     selectedFiles.value.push({
@@ -2075,6 +2162,7 @@ function formatFileSize(bytes) {
 }
 
 function handleSubmitActivities() {
+  if (isSubmissionClosed.value) return;
   if (isMock.value) {
     submitMockActivities();
   } else {
@@ -2180,6 +2268,9 @@ async function submitRealActivities() {
     showToast('Your answers have been sent to your teacher.');
   } catch (err) {
     console.error('Failed to submit activities:', err);
+    if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
+      deadlinePassedOverride.value = true;
+    }
     uploadError.value = err.response?.data?.error || 'Failed to submit activities. Please check your connection and try again.';
   } finally {
     isSubmittingActivity.value = false;
@@ -2187,7 +2278,7 @@ async function submitRealActivities() {
 }
 
 async function confirmRemoveFile() {
-  if (fileToRemove.value === null) return;
+  if (fileToRemove.value === null || isSubmissionClosed.value) return;
   const idx = fileToRemove.value;
   fileToRemove.value = null;
   isUpdatingFiles.value = true;
@@ -2229,6 +2320,9 @@ async function confirmRemoveFile() {
     }
   } catch (err) {
     console.error('Failed to remove file:', err);
+    if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
+      deadlinePassedOverride.value = true;
+    }
     uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
   } finally {
     isUpdatingFiles.value = false;
@@ -2259,6 +2353,8 @@ async function onReplaceFileSelected(e) {
   try {
     let previewUrl = null;
     if (file.type.startsWith('image/')) {
+      previewUrl = URL.createObjectURL(file);
+    } else if (file.type === 'application/pdf' || ext === '.pdf') {
       previewUrl = URL.createObjectURL(file);
     }
 
@@ -2330,6 +2426,9 @@ async function onReplaceFileSelected(e) {
     }
   } catch (err) {
     console.error('Failed to replace file:', err);
+    if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
+      deadlinePassedOverride.value = true;
+    }
     uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
   } finally {
     isUpdatingFiles.value = false;
@@ -2337,7 +2436,7 @@ async function onReplaceFileSelected(e) {
 }
 
 function triggerAddFiles() {
-  if (isReviewFinalized.value) return;
+  if (isReviewFinalized.value || isSubmissionClosed.value) return;
   if (addMoreFileInputRef.value) {
     addMoreFileInputRef.value.value = '';
     addMoreFileInputRef.value.click();
@@ -2367,6 +2466,8 @@ async function onAddMoreFilesSelected(e) {
 
       let previewUrl = null;
       if (file.type.startsWith('image/')) {
+        previewUrl = URL.createObjectURL(file);
+      } else if (file.type === 'application/pdf' || ext === '.pdf') {
         previewUrl = URL.createObjectURL(file);
       }
 
@@ -2429,6 +2530,9 @@ async function onAddMoreFilesSelected(e) {
     }
   } catch (err) {
     console.error('Failed to add files:', err);
+    if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
+      deadlinePassedOverride.value = true;
+    }
     uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
   } finally {
     isUpdatingFiles.value = false;
@@ -3294,6 +3398,20 @@ onMounted(() => {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.file-item-card:hover {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.file-item-card:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .file-thumb-wrap {
@@ -3428,6 +3546,48 @@ onMounted(() => {
   color: #1e3a8a;
   line-height: 1.45;
   margin: 0;
+}
+
+/* Submission Closed Banner */
+.submission-closed-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+
+.submission-closed-banner .banner-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #92400e;
+  margin: 0 0 0.25rem 0;
+}
+
+.submission-closed-banner .banner-subtext {
+  font-size: 0.85rem;
+  color: #78350f;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.submission-closed-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.25rem;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: not-allowed;
+  user-select: none;
 }
 
 /* Three Dot Button and Dropdown */

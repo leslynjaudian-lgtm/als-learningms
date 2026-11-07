@@ -44,6 +44,36 @@ function normalizeStatusInput(val) {
   return 'PUBLISHED';
 }
 
+function resolveAnnouncementCreatedAt(body = {}) {
+  const { createdAt, datePosted, date } = body;
+  // If createdAt is a valid Date/ISO string that contains specific non-midnight time, use it
+  if (createdAt) {
+    const d = new Date(createdAt);
+    if (!isNaN(d.getTime())) {
+      if (d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0) {
+        return d;
+      }
+    }
+  }
+
+  // If datePosted / date is provided:
+  const rawDateStr = datePosted || date;
+  if (rawDateStr) {
+    const todayManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+    const inputDateStr = typeof rawDateStr === 'string' ? rawDateStr.slice(0, 10) : '';
+    if (inputDateStr === todayManila) {
+      // Posted today! Record the current instant
+      return new Date();
+    }
+    const parsed = new Date(rawDateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return new Date();
+}
+
 function inferAnnouncementMeta(input = {}, fallback = {}) {
   const titleText = String(input.title ?? fallback.title ?? '').trim();
   const bodyText = String(input.content ?? input.message ?? fallback.content ?? '').trim();
@@ -722,57 +752,32 @@ router.post('/', async (req, res, next) => {
       }
 
       // Format date
-      const rawDate = datePosted || date || createdAt;
-      const postDate = rawDate ? new Date(rawDate) : null;
-      const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
+      const creationDate = resolveAnnouncementCreatedAt(req.body);
       const meta = inferAnnouncementMeta(req.body);
 
       const targetIdsToInsert = isIndividual ? resolvedTargetLearnerIds : [null];
       for (const targetId of targetIdsToInsert) {
-        if (validDate) {
-          await prisma.$executeRawUnsafe(
-            `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
-            effectiveTitle,
-            bodyContent,
-            dbAudience,
-            dbStatus,
-            meta.isPinned,
-            meta.isImportant,
-            meta.priority,
-            meta.category,
-            meta.deadlineAt,
-            resolvedScheduledAt,
-            authorUserId,
-            resolvedTeacherId,
-            centerId,
-            normProgramLevel,
-            targetId,
-            validDate
-          );
-        } else {
-          await prisma.$executeRawUnsafe(
-            `INSERT INTO announcements 
-              (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, NOW(), NOW())`,
-            effectiveTitle,
-            bodyContent,
-            dbAudience,
-            dbStatus,
-            meta.isPinned,
-            meta.isImportant,
-            meta.priority,
-            meta.category,
-            meta.deadlineAt,
-            resolvedScheduledAt,
-            authorUserId,
-            resolvedTeacherId,
-            centerId,
-            normProgramLevel,
-            targetId
-          );
-        }
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO announcements 
+            (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEACHER', ?, ?, ?, ?, ?, NOW())`,
+          effectiveTitle,
+          bodyContent,
+          dbAudience,
+          dbStatus,
+          meta.isPinned,
+          meta.isImportant,
+          meta.priority,
+          meta.category,
+          meta.deadlineAt,
+          resolvedScheduledAt,
+          authorUserId,
+          resolvedTeacherId,
+          centerId,
+          normProgramLevel,
+          targetId,
+          creationDate
+        );
       }
 
       const [inserted] = await prisma.$queryRawUnsafe(`
@@ -814,49 +819,27 @@ router.post('/', async (req, res, next) => {
       ? parseInt(learningCenterId || learning_center_id, 10)
       : null;
 
-    const rawDate = datePosted || date || createdAt;
-    const postDate = rawDate ? new Date(rawDate) : null;
-    const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
+    const creationDate = resolveAnnouncementCreatedAt(req.body);
     const meta = inferAnnouncementMeta(req.body);
 
-    if (validDate) {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
-        effectiveTitle,
-        bodyContent,
-        normAdminAudience,
-        dbStatus,
-        meta.isPinned,
-        meta.isImportant,
-        meta.priority,
-        meta.category,
-        meta.deadlineAt,
-        resolvedScheduledAt,
-        authorUserId,
-        centerId || null,
-        validDate
-      );
-    } else {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO announcements 
-          (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, NOW(), NOW())`,
-        effectiveTitle,
-        bodyContent,
-        normAdminAudience,
-        dbStatus,
-        meta.isPinned,
-        meta.isImportant,
-        meta.priority,
-        meta.category,
-        meta.deadlineAt,
-        resolvedScheduledAt,
-        authorUserId,
-        centerId || null
-      );
-    }
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO announcements 
+        (title, content, audience, status, is_pinned, is_important, priority, category, deadline_at, scheduled_at, author_id, creator_role, teacher_id, learning_center_id, program_level, target_learner_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ADMIN', NULL, ?, NULL, NULL, ?, NOW())`,
+      effectiveTitle,
+      bodyContent,
+      normAdminAudience,
+      dbStatus,
+      meta.isPinned,
+      meta.isImportant,
+      meta.priority,
+      meta.category,
+      meta.deadlineAt,
+      resolvedScheduledAt,
+      authorUserId,
+      centerId || null,
+      creationDate
+    );
 
     const [inserted] = await prisma.$queryRawUnsafe(`
       SELECT 
@@ -976,12 +959,18 @@ router.put('/:id', async (req, res, next) => {
       newScheduledAt = null;
     }
 
-    const rawDate = datePosted || date || createdAt;
-    const postDate = rawDate ? new Date(rawDate) : null;
-    const validDate = postDate && !isNaN(postDate.getTime()) ? postDate : null;
     const meta = inferAnnouncementMeta({ ...req.body, title: newTitle, content: bodyContent }, existing);
 
-    if (validDate) {
+    // Only update created_at if an explicit valid createdAt was supplied that is NOT midnight UTC
+    let newCreatedAt = null;
+    if (createdAt) {
+      const d = new Date(createdAt);
+      if (!isNaN(d.getTime()) && (d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0)) {
+        newCreatedAt = d;
+      }
+    }
+
+    if (newCreatedAt) {
       await prisma.$executeRawUnsafe(
         `UPDATE announcements 
          SET title = ?, content = ?, audience = ?, status = ?, 
@@ -1003,7 +992,7 @@ router.put('/:id', async (req, res, next) => {
         newProgramLevel,
         newTargetLearnerId,
         newTeacherId,
-        validDate,
+        newCreatedAt,
         id
       );
     } else {

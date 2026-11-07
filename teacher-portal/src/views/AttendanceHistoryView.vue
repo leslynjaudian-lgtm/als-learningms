@@ -220,8 +220,8 @@
                 <td class="col-lrn">
                   <span class="lrn-mono">{{ row.lrn || '—' }}</span>
                 </td>
-                <td class="col-program">
-                  <span class="level-subtle-pill">{{ row.level }}</span>
+                <td class="col-program table-cell-als-level">
+                  {{ formatAlsLevel(row.level) }}
                 </td>
                 <td class="col-center">
                   <span class="center-text">{{ row.learningCenter || '—' }}</span>
@@ -503,8 +503,8 @@
                 <td class="col-center">
                   <span class="center-text">{{ rec.learningCenter || selectedLearner.learningCenter || '—' }}</span>
                 </td>
-                <td class="col-program">
-                  <span class="level-subtle-pill">{{ formatAlsLevel(rec.level || selectedLearner.level) }}</span>
+                <td class="col-program table-cell-als-level">
+                  {{ formatAlsLevel(rec.level || selectedLearner.level) }}
                 </td>
                 <td class="col-status">
                   <span
@@ -1127,9 +1127,9 @@ watch(
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   color: #64748b;
-  padding: 0.32rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1161,11 +1161,9 @@ watch(
 }
 
 .filter-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #475569;
-  letter-spacing: 0.03em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
   margin-bottom: 0.35rem;
   white-space: nowrap;
   overflow: hidden;
@@ -1183,7 +1181,8 @@ watch(
 .filter-date-input,
 .filter-search-input {
   width: 100%;
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0 0.85rem;
@@ -1352,7 +1351,7 @@ watch(
 .col-action {
   width: 10%;
   min-width: 150px;
-  text-align: right;
+  text-align: center;
 }
 
 .session-row {
@@ -1423,7 +1422,7 @@ watch(
 
 .center-text {
   color: #334155;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .rate-value-pill {
@@ -1566,7 +1565,8 @@ watch(
 }
 
 .btn-date-clear {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   padding: 0 1rem;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
@@ -1584,7 +1584,8 @@ watch(
 }
 
 .btn-date-apply {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   padding: 0 1.2rem;
   background: #2563eb;
   border: 1px solid #2563eb;

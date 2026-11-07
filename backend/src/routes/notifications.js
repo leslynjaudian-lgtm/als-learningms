@@ -5,6 +5,7 @@ import {
   runReminderChecks,
   createNotification,
   formatRelativeTime,
+  isMidnightUtc,
   cleanupLegacyNotificationDuplicates,
 } from '../services/notificationService.js';
 
@@ -207,18 +208,17 @@ export async function buildUserNotifications(user) {
     let title = n.title;
     let message = n.message;
     let sender = n.createdByName;
-    let createdAt = n.createdAt;
     let isImportant = Boolean(n.isImportant);
 
+    let ann = null;
     if (n.sourceType === 'announcement' && n.sourceId && announcementMap.has(Number(n.sourceId))) {
-      const ann = announcementMap.get(Number(n.sourceId));
+      ann = announcementMap.get(Number(n.sourceId));
       // Never show draft announcements or future scheduled announcements
       if (ann.status !== 'PUBLISHED') continue;
       if (ann.scheduledAt && new Date(ann.scheduledAt) > now) continue;
 
       title = ann.title ? ann.title.trim() : title;
       message = ann.content ? ann.content.trim() : message;
-      createdAt = ann.createdAt || createdAt;
       isImportant = Boolean(ann.isImportant || ann.isPinned);
       sender =
         ann.creatorRole === 'TEACHER'
@@ -236,6 +236,26 @@ export async function buildUserNotifications(user) {
       continue;
     }
 
+    // Determine the notification's true creation timestamp:
+    // 1. n.createdAt (if not midnight UTC)
+    // 2. n.updatedAt (if not midnight UTC, handles existing rows where createdAt was corrupted)
+    // 3. ann.updatedAt / ann.createdAt (if not midnight UTC)
+    // 4. fallback to n.createdAt || n.updatedAt || now
+    let resolvedTimestamp = n.createdAt;
+    if (isMidnightUtc(resolvedTimestamp)) {
+      if (n.updatedAt && !isMidnightUtc(n.updatedAt)) {
+        resolvedTimestamp = n.updatedAt;
+      } else if (ann?.updatedAt && !isMidnightUtc(ann.updatedAt)) {
+        resolvedTimestamp = ann.updatedAt;
+      } else if (ann?.createdAt && !isMidnightUtc(ann.createdAt)) {
+        resolvedTimestamp = ann.createdAt;
+      }
+    }
+
+    const resolvedIso = resolvedTimestamp instanceof Date
+      ? resolvedTimestamp.toISOString()
+      : (resolvedTimestamp ? new Date(resolvedTimestamp).toISOString() : new Date().toISOString());
+
     const key = n.notificationKey || `notif:${n.id}`;
     const isRead = readMap.has(key);
 
@@ -252,8 +272,8 @@ export async function buildUserNotifications(user) {
       deadlineAt: n.deadlineAt,
       isRead,
       readAt: readMap.get(key) || null,
-      relativeTime: formatRelativeTime(createdAt),
-      createdAt,
+      relativeTime: formatRelativeTime(resolvedTimestamp, n.updatedAt || ann?.updatedAt),
+      createdAt: resolvedIso,
     });
   }
 
@@ -323,6 +343,14 @@ export async function buildUserNotifications(user) {
                 ? (ann.author?.teacherProfile?.fullName || 'Assigned Teacher')
                 : (ann.author?.adminProfile?.fullName || 'District Coordinator');
 
+            const annTimestamp = (ann.createdAt && !isMidnightUtc(ann.createdAt))
+              ? ann.createdAt
+              : ((ann.updatedAt && !isMidnightUtc(ann.updatedAt)) ? ann.updatedAt : (ann.createdAt || new Date()));
+
+            const annIso = annTimestamp instanceof Date
+              ? annTimestamp.toISOString()
+              : new Date(annTimestamp).toISOString();
+
             formatted.push({
               id: ann.id,
               notificationKey: key,
@@ -336,8 +364,8 @@ export async function buildUserNotifications(user) {
               deadlineAt: ann.deadlineAt || null,
               isRead,
               readAt: readMap.get(key) || null,
-              relativeTime: formatRelativeTime(ann.createdAt),
-              createdAt: ann.createdAt,
+              relativeTime: formatRelativeTime(annTimestamp, ann.updatedAt),
+              createdAt: annIso,
             });
           }
         }

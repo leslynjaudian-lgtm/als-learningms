@@ -6,6 +6,7 @@ import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { syncLearnerModuleProgress } from '../utils/progressCalculator.js';
 import { notifyActivitySubmitted } from '../services/notificationService.js';
+import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -231,12 +232,16 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null) {
   }
 
   const isReviewFinalized = lowerStatus === 'mastered' || lowerStatus === 'not mastered' || lowerStatus === 'graded' || s.grade != null;
+  const moduleDateEnded = s.module?.dateEnded ? s.module.dateEnded.toISOString().split('T')[0] : null;
+  const isSubmissionClosed = Boolean(moduleDateEnded && isSubmissionDeadlinePassed(moduleDateEnded));
 
   return {
     id: s.id,
     relatedSubmissionIds: Array.isArray(relatedIds) && relatedIds.length > 0 ? relatedIds : [s.id],
     moduleId: s.moduleId,
     moduleTitle: s.module?.title || 'Learning Module',
+    dateEnded: moduleDateEnded,
+    isSubmissionClosed,
     learnerId: s.learnerId,
     learnerName: s.learner?.fullName || 'Learner',
     lrn: s.learner?.lrn || '—',
@@ -515,7 +520,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     const submissions = await prisma.submission.findMany({
       where,
       include: {
-        module: { select: { id: true, title: true, teacherId: true } },
+        module: { select: { id: true, title: true, teacherId: true, dateEnded: true } },
         learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true } },
       },
       orderBy: { submittedAt: 'desc' },
@@ -551,7 +556,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     const sub = await prisma.submission.findUnique({
       where: { id },
       include: {
-        module: { select: { id: true, title: true, teacherId: true } },
+        module: { select: { id: true, title: true, teacherId: true, dateEnded: true } },
         learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true } },
       },
     });
@@ -569,7 +574,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
         learnerId: sub.learnerId,
       },
       include: {
-        module: { select: { id: true, title: true, teacherId: true } },
+        module: { select: { id: true, title: true, teacherId: true, dateEnded: true } },
         learner: { select: { id: true, fullName: true, lrn: true, level: true, assignedTeacherId: true } },
       },
       orderBy: { submittedAt: 'asc' },
@@ -625,6 +630,34 @@ router.post('/', optionalAuth, async (req, res, next) => {
 
     if (!targetLearnerId) {
       return res.status(400).json({ error: 'Learner ID is required for submission' });
+    }
+
+    // Retrieve module and assignment to evaluate submission deadline
+    const moduleRecord = await prisma.module.findUnique({
+      where: { id: parsedModuleId },
+      select: {
+        id: true,
+        title: true,
+        dateEnded: true,
+        assignments: {
+          where: { learnerId: targetLearnerId },
+          select: { dueDate: true },
+        },
+      },
+    });
+
+    if (!moduleRecord) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Authoritative submission deadline check in Asia/Manila server time
+    const rawDeadline = moduleRecord.assignments?.[0]?.dueDate || moduleRecord.dateEnded;
+    if (rawDeadline && isSubmissionDeadlinePassed(rawDeadline)) {
+      return res.status(403).json({
+        error: 'The submission deadline has passed. You can no longer change your files.',
+        isDeadlinePassed: true,
+        deadline: parseManilaDeadline(rawDeadline)?.toISOString(),
+      });
     }
 
     const nowIso = new Date().toISOString();
@@ -744,7 +777,7 @@ router.post('/', optionalAuth, async (req, res, next) => {
           submittedAt: new Date(),
         },
         include: {
-          module: { select: { id: true, title: true, teacherId: true } },
+          module: { select: { id: true, title: true, teacherId: true, dateEnded: true } },
           learner: { select: { id: true, fullName: true, lrn: true, level: true } },
         },
       });
@@ -768,7 +801,7 @@ router.post('/', optionalAuth, async (req, res, next) => {
           status: 'SUBMITTED',
         },
         include: {
-          module: { select: { id: true, title: true, teacherId: true } },
+          module: { select: { id: true, title: true, teacherId: true, dateEnded: true } },
           learner: { select: { id: true, fullName: true, lrn: true, level: true } },
         },
       });

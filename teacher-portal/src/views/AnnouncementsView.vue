@@ -50,19 +50,9 @@
       </div>
 
       <div class="filter-dropdown-group announcement-filter-group">
-        <!-- Audience Dropdown (Learner Facing Only) -->
-        <div class="filter-dropdown-item">
-          <label>Audience</label>
-          <select v-model="selectedAudienceFilter" class="filter-select select-audience">
-            <option value="">All</option>
-            <option value="All Learners">All Learners</option>
-            <option value="Individual Learner">Individual Learner</option>
-          </select>
-        </div>
-
         <!-- Learning Center Dropdown (Assigned Centers Only) -->
         <div class="filter-dropdown-item">
-          <label>Learning Center</label>
+          <label class="filter-label">Learning Center</label>
           <select v-model="selectedCenterFilter" class="filter-select select-center">
             <option value="">All</option>
             <option v-for="center in teacherLearningCenters" :key="center.id" :value="center.name">
@@ -71,9 +61,20 @@
           </select>
         </div>
 
+        <!-- Audience Dropdown: All Learners + assigned learner names (scoped to selected Learning Center) -->
+        <div class="filter-dropdown-item">
+          <label class="filter-label">Audience</label>
+          <select v-model="selectedAudienceFilter" class="filter-select select-audience">
+            <option value="All Learners">All Learners</option>
+            <option v-for="learner in audienceFilterLearners" :key="learner.id" :value="String(learner.id)">
+              {{ learner.name }}
+            </option>
+          </select>
+        </div>
+
         <!-- Status Filter Dropdown -->
         <div class="filter-dropdown-item">
-          <label>Status</label>
+          <label class="filter-label">Status</label>
           <select v-model="selectedStatusFilter" class="filter-select select-status">
             <option value="">All</option>
             <option value="Published">Published</option>
@@ -744,7 +745,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherProfile } from '../api/auth.js';
@@ -762,7 +763,8 @@ const announcements = ref([]);
 const loading = ref(false);
 
 const searchQuery = ref('');
-const selectedAudienceFilter = ref('');
+// 'All Learners' or a learner id (string) chosen from the Audience filter
+const selectedAudienceFilter = ref('All Learners');
 const selectedCenterFilter = ref('');
 const selectedStatusFilter = ref('');
 
@@ -826,6 +828,7 @@ async function loadLearners() {
         name: l.name || l.fullName || 'Learner',
         learningCenterId: l.learningCenterId || null,
         learningCenter: l.learningCenter || '',
+        assignedTeacherId: l.assignedTeacherId || null,
         level: l.level || '',
         status: l.status || 'Active',
       }));
@@ -979,8 +982,70 @@ async function loadAnnouncements() {
   }
 }
 
+// Learning Center currently chosen in the filter bar (null = All)
+const selectedCenterFilterObj = computed(() => {
+  if (!selectedCenterFilter.value) return null;
+  return teacherLearningCenters.value.find((c) => c.name === selectedCenterFilter.value) || null;
+});
+
+function learnerMatchesCenterFilter(learner) {
+  const center = selectedCenterFilterObj.value;
+  if (!selectedCenterFilter.value) return true;
+  if (center && learner.learningCenterId) {
+    return Number(learner.learningCenterId) === Number(center.id);
+  }
+  return learner.learningCenter === selectedCenterFilter.value;
+}
+
+// Audience filter options: learners assigned to the logged-in teacher,
+// scoped to the selected Learning Center, sorted alphabetically.
+const audienceFilterLearners = computed(() => {
+  const tid = teacherId.value || currentTeacher.value?.id;
+  return assignedLearnersList.value
+    .filter((l) => !tid || Number(l.assignedTeacherId) === Number(tid))
+    .filter(learnerMatchesCenterFilter)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+});
+
+// Reset Audience to All Learners if the selected learner is no longer in the list
+watch(audienceFilterLearners, (list) => {
+  if (selectedAudienceFilter.value === 'All Learners') return;
+  if (!list.some((l) => String(l.id) === selectedAudienceFilter.value)) {
+    selectedAudienceFilter.value = 'All Learners';
+  }
+});
+
+function learnerLevelMatches(programLevel, learner) {
+  if (!programLevel) return true;
+  const lLevel = String(learner.level || '').toUpperCase();
+  const pLevel = String(programLevel).toUpperCase();
+  if (pLevel.includes('ELEM')) return lLevel.includes('ELEM');
+  if (pLevel.includes('JUN')) return lLevel.includes('JUN');
+  return true;
+}
+
+// Mirrors backend learner visibility: an announcement reaches a learner if it targets
+// them directly, or it is an All Learners announcement for their center and ALS level.
+function announcementReachesLearner(a, learner) {
+  if (a.isSystem) return false;
+  if (a.targetLearnerId) {
+    return Number(a.targetLearnerId) === Number(learner.id);
+  }
+  const isAllLearners =
+    a.audienceRaw === 'ALL_LEARNERS' || a.audienceRaw === 'LEARNERS' || a.audience === 'All Learners';
+  if (!isAllLearners) return false;
+  const centerOk = !a.learningCenterId || Number(a.learningCenterId) === Number(learner.learningCenterId);
+  return centerOk && learnerLevelMatches(a.programLevel, learner);
+}
+
 // Filtered Announcements
 const filteredAnnouncements = computed(() => {
+  const selectedLearner =
+    selectedAudienceFilter.value && selectedAudienceFilter.value !== 'All Learners'
+      ? assignedLearnersList.value.find((l) => String(l.id) === selectedAudienceFilter.value) || null
+      : null;
+
   return announcements.value.filter((a) => {
     const q = searchQuery.value.trim().toLowerCase();
     const matchesQuery =
@@ -990,12 +1055,8 @@ const filteredAnnouncements = computed(() => {
       a.targetLearnerName?.toLowerCase().includes(q) ||
       a.audience?.toLowerCase().includes(q);
 
-    let matchesAudience = true;
-    if (selectedAudienceFilter.value === 'All Learners') {
-      matchesAudience = (a.audience === 'All Learners' || a.audienceRaw === 'ALL_LEARNERS') && !a.targetLearnerId;
-    } else if (selectedAudienceFilter.value === 'Individual Learner') {
-      matchesAudience = !!a.targetLearnerId || a.audienceRaw === 'INDIVIDUAL_LEARNER' || a.audienceRaw === 'SPECIFIC_LEARNER';
-    }
+    // All Learners = no learner-specific narrowing; a specific learner = announcements reaching them
+    const matchesAudience = selectedLearner ? announcementReachesLearner(a, selectedLearner) : true;
 
     const matchesCenter =
       !selectedCenterFilter.value || a.learningCenter === selectedCenterFilter.value;
@@ -1551,7 +1612,7 @@ async function executeSave(statusTarget = 'PUBLISHED') {
     creatorRole: 'TEACHER',
     datePosted: form.datePosted || getTodayString(),
     date: form.datePosted || getTodayString(),
-    createdAt: form.datePosted ? new Date(form.datePosted).toISOString() : new Date().toISOString(),
+    createdAt: editingAnnouncement.value?.createdAt || new Date().toISOString(),
     status: statusTarget,
   };
 
@@ -1916,11 +1977,13 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
-.filter-dropdown-item label {
-  font-size: 0.85rem;
+.filter-dropdown-item label,
+.filter-label {
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #64748b;
+  color: #334155;
   white-space: nowrap;
+  line-height: normal;
 }
 
 .filter-select {
@@ -1943,8 +2006,12 @@ onBeforeUnmount(() => {
 }
 
 .select-audience {
-  min-width: 180px;
-  width: 180px;
+  min-width: 220px;
+  width: 220px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .select-center {

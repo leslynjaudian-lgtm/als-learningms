@@ -52,7 +52,7 @@
       <div class="filter-dropdown-group announcement-filter-group">
         <!-- Audience Filter (Admin options: All, All Learners, All Teachers) -->
         <div class="filter-dropdown-item">
-          <label>Audience</label>
+          <label class="filter-label">Audience</label>
           <select v-model="selectedAudienceFilter" class="filter-select select-audience">
             <option value="">All</option>
             <option value="All Learners">All Learners</option>
@@ -60,20 +60,9 @@
           </select>
         </div>
 
-        <!-- Learning Center Filter where applicable -->
-        <div class="filter-dropdown-item">
-          <label>Learning Center</label>
-          <select v-model="selectedCenterFilter" class="filter-select select-center">
-            <option value="">All Centers</option>
-            <option v-for="c in learningCenters" :key="c.id" :value="c.name">
-              {{ c.name }}
-            </option>
-          </select>
-        </div>
-
         <!-- Status Filter Dropdown -->
         <div class="filter-dropdown-item">
-          <label>Status</label>
+          <label class="filter-label">Status</label>
           <select v-model="selectedStatusFilter" class="filter-select select-status">
             <option value="">All Statuses</option>
             <option value="Published">Published</option>
@@ -570,7 +559,6 @@ import {
   publishAnnouncement,
   scheduleAnnouncement,
 } from '../api/announcements.js';
-import { getLearningCenters } from '../api/learningCenters.js';
 import { useNotifications } from '../composables/useNotifications.js';
 
 const route = useRoute();
@@ -578,14 +566,12 @@ const router = useRouter();
 const { markAsRead } = useNotifications();
 
 const announcements = ref([]);
-const learningCenters = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
 const deleting = ref(false);
 
 const searchQuery = ref('');
 const selectedAudienceFilter = ref('');
-const selectedCenterFilter = ref('');
 const selectedStatusFilter = ref('');
 
 // Split Button and Action States
@@ -735,16 +721,6 @@ async function loadAnnouncements() {
   }
 }
 
-async function loadLearningCentersList() {
-  try {
-    const res = await getLearningCenters();
-    learningCenters.value = Array.isArray(res.data) ? res.data : [];
-  } catch (err) {
-    console.warn('Could not load learning centers for announcements filter:', err);
-    learningCenters.value = [];
-  }
-}
-
 // Filtered Announcements
 const filteredAnnouncements = computed(() => {
   return announcements.value.filter((a) => {
@@ -762,9 +738,6 @@ const filteredAnnouncements = computed(() => {
       matchesAudience = a.audience === 'All Learners' || a.audienceRaw === 'ALL_LEARNERS';
     }
 
-    const matchesCenter =
-      !selectedCenterFilter.value || a.learningCenter === selectedCenterFilter.value;
-
     let matchesStatus = true;
     if (selectedStatusFilter.value) {
       const target = selectedStatusFilter.value.toUpperCase();
@@ -772,7 +745,7 @@ const filteredAnnouncements = computed(() => {
       matchesStatus = current.includes(target);
     }
 
-    return matchesQuery && matchesAudience && matchesCenter && matchesStatus;
+    return matchesQuery && matchesAudience && matchesStatus;
   });
 });
 
@@ -924,7 +897,7 @@ async function executeSave(statusTarget = 'PUBLISHED') {
     creatorRole: 'ADMIN',
     datePosted: form.datePosted || getTodayString(),
     date: form.datePosted || getTodayString(),
-    createdAt: form.datePosted ? new Date(form.datePosted).toISOString() : new Date().toISOString(),
+    createdAt: editingAnnouncement.value?.createdAt || new Date().toISOString(),
     status: statusTarget,
   };
 
@@ -1072,7 +1045,6 @@ async function confirmDeleteAnnouncement() {
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown);
   window.addEventListener('click', closeSplitMenu);
-  await loadLearningCentersList();
   await loadAnnouncements();
   if (route.query.action === 'create') {
     openCreateModal();
@@ -1293,11 +1265,13 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
-.filter-dropdown-item label {
-  font-size: 0.85rem;
+.filter-dropdown-item label,
+.filter-label {
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #64748b;
+  color: #334155;
   white-space: nowrap;
+  line-height: normal;
 }
 
 .filter-select {
@@ -1324,9 +1298,9 @@ onBeforeUnmount(() => {
   width: 180px;
 }
 
-.select-center {
-  min-width: 220px;
-  width: 220px;
+.select-status {
+  min-width: 180px;
+  width: 180px;
 }
 
 .filter-select:focus {

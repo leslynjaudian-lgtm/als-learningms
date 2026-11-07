@@ -49,7 +49,7 @@
         </div>
 
         <!-- 2. Learning Center Filter -->
-        <div class="filter-group">
+        <div class="filter-group filter-group-center">
           <label class="filter-label" for="filter-learning-center">Learning Center</label>
           <div class="select-wrapper">
             <select id="filter-learning-center" v-model="selectedCenter" class="filter-select">
@@ -62,7 +62,7 @@
         </div>
 
         <!-- 3. ALS Level Filter -->
-        <div class="filter-group">
+        <div class="filter-group filter-group-level">
           <label class="filter-label" for="filter-als-level">ALS Level</label>
           <div class="select-wrapper">
             <select id="filter-als-level" v-model="selectedLevel" class="filter-select">
@@ -72,16 +72,16 @@
             </select>
           </div>
         </div>
-      </div>
 
-      <!-- 4. Clear Filters Button -->
-      <div class="filter-actions-group">
-        <button type="button" class="clear-filters-btn" @click="clearFilters">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-          </svg>
-          <span>Clear Filters</span>
-        </button>
+        <!-- 4. Clear Filters Button -->
+        <div class="filter-action-cell">
+          <button type="button" class="clear-filters-btn" @click="clearFilters">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            <span>Clear Filters</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -96,8 +96,8 @@
               <th>LRN</th>
               <th>ALS LEVEL</th>
               <th>LEARNING CENTER</th>
-              <th>STATUS</th>
-              <th style="text-align: right;">ACTION</th>
+              <th class="th-status" style="text-align: center;">STATUS</th>
+              <th class="th-action" style="text-align: center;">ACTION</th>
             </tr>
           </thead>
           <tbody v-if="!loading && pagedLearners.length > 0">
@@ -109,16 +109,14 @@
                 </router-link>
               </td>
               <td class="cell-lrn">{{ learner.lrn || '-' }}</td>
-              <td class="cell-level">
-                <span class="level-pill">{{ learner.level }}</span>
-              </td>
+              <td class="cell-level table-cell-als-level">{{ formatAlsLevel(learner.level) }}</td>
               <td class="cell-center">{{ learner.learningCenter || '-' }}</td>
-              <td class="cell-status">
+              <td class="cell-status" style="text-align: center;">
                 <span class="status-badge" :class="learner.status === 'Active' ? 'badge-active' : 'badge-inactive'">
                   {{ learner.status || 'Active' }}
                 </span>
               </td>
-              <td class="cell-action" style="text-align: right;">
+              <td class="cell-action" style="text-align: center;">
                 <router-link
                   :to="`/dashboard/learners/${learner.id}`"
                   class="btn-view-icon"
@@ -332,6 +330,14 @@ watch(teacherId, (newId) => {
   }
 });
 
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
+
 onMounted(() => {
   if (route.query.center) {
     selectedCenter.value = route.query.center;
@@ -396,32 +402,24 @@ onMounted(() => {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1rem 1.25rem;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  padding: 1.15rem 1.25rem;
   margin-bottom: 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  gap: 1.25rem;
 }
 
 .filter-controls-row {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) minmax(180px, 1fr) minmax(160px, 1fr) auto;
   gap: 1rem;
-  flex: 1;
+  align-items: end;
+  width: 100%;
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 175px;
-}
-
-.filter-group-search {
-  flex: 1.4;
-  min-width: 220px;
+  min-width: 0;
 }
 
 .filter-label {
@@ -435,33 +433,39 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .search-icon {
   position: absolute;
-  left: 0.75rem;
+  left: 0.85rem;
   color: #94a3b8;
   pointer-events: none;
 }
 
 .filter-search-input {
   width: 100%;
-  background: #f8fafc;
+  height: 42px;
+  min-height: 42px;
+  background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 2.25rem 0.5rem 2.35rem;
+  padding: 0 2.25rem 0 2.45rem;
   font-size: 0.875rem;
   color: #0f172a;
   outline: none;
-  transition: all 0.15s ease;
-  height: 38px;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-search-input::placeholder {
+  color: #94a3b8;
 }
 
 .filter-search-input:focus {
-  border-color: #3b82f6;
+  border-color: #2563eb;
   background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .search-clear-btn {
@@ -487,35 +491,42 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .filter-select {
   width: 100%;
-  background: #f8fafc;
+  height: 42px;
+  min-height: 42px;
+  background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  padding: 0 2.25rem 0 0.85rem;
   font-size: 0.875rem;
+  font-weight: 400;
   color: #0f172a;
   outline: none;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.65rem center;
-  background-size: 14px;
-  transition: all 0.15s ease;
-  height: 38px;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   box-sizing: border-box;
 }
 
-.filter-select:focus {
-  border-color: #3b82f6;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.filter-select:hover {
+  border-color: #94a3b8;
 }
 
-.filter-actions-group {
+.filter-select:focus {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.filter-action-cell {
   display: flex;
   align-items: flex-end;
 }
@@ -523,25 +534,33 @@ onMounted(() => {
 .clear-filters-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 0.95rem;
-  font-size: 0.8125rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #475569;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   box-sizing: border-box;
 }
 
 .clear-filters-btn:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #0f172a;
   border-color: #94a3b8;
+}
+
+.clear-filters-btn:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
 }
 
 /* Table Card */
@@ -646,7 +665,17 @@ onMounted(() => {
   color: #475569;
 }
 
-/* Status badge */
+/* Status badge & column */
+.th-status,
+.cell-status {
+  text-align: center;
+}
+
+.th-action,
+.cell-action {
+  text-align: center;
+}
+
 .status-badge {
   display: inline-block;
   padding: 0.2rem 0.55rem;
@@ -823,24 +852,26 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 768px) {
-  .learners-filter-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
+@media (max-width: 1024px) {
   .filter-controls-row {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .filter-group,
   .filter-group-search {
-    width: 100%;
-    min-width: unset;
+    grid-column: 1 / -1;
   }
-  .filter-actions-group {
-    width: 100%;
+  .filter-action-cell {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
   }
-  .clear-filters-btn {
+}
+
+@media (max-width: 640px) {
+  .filter-controls-row {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .filter-action-cell .clear-filters-btn {
     width: 100%;
     justify-content: center;
   }

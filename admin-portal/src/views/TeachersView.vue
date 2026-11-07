@@ -109,8 +109,8 @@
           <tbody>
             <tr v-for="(teacher, idx) in filteredTeachers" :key="teacher.id">
               <td>{{ idx + 1 }}</td>
-              <td style="font-weight: 600;">{{ teacher.name }}</td>
-              <td style="font-family: monospace; font-size: 0.85rem; font-weight: 600; color: #1e40af;">
+              <td class="table-cell-name">{{ teacher.name }}</td>
+              <td style="font-family: monospace; font-size: 0.85rem; font-weight: 400; color: var(--color-text);">
                 {{ teacher.username || '—' }}
               </td>
               <td>{{ teacher.position || 'ALS Teacher' }}</td>

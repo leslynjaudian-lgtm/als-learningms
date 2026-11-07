@@ -173,7 +173,7 @@
         <div v-if="currentStepIndex === 0" class="step-form-pane">
           <div class="pane-header-info">
             <h3>Step 1: Module Information</h3>
-            <p>Define the title, learning strand, target ALS level, assigned learning center, and active schedule.</p>
+            <p>Define the title, instructions, learning strand, module code, ALS level, learning center, and learner assignments.</p>
           </div>
 
           <!-- Step 1 Validation Warning Message -->
@@ -210,38 +210,13 @@
               ></textarea>
             </div>
 
-            <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
-            <div class="field-item">
-              <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
-              <div class="locked-level-box">
-                <input
-                  type="text"
-                  :value="activeLevel"
-                  class="field-input-box is-locked"
-                  readonly
-                  disabled
-                />
-                <span class="locked-level-badge">Locked to {{ activeLevel }}</span>
-              </div>
-            </div>
-
+            <!-- ROW 3 — TWO COLUMNS: Learning Strand * | Module Code * -->
             <div class="field-item">
               <label class="field-lbl">Learning Strand <span class="req">*</span></label>
               <select v-model="newModule.strand" class="field-select-box" required>
                 <option value="" disabled>Select Learning Strand</option>
                 <option v-for="s in internalStrands" :key="s.slug" :value="s.name">
                   {{ s.name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- ROW 4 — TWO COLUMNS: Learning Center * | Module Code * -->
-            <div class="field-item">
-              <label class="field-lbl">Learning Center <span class="req">*</span></label>
-              <select v-model="newModule.learningCenterId" class="field-select-box" required>
-                <option value="" disabled>Select Assigned Learning Center</option>
-                <option v-for="c in availableLearningCenters" :key="c.id" :value="c.id">
-                  {{ c.name }}
                 </option>
               </select>
             </div>
@@ -258,146 +233,80 @@
               />
             </div>
 
-            <!-- ROW — FULL WIDTH: Learner Assignment Section -->
-            <div class="field-item full-width learner-assignment-section">
-              <label class="field-lbl">Assign Module To <span class="req">*</span></label>
-              
-              <div class="assignment-radio-group">
-                <!-- Option 1: All Learners -->
-                <label class="assignment-radio-card" :class="{ 'is-selected': newModule.isAllLearners }">
-                  <input
-                    type="radio"
-                    name="moduleAssignMode"
-                    :value="true"
-                    v-model="newModule.isAllLearners"
-                    class="custom-radio"
-                    @change="onAssignmentModeChange(true)"
-                  />
-                  <div class="radio-label-group">
-                    <span class="radio-title">All Learners</span>
-                    <span class="radio-desc">Assign the module to all eligible learners under the selected Learning Center and ALS Level.</span>
-                  </div>
-                </label>
+            <!-- ROW 4 — TWO COLUMNS: ALS Level * | Learning Center * -->
+            <div class="field-item">
+              <label class="field-lbl">ALS Level <span class="req">*</span></label>
+              <div class="locked-level-box">
+                <input
+                  type="text"
+                  :value="activeLevel"
+                  class="field-input-box is-locked"
+                  readonly
+                  disabled
+                />
+                <span class="locked-level-badge">Locked to {{ activeLevel }}</span>
+              </div>
+            </div>
 
-                <!-- Option 2: Specific Learners -->
-                <label class="assignment-radio-card" :class="{ 'is-selected': !newModule.isAllLearners }">
-                  <input
-                    type="radio"
-                    name="moduleAssignMode"
-                    :value="false"
-                    v-model="newModule.isAllLearners"
-                    class="custom-radio"
-                    @change="onAssignmentModeChange(false)"
-                  />
-                  <div class="radio-label-group">
-                    <span class="radio-title">Specific Learners</span>
-                    <span class="radio-desc">Allow the teacher to select individual learners who will receive the module.</span>
-                  </div>
-                </label>
+            <div class="field-item">
+              <label class="field-lbl">Learning Center <span class="req">*</span></label>
+              <select v-model="newModule.learningCenterId" class="field-select-box" required>
+                <option value="" disabled>Select Assigned Learning Center</option>
+                <option v-for="c in availableLearningCenters" :key="c.id" :value="c.id">
+                  {{ c.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- ROW 5 — FULL WIDTH: Assign Module To * -->
+            <div class="field-item full-width assign-module-dropdown-group">
+              <label class="field-lbl" id="assign-module-label">Assign Module To <span class="req">*</span></label>
+
+              <!-- Custom Dropdown Trigger -->
+              <div
+                ref="assignDropdownTriggerRef"
+                class="custom-dropdown-trigger"
+                :class="{
+                  'is-open': isAssignDropdownOpen,
+                  'is-disabled': eligibleLearners.length === 0,
+                  'has-error': !newModule.isAllLearners && (!newModule.selectedLearnerIds || newModule.selectedLearnerIds.length === 0)
+                }"
+                tabindex="0"
+                role="combobox"
+                aria-labelledby="assign-module-label"
+                aria-haspopup="listbox"
+                :aria-expanded="isAssignDropdownOpen"
+                @click="toggleAssignDropdown"
+                @keydown.enter.prevent="toggleAssignDropdown"
+                @keydown.space.prevent="toggleAssignDropdown"
+                @keydown.down.prevent="openAssignDropdown"
+                @keydown.up.prevent="openAssignDropdown"
+              >
+                <span class="dropdown-trigger-text" :title="assignDropdownTooltipText">
+                  {{ assignDropdownDisplayText }}
+                </span>
+                <svg
+                  class="dropdown-chevron"
+                  :class="{ 'is-rotated': isAssignDropdownOpen }"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
               </div>
 
-              <!-- When All Learners is selected -->
-              <div v-if="newModule.isAllLearners" class="all-learners-summary-card">
-                <div v-if="eligibleLearners.length > 0" class="learners-count-badge">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                  </svg>
-                  <span><strong>{{ eligibleLearners.length }}</strong> {{ eligibleLearners.length === 1 ? 'learner' : 'learners' }} will receive this module.</span>
-                </div>
-                <div v-else class="empty-eligible-box">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
-                </div>
-              </div>
-
-              <!-- When Specific Learners is selected -->
-              <div v-else class="specific-learners-section">
-                <label class="field-sub-lbl">Select Learners <span class="req">*</span></label>
-                
-                <div class="specific-learners-container">
-                  <!-- Search box -->
-                  <div class="learner-search-wrapper">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    <input
-                      v-model="learnerSearchQuery"
-                      type="text"
-                      class="field-input-box learner-search-input"
-                      placeholder="Search learner name..."
-                    />
-                    <button
-                      v-if="learnerSearchQuery"
-                      type="button"
-                      class="clear-search-btn"
-                      @click="learnerSearchQuery = ''"
-                      aria-label="Clear search"
-                    >
-                      &times;
-                    </button>
-                  </div>
-
-                  <!-- Selected Learners Chips (for quick removal) -->
-                  <div v-if="selectedLearnersList.length > 0" class="selected-chips-row">
-                    <div
-                      v-for="l in selectedLearnersList"
-                      :key="l.id"
-                      class="selected-learner-chip"
-                    >
-                      <span class="chip-name">{{ l.name }}</span>
-                      <button
-                        type="button"
-                        class="chip-close-btn"
-                        @click="toggleLearner(l.id)"
-                        :title="`Remove ${l.name}`"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Multi-select list -->
-                  <div v-if="filteredSpecificLearners.length > 0" class="learners-multi-list">
-                    <label
-                      v-for="l in filteredSpecificLearners"
-                      :key="l.id"
-                      class="learner-check-row"
-                      :class="{ 'is-checked': newModule.selectedLearnerIds.includes(l.id) }"
-                    >
-                      <input
-                        type="checkbox"
-                        class="learner-checkbox"
-                        :checked="newModule.selectedLearnerIds.includes(l.id)"
-                        @change="toggleLearner(l.id)"
-                      />
-                      <div class="learner-row-text">
-                        <span class="learner-row-name">{{ l.name }}</span>
-                        <span class="learner-row-sub">{{ l.level }} &bull; {{ l.learningCenter }}</span>
-                      </div>
-                    </label>
-                  </div>
-
-                  <!-- Empty State -->
-                  <div v-else-if="eligibleLearners.length === 0" class="no-learners-box">
-                    <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
-                  </div>
-                  <div v-else class="no-learners-box">
-                    <span>No learners match "{{ learnerSearchQuery }}".</span>
-                  </div>
-
-                  <!-- Selection Count Footer -->
-                  <div class="selection-count-footer">
-                    <span>{{ newModule.selectedLearnerIds.length }} {{ newModule.selectedLearnerIds.length === 1 ? 'learner' : 'learners' }} selected</span>
-                  </div>
-                </div>
+              <!-- Helper warning when no learners available in selected center/level -->
+              <div v-if="eligibleLearners.length === 0" class="field-helper-warning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
               </div>
             </div>
 
@@ -971,6 +880,96 @@
       </div>
     </div>
 
+    <!-- Teleport for Assign Module To Dropdown Menu -->
+    <Teleport to="body">
+      <div
+        v-if="isAssignDropdownOpen"
+        class="assign-dropdown-backdrop"
+        @click="closeAssignDropdown"
+      ></div>
+
+      <div
+        v-if="isAssignDropdownOpen"
+        ref="assignDropdownMenuRef"
+        class="custom-dropdown-menu"
+        :class="[`placement-${assignDropdownPlacement}`]"
+        :style="assignDropdownStyle"
+        @click.stop
+      >
+        <!-- Search Input Header -->
+        <div class="dropdown-search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            ref="assignDropdownSearchInputRef"
+            v-model="assignSearchQuery"
+            type="text"
+            class="dropdown-search-input"
+            placeholder="Search learners by name..."
+            @click.stop
+            @keydown.esc.stop="closeAssignDropdown"
+          />
+          <button
+            v-if="assignSearchQuery"
+            type="button"
+            class="dropdown-search-clear"
+            @click.stop="assignSearchQuery = ''"
+            aria-label="Clear search"
+          >
+            &times;
+          </button>
+        </div>
+
+        <!-- Dropdown Options List -->
+        <div class="dropdown-options-list">
+          <!-- All Learners Option (Always First) -->
+          <div
+            v-if="!assignSearchQuery || 'all learners'.includes(assignSearchQuery.toLowerCase())"
+            class="dropdown-option-item all-learners-item"
+            :class="{ 'is-selected': newModule.isAllLearners }"
+            @click.stop="selectAllLearners"
+          >
+            <div class="custom-checkbox" :class="{ 'is-checked': newModule.isAllLearners }">
+              <svg v-if="newModule.isAllLearners" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <span class="option-name">All Learners</span>
+            <span class="option-badge">
+              {{ eligibleLearners.length }} {{ eligibleLearners.length === 1 ? 'learner' : 'learners' }}
+            </span>
+          </div>
+
+          <div v-if="eligibleLearners.length > 0 && (!assignSearchQuery || 'all learners'.includes(assignSearchQuery.toLowerCase()))" class="dropdown-divider"></div>
+
+          <!-- Individual Learner Options -->
+          <div
+            v-for="learner in searchedEligibleLearners"
+            :key="learner.id"
+            class="dropdown-option-item"
+            :class="{ 'is-selected': isLearnerSelected(learner.id) }"
+            @click.stop="toggleLearner(learner.id)"
+          >
+            <div class="custom-checkbox" :class="{ 'is-checked': isLearnerSelected(learner.id) }">
+              <svg v-if="isLearnerSelected(learner.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <span class="option-name">{{ learner.name }}</span>
+          </div>
+
+          <!-- Empty State inside Dropdown -->
+          <div v-if="eligibleLearners.length === 0" class="dropdown-empty">
+            No active learners found for selected Learning Center and ALS Level.
+          </div>
+          <div v-else-if="searchedEligibleLearners.length === 0" class="dropdown-empty">
+            No learners match "{{ assignSearchQuery }}".
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- ADD FEEDBACK MODAL -->
     <div
       v-if="feedbackModal.open"
@@ -1060,7 +1059,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getModules, createModule, uploadModuleFile } from '../api/modules.js';
@@ -1297,18 +1296,27 @@ const currentSelectedCenterName = computed(() => {
 // Eligible learners filtered by Target ALS Level and selected Learning Center, authorized for the teacher
 const eligibleLearners = computed(() => {
   const targetEnum = activeTargetLevel.value; // 'ELEMENTARY' or 'JUNIOR'
-  const selectedCenterId = newModule.learningCenterId ? Number(newModule.learningCenterId) : null;
+  if (!newModule.learningCenterId) return [];
+  const selectedCenterId = Number(newModule.learningCenterId);
 
   return (teacherLearners.value || []).filter((l) => {
-    // 1. Level filter
+    // 1. Must be active
+    const isActive = (l.status || 'Active').toLowerCase() === 'active';
+    if (!isActive) return false;
+
+    // 2. Level filter
     const lTarget = l.targetLevel || (String(l.level || '').toLowerCase().includes('elem') ? 'ELEMENTARY' : 'JUNIOR');
     if (lTarget !== targetEnum) {
       return false;
     }
 
-    // 2. Learning Center filter
-    if (selectedCenterId && l.learningCenterId) {
+    // 3. Learning Center filter
+    if (l.learningCenterId) {
       if (Number(l.learningCenterId) !== selectedCenterId) {
+        return false;
+      }
+    } else if (l.learningCenter && currentSelectedCenterName.value !== 'Selected Center') {
+      if (l.learningCenter !== currentSelectedCenterName.value) {
         return false;
       }
     }
@@ -1317,50 +1325,190 @@ const eligibleLearners = computed(() => {
   });
 });
 
-const learnerSearchQuery = ref('');
+// Dropdown & multi-select state for Assign Module To
+const isAssignDropdownOpen = ref(false);
+const assignSearchQuery = ref('');
+const assignDropdownTriggerRef = ref(null);
+const assignDropdownMenuRef = ref(null);
+const assignDropdownSearchInputRef = ref(null);
+const assignDropdownPlacement = ref('down');
+const assignDropdownStyle = ref({});
 
-// Filtered learners for Specific Learners search
-const filteredSpecificLearners = computed(() => {
-  const query = learnerSearchQuery.value.trim().toLowerCase();
-  if (!query) return eligibleLearners.value;
-  return eligibleLearners.value.filter((l) => {
-    const nameMatch = (l.name || l.fullName || '').toLowerCase().includes(query);
-    const centerMatch = (l.learningCenter || '').toLowerCase().includes(query);
-    return nameMatch || centerMatch;
+function updateAssignDropdownPosition() {
+  if (!assignDropdownTriggerRef.value || !isAssignDropdownOpen.value) return;
+  const rect = assignDropdownTriggerRef.value.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+
+  const spaceBelow = viewportHeight - rect.bottom - 12;
+  const spaceAbove = rect.top - 12;
+
+  const preferUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+  assignDropdownPlacement.value = preferUp ? 'up' : 'down';
+
+  const width = Math.min(rect.width, viewportWidth - 24);
+  const left = Math.max(12, Math.min(rect.left, viewportWidth - width - 12));
+
+  if (preferUp) {
+    const maxHeight = Math.min(260, Math.max(120, spaceAbove));
+    assignDropdownStyle.value = {
+      position: 'fixed',
+      bottom: `${viewportHeight - rect.top + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: 10050,
+    };
+  } else {
+    const maxHeight = Math.min(260, Math.max(120, spaceBelow));
+    assignDropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${maxHeight}px`,
+      zIndex: 10050,
+    };
+  }
+}
+
+function openAssignDropdown() {
+  if (eligibleLearners.value.length === 0) return;
+  isAssignDropdownOpen.value = true;
+  assignSearchQuery.value = '';
+  nextTick(() => {
+    updateAssignDropdownPosition();
+    assignDropdownSearchInputRef.value?.focus();
   });
+}
+
+function closeAssignDropdown() {
+  isAssignDropdownOpen.value = false;
+  assignSearchQuery.value = '';
+}
+
+function toggleAssignDropdown() {
+  if (isAssignDropdownOpen.value) {
+    closeAssignDropdown();
+  } else {
+    openAssignDropdown();
+  }
+}
+
+function handleGlobalDropdownScroll() {
+  if (isAssignDropdownOpen.value) {
+    if (!assignDropdownTriggerRef.value) {
+      closeAssignDropdown();
+      return;
+    }
+    const rect = assignDropdownTriggerRef.value.getBoundingClientRect();
+    if (rect.bottom < 60 || rect.top > window.innerHeight - 60) {
+      closeAssignDropdown();
+    } else {
+      updateAssignDropdownPosition();
+    }
+  }
+}
+
+function handleGlobalDropdownKeydown(e) {
+  if (e.key === 'Escape' && isAssignDropdownOpen.value) {
+    closeAssignDropdown();
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
+// Search filter inside Assign Module To dropdown
+const searchedEligibleLearners = computed(() => {
+  const query = assignSearchQuery.value.trim().toLowerCase();
+  if (!query) return eligibleLearners.value;
+  return eligibleLearners.value.filter((l) =>
+    (l.name || l.fullName || '').toLowerCase().includes(query)
+  );
 });
 
-// Selected learners list for chips
-const selectedLearnersList = computed(() => {
-  const selectedSet = new Set((newModule.selectedLearnerIds || []).map(Number));
-  return (teacherLearners.value || []).filter((l) => selectedSet.has(Number(l.id)));
+// Display text in the closed Assign Module To dropdown trigger
+const assignDropdownDisplayText = computed(() => {
+  const total = eligibleLearners.value.length;
+  if (total === 0) return 'No learners available';
+  if (newModule.isAllLearners) {
+    return `All Learners (${total} ${total === 1 ? 'learner' : 'learners'})`;
+  }
+  const count = (newModule.selectedLearnerIds || []).length;
+  if (count === 0) return 'Select learners...';
+  return `${count} ${count === 1 ? 'Learner' : 'Learners'} Selected`;
 });
 
-function onAssignmentModeChange(isAll) {
-  newModule.isAllLearners = isAll;
-  if (isAll) {
+const assignDropdownTooltipText = computed(() => {
+  const total = eligibleLearners.value.length;
+  if (total === 0) return 'No active learners available';
+  if (newModule.isAllLearners) return `All Learners (${total} active)`;
+  const count = (newModule.selectedLearnerIds || []).length;
+  if (count === 0) return 'Select learners...';
+  const selectedSet = new Set(newModule.selectedLearnerIds);
+  return eligibleLearners.value
+    .filter((l) => selectedSet.has(Number(l.id)))
+    .map((l) => l.name)
+    .join(', ');
+});
+
+function selectAllLearners() {
+  const allIds = eligibleLearners.value.map((l) => Number(l.id));
+  if (newModule.isAllLearners) {
+    newModule.isAllLearners = false;
     newModule.selectedLearnerIds = [];
+  } else {
+    newModule.isAllLearners = true;
+    newModule.selectedLearnerIds = [...allIds];
   }
 }
 
 function toggleLearner(learnerId) {
-  newModule.isAllLearners = false;
-  const numId = Number(learnerId);
-  const idx = newModule.selectedLearnerIds.indexOf(numId);
-  if (idx === -1) {
-    newModule.selectedLearnerIds.push(numId);
+  const idNum = Number(learnerId);
+  const allIds = eligibleLearners.value.map((l) => Number(l.id));
+
+  if (newModule.isAllLearners) {
+    // Was All Learners, now teacher deselects one learner
+    newModule.isAllLearners = false;
+    newModule.selectedLearnerIds = allIds.filter((id) => id !== idNum);
   } else {
-    newModule.selectedLearnerIds.splice(idx, 1);
+    const idx = newModule.selectedLearnerIds.indexOf(idNum);
+    if (idx === -1) {
+      newModule.selectedLearnerIds.push(idNum);
+    } else {
+      newModule.selectedLearnerIds.splice(idx, 1);
+    }
+
+    // When every eligible learner is selected, All Learners should automatically become checked
+    if (allIds.length > 0 && newModule.selectedLearnerIds.length >= allIds.length) {
+      newModule.isAllLearners = true;
+      newModule.selectedLearnerIds = [...allIds];
+    }
   }
 }
 
-// Watch level and learning center changes to dynamically update selection (Requirement 6)
+function isLearnerSelected(learnerId) {
+  if (newModule.isAllLearners) {
+    return true;
+  }
+  return (newModule.selectedLearnerIds || []).includes(Number(learnerId));
+}
+
+// Watch level and learning center changes to dynamically update selection
 watch(
   () => [newModule.learningCenterId, newModule.level, activeTargetLevel.value],
   () => {
+    const validIds = new Set(eligibleLearners.value.map((l) => Number(l.id)));
     if (!newModule.isAllLearners && Array.isArray(newModule.selectedLearnerIds)) {
-      const validIds = new Set(eligibleLearners.value.map((l) => Number(l.id)));
       newModule.selectedLearnerIds = newModule.selectedLearnerIds.filter((id) => validIds.has(Number(id)));
+      if (validIds.size > 0 && newModule.selectedLearnerIds.length === validIds.size) {
+        newModule.isAllLearners = true;
+      }
+    } else if (newModule.isAllLearners) {
+      newModule.selectedLearnerIds = Array.from(validIds);
+    }
+    if (isAssignDropdownOpen.value) {
+      updateAssignDropdownPosition();
     }
   }
 );
@@ -1387,7 +1535,7 @@ function validateStep1() {
     return false;
   }
   if (!newModule.level) {
-    step1ErrorMessage.value = 'Target ALS Level is required.';
+    step1ErrorMessage.value = 'ALS Level is required.';
     return false;
   }
   if (!newModule.learningCenterId) {
@@ -1405,8 +1553,12 @@ function validateStep1() {
   }
 
   // Learner Selection Validation
+  if (eligibleLearners.value.length === 0) {
+    step1ErrorMessage.value = 'No eligible learners found for the selected Learning Center and ALS Level.';
+    return false;
+  }
   if (!newModule.isAllLearners && (!newModule.selectedLearnerIds || newModule.selectedLearnerIds.length === 0)) {
-    step1ErrorMessage.value = 'Please select at least one learner when "Specific Learners" is chosen.';
+    step1ErrorMessage.value = 'Please select at least one learner before continuing.';
     return false;
   }
 
@@ -1565,6 +1717,8 @@ function startModuleCreation() {
   }
   // Automatically lock to the currently active ALS Level
   newModule.level = activeLevel.value;
+  newModule.isAllLearners = true;
+  newModule.selectedLearnerIds = eligibleLearners.value.map((l) => Number(l.id));
   isCreatingModule.value = true;
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
@@ -1574,6 +1728,7 @@ function startModuleCreation() {
 
 function cancelModuleCreation() {
   isCreatingModule.value = false;
+  isAssignDropdownOpen.value = false;
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
   step4ErrorMessage.value = '';
@@ -1737,7 +1892,8 @@ function resetWizard() {
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
   step4ErrorMessage.value = '';
-  learnerSearchQuery.value = '';
+  isAssignDropdownOpen.value = false;
+  assignSearchQuery.value = '';
 }
 
 async function publishCompleteModule() {
@@ -1880,8 +2036,17 @@ watch(
 
 onMounted(async () => {
   newModule.level = activeLevel.value;
+  window.addEventListener('resize', updateAssignDropdownPosition);
+  window.addEventListener('scroll', handleGlobalDropdownScroll, true);
+  window.addEventListener('keydown', handleGlobalDropdownKeydown);
   await loadModules();
   await loadTeacherLearners();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateAssignDropdownPosition);
+  window.removeEventListener('scroll', handleGlobalDropdownScroll, true);
+  window.removeEventListener('keydown', handleGlobalDropdownKeydown);
 });
 </script>
 
@@ -2239,6 +2404,13 @@ onMounted(async () => {
   gap: 1.35rem;
 }
 
+@media (max-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
 .field-item {
   display: flex;
   flex-direction: column;
@@ -2273,6 +2445,12 @@ onMounted(async () => {
   outline: none;
   transition: all 0.15s ease;
   box-sizing: border-box;
+}
+
+.field-input-box,
+.field-select-box {
+  height: 42px;
+  min-height: 42px;
 }
 
 .field-input-box:focus,
@@ -3211,284 +3389,253 @@ onMounted(async () => {
   border-color: #cbd5e1;
 }
 
-/* Learner Assignment Section */
-.learner-assignment-section {
+/* Assign Module To Multi-select Dropdown */
+.assign-module-dropdown-group {
   position: relative;
-  margin-top: 0.25rem;
 }
 
-.assignment-radio-group {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-top: 0.35rem;
-  margin-bottom: 0.75rem;
-}
-
-@media (max-width: 640px) {
-  .assignment-radio-group {
-    grid-template-columns: 1fr;
-  }
-}
-
-.assignment-radio-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
+.custom-dropdown-trigger {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 0.85rem;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-  user-select: none;
-}
-
-.assignment-radio-card:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-}
-
-.assignment-radio-card.is-selected {
-  border-color: #2563eb;
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
-}
-
-.custom-radio {
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  accent-color: #2563eb;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.radio-label-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.radio-title {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.radio-desc {
-  font-size: 0.8125rem;
-  color: #64748b;
-  line-height: 1.35;
-}
-
-/* All Learners Summary Card */
-.all-learners-summary-card {
-  padding: 0.85rem 1rem;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.learners-count-badge {
-  display: inline-flex;
+.custom-dropdown-trigger:hover:not(.is-disabled) {
+  border-color: #94a3b8;
+}
+
+.custom-dropdown-trigger:focus,
+.custom-dropdown-trigger.is-open {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  outline: none;
+}
+
+.custom-dropdown-trigger.is-disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.custom-dropdown-trigger.has-error {
+  border-color: #ef4444;
+}
+
+.custom-dropdown-trigger.has-error:focus,
+.custom-dropdown-trigger.has-error.is-open {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.dropdown-trigger-text {
+  font-size: 0.875rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.5rem;
+  line-height: 1.2;
+}
+
+.dropdown-chevron {
+  color: #64748b;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-chevron.is-rotated {
+  transform: rotate(180deg);
+}
+
+.assign-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  background: transparent;
+}
+
+.custom-dropdown-menu {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-menu.placement-down {
+  transform-origin: top center;
+  animation: dropdownFadeDown 0.15s ease-out;
+}
+
+.custom-dropdown-menu.placement-up {
+  transform-origin: bottom center;
+  animation: dropdownFadeUp 0.15s ease-out;
+}
+
+@keyframes dropdownFadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropdownFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-search-wrap {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #1e293b;
-  font-size: 0.875rem;
-}
-
-.learners-count-badge svg {
-  color: #2563eb;
+  padding: 0.65rem 0.75rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
 }
 
-.empty-eligible-box {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #64748b;
+.dropdown-search-wrap svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.dropdown-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
   font-size: 0.85rem;
-}
-
-/* Specific Learners Section */
-.specific-learners-section {
-  margin-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.field-sub-lbl {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #334155;
-}
-
-.specific-learners-container {
-  background: #ffffff;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.learner-search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
+  color: #0f172a;
   width: 100%;
+  font-family: inherit;
+  padding: 0;
 }
 
-.learner-search-input {
-  padding-left: 2.25rem !important;
-  padding-right: 2rem !important;
-  font-size: 0.875rem;
-  height: 38px;
-  width: 100%;
-  background: #ffffff;
-}
-
-.search-icon {
-  position: absolute;
-  left: 0.75rem;
-  color: #64748b;
-  pointer-events: none;
-}
-
-.clear-search-btn {
-  position: absolute;
-  right: 0.65rem;
+.dropdown-search-clear {
   background: transparent;
   border: none;
-  font-size: 1.25rem;
   color: #94a3b8;
   cursor: pointer;
+  font-size: 1.1rem;
   line-height: 1;
-  padding: 0 4px;
+  padding: 0 0.25rem;
 }
 
-.clear-search-btn:hover {
+.dropdown-search-clear:hover {
   color: #475569;
 }
 
-.selected-chips-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  padding: 0.15rem 0;
-  max-height: 80px;
+.dropdown-options-list {
+  flex: 1 1 auto;
   overflow-y: auto;
+  padding: 0.35rem 0;
 }
 
-.selected-learner-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1d4ed8;
-  padding: 0.2rem 0.55rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.chip-close-btn {
-  background: transparent;
-  border: none;
-  color: #3b82f6;
-  font-size: 0.95rem;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
-.chip-close-btn:hover {
-  color: #1d4ed8;
-}
-
-.learners-multi-list {
-  max-height: 200px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 0.35rem;
-  background: #ffffff;
-}
-
-.learner-check-row {
+.dropdown-option-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
   cursor: pointer;
   transition: background 0.12s ease;
   user-select: none;
 }
 
-.learner-check-row:hover {
+.dropdown-option-item:hover {
   background: #f1f5f9;
 }
 
-.learner-check-row.is-checked {
-  background: #f8fafc;
+.dropdown-option-item.is-selected {
+  background: #eff6ff;
 }
 
-.learner-checkbox {
-  width: 17px;
-  height: 17px;
+.all-learners-item {
+  font-weight: 600;
+}
+
+.custom-checkbox {
+  width: 18px;
+  height: 18px;
   border-radius: 4px;
-  border: 1px solid #cbd5e1;
-  accent-color: #2563eb;
-  cursor: pointer;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.custom-checkbox.is-checked {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.option-name {
+  font-size: 0.875rem;
+  color: #1e293b;
+  flex: 1;
+  word-break: break-word;
+}
+
+.option-badge {
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
   flex-shrink: 0;
 }
 
-.learner-row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
+.dropdown-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.25rem 0;
 }
 
-.learner-row-name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.learner-row-sub {
-  font-size: 0.75rem;
-  color: #64748b;
-}
-
-.selection-count-footer {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #475569;
-  padding-top: 0.35rem;
-  border-top: 1px solid #f1f5f9;
-}
-
-.no-learners-box {
-  padding: 1rem;
+.dropdown-empty {
+  padding: 1.25rem 0.85rem;
   text-align: center;
-  font-size: 0.8125rem;
+  font-size: 0.85rem;
   color: #64748b;
-  font-style: italic;
+  line-height: 1.4;
+}
+
+.field-helper-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.775rem;
+  color: #d97706;
+  margin-top: 0.35rem;
+}
+
+.field-helper-warning svg {
+  flex-shrink: 0;
 }
 </style>

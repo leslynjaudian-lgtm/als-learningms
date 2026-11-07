@@ -219,9 +219,9 @@
             <tbody>
               <tr v-for="(l, idx) in poblacionLearners" :key="l.id">
                 <td>{{ idx + 1 }}</td>
-                <td style="font-weight: 600;">{{ l.name }}</td>
+                <td class="table-cell-name">{{ l.name }}</td>
                 <td>{{ l.lrn }}</td>
-                <td>{{ l.level }}</td>
+                <td class="table-cell-als-level">{{ l.level }}</td>
                 <td>Poblacion CLC</td>
                 <td><span class="badge badge-success">Granted (Active)</span></td>
               </tr>

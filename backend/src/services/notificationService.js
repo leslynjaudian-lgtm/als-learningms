@@ -57,24 +57,90 @@ export function formatTime12h(timeStr) {
 }
 
 /**
- * Format relative time (e.g. 5m ago, 2h ago, Just now)
+ * Check if a date represents UTC midnight (00:00:00.000Z), typically produced by
+ * date-only parsing (e.g. new Date('YYYY-MM-DD')) which causes false hour offsets.
  */
-export function formatRelativeTime(dateInput) {
-  if (!dateInput) return '';
-  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  if (isNaN(d.getTime())) return '';
-  const diffMs = Date.now() - d.getTime();
-  if (diffMs < 60 * 1000 && diffMs >= -30 * 1000) return 'Just now';
-  if (diffMs < 0) {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+export function isMidnightUtc(dateVal) {
+  if (!dateVal) return false;
+  const d = dateVal instanceof Date ? dateVal : new Date(dateVal);
+  if (isNaN(d.getTime())) return false;
+  return (
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0
+  );
+}
+
+/**
+ * Format relative time (e.g. 5m ago, 2h ago, Just now)
+ * Standardizes time calculation:
+ * - < 1 minute (including small negative clock drift): "Just now"
+ * - 1–59 minutes: "Xm ago"
+ * - 1–23 hours: "Xh ago"
+ * - 1–6 days: "Xd ago"
+ * - >= 7 days: formatted date in Asia/Manila timezone
+ */
+export function formatRelativeTime(dateInput, fallbackInput = null) {
+  if (!dateInput && !fallbackInput) return '';
+  let d = dateInput instanceof Date ? dateInput : (dateInput ? new Date(dateInput) : null);
+  if (!d || isNaN(d.getTime())) {
+    d = fallbackInput instanceof Date ? fallbackInput : (fallbackInput ? new Date(fallbackInput) : null);
   }
+  if (!d || isNaN(d.getTime())) return '';
+
+  // If dateInput is midnight UTC, attempt to use non-midnight fallbackInput (e.g. updatedAt)
+  if (isMidnightUtc(d) && fallbackInput) {
+    const fb = fallbackInput instanceof Date ? fallbackInput : new Date(fallbackInput);
+    if (!isNaN(fb.getTime()) && !isMidnightUtc(fb)) {
+      d = fb;
+    }
+  }
+
+  const now = Date.now();
+  const diffMs = now - d.getTime();
+
+  // Handle small clock drift: -120s up to 60s is 'Just now'
+  if (diffMs >= -120 * 1000 && diffMs < 60 * 1000) {
+    return 'Just now';
+  }
+
+  // Future dates beyond small clock drift (e.g. scheduled in future)
+  if (diffMs < -120 * 1000) {
+    return d.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 60) return `${diffMins}m ago`;
+
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) {
+    // If date was corrupted to midnight UTC on today's calendar date in Manila,
+    // prevent showing artificial "7h ago" or "8h ago"
+    if (isMidnightUtc(d)) {
+      const todayManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(now);
+      const dManila = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(d);
+      if (todayManila === dManila) {
+        return 'Just now';
+      }
+    }
+    return `${diffHours}h ago`;
+  }
+
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return d.toLocaleDateString('en-US', {
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 /**
@@ -203,7 +269,7 @@ export async function createNotification({
         deadlineAt: deadlineAt || null,
         createdByRole: createdByRole || null,
         createdByName: createdByName || null,
-        createdAt: createdAt || new Date(),
+        createdAt: (createdAt && !isMidnightUtc(createdAt)) ? createdAt : new Date(),
       },
     });
     return item;
@@ -390,7 +456,7 @@ export async function notifyAnnouncementPublished(announcementId) {
             linkUrl: '/dashboard/announcements',
             createdByName: adminSender,
             createdByRole: 'ADMIN',
-            createdAt: ann.createdAt,
+            createdAt: new Date(),
           });
         }
       }
@@ -435,7 +501,7 @@ export async function notifyAnnouncementPublished(announcementId) {
             linkUrl: '/notifications',
             createdByName: adminSender,
             createdByRole: 'ADMIN',
-            createdAt: ann.createdAt,
+            createdAt: new Date(),
           });
         }
       }
@@ -494,7 +560,7 @@ export async function notifyAnnouncementPublished(announcementId) {
           linkUrl: '/notifications',
           createdByName: teacherSender,
           createdByRole: 'TEACHER',
-          createdAt: ann.createdAt,
+          createdAt: new Date(),
         });
       }
     }
@@ -568,7 +634,7 @@ export async function notifyModulePublished(moduleId) {
         linkUrl: `/modules/${mod.id}`,
         createdByName: teacherName,
         createdByRole: 'TEACHER',
-        createdAt: mod.createdAt,
+        createdAt: new Date(),
       });
     }
   } catch (err) {

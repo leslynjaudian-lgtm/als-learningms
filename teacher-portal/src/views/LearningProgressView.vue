@@ -155,24 +155,24 @@
           <tbody>
             <tr v-for="(l, idx) in filteredLearners" :key="l.id">
               <td>{{ idx + 1 }}</td>
-              <td style="font-weight: 600;">
-                <router-link :to="`/dashboard/learners/${l.id}`" style="color: var(--color-primary);">
+              <td class="table-cell-name">
+                <router-link :to="`/dashboard/learners/${l.id}`" style="color: #0f172a; font-weight: 600;">
                   {{ l.name }}
                 </router-link>
-                <div style="font-size: 0.725rem; color: var(--color-text-muted);">LRN: {{ l.lrn }}</div>
+                <div style="font-size: 0.725rem; color: var(--color-text-muted); font-weight: 400;">LRN: {{ l.lrn }}</div>
               </td>
-              <td style="font-size: 0.8rem;">
-                {{ l.level }}<br/>
+              <td class="table-cell-als-level" style="font-size: 0.8rem;">
+                {{ formatAlsLevel(l.level) }}<br/>
                 <span style="color: var(--color-text-muted);">{{ l.learningCenter }}</span>
               </td>
               <td>
                 <span class="badge badge-info">{{ l.modulesCompleted }} / {{ l.totalModules }} Done</span>
               </td>
               <td>
-                <strong style="color: #1d4ed8;">{{ l.onlineAvg }}%</strong>
+                <span style="color: #1d4ed8; font-weight: 400;">{{ l.onlineAvg }}%</span>
               </td>
               <td>
-                <strong style="color: #15803d;">{{ l.f2fAvg }}%</strong>
+                <span style="color: #15803d; font-weight: 400;">{{ l.f2fAvg }}%</span>
               </td>
               <td>
                 <span>{{ l.attendanceRate }}%</span>
@@ -242,6 +242,14 @@ const searchQuery = ref('');
 const selectedLevel = ref('');
 const selectedCenter = ref('');
 const selectedCategory = ref('');
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
 
 const learners = ref([
   { id: 1, name: 'Ana Mae B. Dela Cruz', lrn: '109823481231', level: 'A&E Elementary', learningCenter: 'Poblacion CLC', modulesCompleted: 4, totalModules: 4, onlineAvg: 94, f2fAvg: 90, attendanceRate: 96, category: 'On Track', categoryLabel: 'Completed / On Track' },

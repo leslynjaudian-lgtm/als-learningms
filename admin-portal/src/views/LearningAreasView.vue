@@ -53,7 +53,7 @@
               <td>
                 <span class="badge badge-primary">{{ area.code }}</span>
               </td>
-              <td style="font-weight: 600; color: var(--color-text);">
+              <td style="font-weight: 400; color: var(--color-text);">
                 {{ area.name }}
               </td>
               <td class="col-description">

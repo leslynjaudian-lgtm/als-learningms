@@ -96,7 +96,7 @@
           <tbody>
             <tr v-for="(center, idx) in filteredCenters" :key="center.id">
               <td>{{ idx + 1 }}</td>
-              <td style="font-weight: 600;">{{ center.name }}</td>
+              <td>{{ center.name }}</td>
               <td>Naawan</td>
               <td>{{ center.address || '—' }}</td>
               <td>

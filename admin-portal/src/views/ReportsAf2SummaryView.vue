@@ -215,18 +215,16 @@
           <tbody>
             <tr v-for="(rec, idx) in filteredRecords" :key="rec.id || idx">
               <td class="cell-num">{{ idx + 1 }}</td>
-              <td class="font-semibold">{{ rec.learnerName }}</td>
-              <td>
-                <span class="badge badge-outline">{{ rec.level || '—' }}</span>
-              </td>
+              <td class="table-cell-name">{{ rec.learnerName }}</td>
+              <td class="table-cell-als-level">{{ formatAlsLevel(rec.level) }}</td>
               <td>{{ rec.learningCenter || rec.centerName || '—' }}</td>
-              <td>{{ rec.teacherName || '—' }}</td>
-              <td class="font-medium" style="max-width: 220px;">{{ rec.moduleTitle }}</td>
-              <td class="text-center font-semibold" style="width: 56px; max-width: 56px;">{{ formatStrandDisplay(rec.strandName, rec.moduleTitle) }}</td>
+              <td class="table-cell-name">{{ rec.teacherName || '—' }}</td>
+              <td style="max-width: 220px;">{{ rec.moduleTitle }}</td>
+              <td class="text-center" style="width: 56px; max-width: 56px;">{{ formatStrandDisplay(rec.strandName, rec.moduleTitle) }}</td>
               <td class="text-sm">{{ rec.dateStarted || '—' }}</td>
               <td class="text-sm">{{ rec.dateFinished || '—' }}</td>
               <td class="text-center font-mono">{{ formatScore(rec.preTestScore, rec.preTestTotal) }}</td>
-              <td class="text-center font-mono font-bold">{{ formatScore(rec.postTestScore, rec.postTestTotal) }}</td>
+              <td class="text-center font-mono">{{ formatScore(rec.postTestScore, rec.postTestTotal) }}</td>
               <td class="text-sm" style="max-width: 180px;">{{ rec.selfAssessment || '—' }}</td>
               <td class="text-sm">{{ rec.assessment || '—' }}</td>
               <td class="text-center">
@@ -673,6 +671,14 @@ function isNotMastered(assessment) {
   if (!assessment) return false;
   const s = String(assessment).toLowerCase().trim();
   return s === 'not mastered' || s === 'not_mastered';
+}
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
 }
 
 function formatScore(score, total) {

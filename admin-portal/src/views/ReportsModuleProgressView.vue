@@ -256,7 +256,7 @@
                     </span>
                   </td>
                   <td class="cell-center">{{ learner.learningCenter || '—' }}</td>
-                  <td class="cell-center">{{ learner.programLevel || '—' }}</td>
+                  <td class="cell-center">{{ formatLearnerLevel(learner.programLevel) }}</td>
                   <td class="cell-center font-num">{{ learner.mastered }}</td>
                   <td class="cell-center font-num">{{ learner.notMastered }}</td>
                   <td class="cell-center font-num">{{ learner.pending }}</td>
@@ -303,7 +303,7 @@
                     </span>
                   </td>
                   <td class="cell-center">{{ learner.learningCenter || '—' }}</td>
-                  <td class="cell-center">{{ learner.programLevel || '—' }}</td>
+                  <td class="cell-center">{{ formatLearnerLevel(learner.programLevel) }}</td>
                   <td class="cell-center font-num">{{ learner.mastered }}</td>
                   <td class="cell-center font-num">{{ learner.notMastered }}</td>
                   <td class="cell-center font-num">{{ learner.pending }}</td>
@@ -588,9 +588,10 @@ const viewingLearner = ref(null);
 
 function formatLearnerLevel(lvl) {
   if (!lvl) return '—';
-  if (lvl === 'ELEMENTARY') return 'A&E Elementary';
-  if (lvl === 'JUNIOR' || lvl === 'LOWER_SECONDARY' || lvl === 'A&E Junior') return 'A&E Junior High';
-  return lvl;
+  const s = String(lvl).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(lvl).trim();
 }
 
 onMounted(async () => {
@@ -813,7 +814,7 @@ function closeLearnerModal() {
 .filter-label {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #475569;
+  color: #334155;
   white-space: nowrap;
 }
 
@@ -842,17 +843,36 @@ function closeLearnerModal() {
 
 .filter-select,
 .filter-input {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   width: 100%;
-  padding: 0 0.65rem;
+  padding: 0 0.85rem;
   font-size: 0.875rem;
-  color: #1e293b;
-  background-color: #f8fafc;
+  color: #0f172a;
+  background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+}
+
+.filter-select:hover,
+.filter-input:hover {
+  border-color: #94a3b8;
 }
 
 .filter-select:focus,
@@ -867,10 +887,11 @@ function closeLearnerModal() {
   align-items: flex-end;
 }
 
-/* Reset Filters: Secondary, white background, border, same 40px height */
+/* Reset Filters: Secondary, white background, border, same 42px height */
 .filter-reset-btn {
-  height: 40px;
-  padding: 0 1.15rem;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 1rem;
   font-size: 0.875rem;
   font-weight: 500;
   border-radius: 8px;
@@ -892,9 +913,16 @@ function closeLearnerModal() {
   color: #0f172a;
 }
 
-/* Generate Report Button: ALS LMS Blue, white text, same 40px height */
+.filter-reset-btn:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+/* Generate Report Button: ALS LMS Blue, white text, same 42px height */
 .generate-report-btn {
-  height: 40px;
+  height: 42px;
+  min-height: 42px;
   padding: 0 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -1215,7 +1243,7 @@ function closeLearnerModal() {
 }
 
 .learner-name-text {
-  font-weight: 500;
+  font-weight: 600;
   color: #000000;
 }
 

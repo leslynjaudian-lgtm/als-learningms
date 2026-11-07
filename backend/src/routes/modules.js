@@ -6,6 +6,7 @@ import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddl
 import { handleModuleFileUpload } from '../middleware/uploadMiddleware.js';
 import { calculateModuleProgress, syncLearnerModuleProgress } from '../utils/progressCalculator.js';
 import { notifyModulePublished } from '../services/notificationService.js';
+import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 
 const router = Router();
 
@@ -473,6 +474,17 @@ function formatModule(m, reqUser) {
     extractedModuleNumber = parseInt(numMatch[1] || numMatch[0], 10);
   }
 
+  // Submission deadline evaluation (authoritative Asia/Manila server time)
+  const learnerAssignment = Array.isArray(m.assignments) && reqUser?.profileId
+    ? m.assignments.find((a) => a.learnerId === reqUser.profileId)
+    : null;
+  const dueDate = learnerAssignment?.dueDate
+    ? learnerAssignment.dueDate.toISOString().split('T')[0]
+    : null;
+  const dateEndedStr = m.dateEnded ? m.dateEnded.toISOString().split('T')[0] : null;
+  const effectiveDeadline = dueDate || dateEndedStr;
+  const isSubmissionClosed = Boolean(effectiveDeadline && isSubmissionDeadlinePassed(effectiveDeadline));
+
   return {
     id: m.id,
     code: m.code || m.learningArea?.code || 'LS1',
@@ -483,7 +495,10 @@ function formatModule(m, reqUser) {
     instructions: m.instructions || m.description || '',
     activitiesRelated: m.activitiesRelated || '',
     dateStarted: m.dateStarted ? m.dateStarted.toISOString().split('T')[0] : null,
-    dateEnded: m.dateEnded ? m.dateEnded.toISOString().split('T')[0] : null,
+    dateEnded: dateEndedStr,
+    dueDate,
+    submissionDeadline: effectiveDeadline,
+    isSubmissionClosed,
     strand: m.learningArea?.name || 'General Curriculum',
     strandCode: m.learningArea?.code || m.code || 'LS1',
     learningAreaId: m.learningAreaId,

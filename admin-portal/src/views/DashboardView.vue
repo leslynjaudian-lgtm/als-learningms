@@ -2061,14 +2061,30 @@ onMounted(fetchDashboardData);
 
 .filter-controls-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) auto;
   gap: 1rem;
   align-items: end;
+  width: 100%;
 }
 
 @media (max-width: 960px) {
   .filter-controls-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filter-action-item {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .filter-controls-grid {
     grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .filter-action-item .btn-reset-filters {
+    width: 100%;
   }
 }
 
@@ -2076,61 +2092,79 @@ onMounted(fetchDashboardData);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .filter-item-label {
-  font-size: 0.775rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: #334155;
 }
 
 .filter-select-input {
   width: 100%;
+  height: 42px;
   min-height: 42px;
-  padding: 0.5rem 0.75rem;
-  background-color: #f8fafc;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  padding: 0 2.25rem 0 0.85rem;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text);
+  font-weight: 400;
+  color: var(--color-text, #0f172a);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .filter-select-input:hover {
   background-color: #ffffff;
-  border-color: #cbd5e1;
+  border-color: #94a3b8;
 }
 
 .filter-select-input:focus {
   outline: none;
   background-color: #ffffff;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .btn-reset-filters {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
+  height: 42px;
   min-height: 42px;
-  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+  padding: 0 1rem;
   background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .btn-reset-filters:hover:not(:disabled) {
-  background: #f1f5f9;
-  color: var(--color-text);
-  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.btn-reset-filters:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
 }
 
 .btn-reset-filters:disabled {
@@ -3101,7 +3135,7 @@ onMounted(fetchDashboardData);
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--color-primary, #2563eb);
   text-decoration: none;
 }
@@ -3111,21 +3145,15 @@ onMounted(fetchDashboardData);
 }
 
 .clc-teachers-text {
-  color: var(--color-text-secondary);
-  font-size: 0.82rem;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .clc-learners-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-weight: 700;
-  font-size: 0.8rem;
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: var(--color-text, #0f172a);
 }
 
 .clc-rate-badge {

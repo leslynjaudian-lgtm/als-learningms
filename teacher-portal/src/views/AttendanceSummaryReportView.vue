@@ -271,7 +271,7 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level">{{ item.programLevel }}</td>
+                <td class="cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
                 <td class="cell-stat">{{ item.present }}</td>
                 <td class="cell-stat">{{ item.absent }}</td>
                 <td class="cell-rate">
@@ -329,7 +329,7 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level">{{ item.programLevel }}</td>
+                <td class="cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
                 <td class="cell-stat">{{ item.present }}</td>
                 <td class="cell-stat">{{ item.absent }}</td>
                 <td class="cell-rate">
@@ -596,11 +596,11 @@ function formatLearnerFullName(l) {
 }
 
 function formatLearnerLevel(levelStr) {
-  if (!levelStr) return 'A&E Elementary';
+  if (!levelStr) return '—';
   const norm = String(levelStr).toUpperCase();
   if (norm.includes('ELEM')) return 'A&E Elementary';
-  if (norm.includes('JUNIOR') || norm.includes('JHS') || norm.includes('LOWER_SECONDARY')) return 'A&E Junior High';
-  return levelStr;
+  if (norm.includes('JUN') || norm.includes('JHS') || norm.includes('LOWER_SEC') || norm.includes('SEC')) return 'A&E Junior High';
+  return String(levelStr).trim();
 }
 
 function getLearnerGender(l) {
@@ -1029,13 +1029,14 @@ function printReportDirectly() {
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 0.95rem;
+  padding: 0 0.95rem;
   font-size: 0.8125rem;
   font-weight: 500;
   color: #475569;
   cursor: pointer;
   transition: all 0.15s ease;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
 }
 
 .btn-refresh:hover {
@@ -1116,30 +1117,34 @@ function printReportDirectly() {
 .filter-select,
 .filter-date-input {
   width: 100%;
-  height: 38px;
-  background: #f8fafc;
+  height: 42px;
+  min-height: 42px;
+  background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0 0.75rem;
+  padding: 0 0.85rem;
   font-size: 0.875rem;
   color: #0f172a;
   outline: none;
   box-sizing: border-box;
+  transition: all 0.15s ease;
 }
 
 .filter-select {
   padding-right: 2rem;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.65rem center;
-  background-size: 14px;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+  cursor: pointer;
 }
 
 .filter-select:focus,
 .filter-date-input:focus {
-  border-color: #3b82f6;
+  border-color: #2563eb;
   background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .filter-actions-group {
@@ -1157,7 +1162,8 @@ function printReportDirectly() {
   font-weight: 500;
   color: #475569;
   cursor: pointer;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
@@ -1169,7 +1175,8 @@ function printReportDirectly() {
 }
 
 .btn-generate-report {
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   padding: 0 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -1375,7 +1382,7 @@ function printReportDirectly() {
 
 .cell-stat {
   text-align: center;
-  font-weight: 600;
+  font-weight: 400;
   width: 75px;
 }
 

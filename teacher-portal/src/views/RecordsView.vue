@@ -179,11 +179,7 @@
                     </div>
                   </td>
                   <td class="col-lrn-text">{{ learner.lrn || '—' }}</td>
-                  <td>
-                    <span class="als-level-subtle-badge">
-                      {{ formatAlsLevel(learner.level) }}
-                    </span>
-                  </td>
+                  <td class="table-cell-als-level">{{ formatAlsLevel(learner.level) }}</td>
                   <td class="col-center-text">{{ learner.learningCenter || '—' }}</td>
                   <td class="col-td-action">
                     <button
@@ -370,9 +366,9 @@
                     </span>
                   </td>
                   <td>
-                    <strong class="score-number-val post-val">
+                    <span class="score-number-val post-val">
                       {{ rec.postTestScore != null ? (rec.postTestTotal ? `${rec.postTestScore}/${rec.postTestTotal}` : `${rec.postTestScore}`) : '—' }}
-                    </strong>
+                    </span>
                   </td>
                   <td>
                     <span class="status-badge-cell" :class="moduleStatusClass(rec.assessment || rec.moduleStatus)">
@@ -1503,8 +1499,9 @@ async function saveNewRecord() {
 .filter-row-four {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 1.15rem;
-  align-items: flex-end;
+  gap: 1rem;
+  align-items: end;
+  width: 100%;
 }
 
 @media (max-width: 1024px) {
@@ -1549,12 +1546,14 @@ async function saveNewRecord() {
 
 .filter-select {
   width: 100%;
-  height: 40px;
-  background: #f8fafc;
+  height: 42px;
+  min-height: 42px;
+  background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 2.25rem 0.5rem 0.85rem;
+  padding: 0 2.25rem 0 0.85rem;
   font-size: 0.875rem;
+  font-weight: 400;
   color: #0f172a;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
@@ -1564,14 +1563,14 @@ async function saveNewRecord() {
 }
 
 .filter-select:hover {
-  background: #ffffff;
+  background-color: #ffffff;
   border-color: #94a3b8;
 }
 
 .filter-select:focus {
-  background: #ffffff;
+  background-color: #ffffff;
   border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .select-chevron {
@@ -1586,13 +1585,15 @@ async function saveNewRecord() {
 .btn-clear-filters {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
-  height: 40px;
-  background: #f8fafc;
+  height: 42px;
+  min-height: 42px;
+  background: #ffffff;
   border: 1px solid #cbd5e1;
-  color: #64748b;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
   padding: 0 1rem;
   border-radius: 8px;
   cursor: pointer;
@@ -1602,7 +1603,7 @@ async function saveNewRecord() {
 }
 
 .btn-clear-filters:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #0f172a;
   border-color: #94a3b8;
 }
@@ -1610,7 +1611,8 @@ async function saveNewRecord() {
 .btn-clear-filters.is-active {
   background: #ffffff;
   color: #2563eb;
-  border-color: #93c5fd;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .btn-clear-filters.is-active:hover {
@@ -1696,13 +1698,14 @@ async function saveNewRecord() {
 .records-search-input {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.85rem;
+  padding: 0 0.85rem;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #ffffff;
   outline: none;
   width: 260px;
-  height: 38px;
+  height: 42px;
+  min-height: 42px;
   box-sizing: border-box;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1803,7 +1806,7 @@ async function saveNewRecord() {
 .col-th-action,
 .col-td-action {
   width: 80px;
-  text-align: right;
+  text-align: center;
 }
 
 .learner-selectable-row {
@@ -2070,12 +2073,12 @@ async function saveNewRecord() {
 }
 
 .col-mod-title {
-  font-weight: 600;
+  font-weight: 400;
   color: #1e293b;
 }
 
 .score-number-val {
-  font-weight: 700;
+  font-weight: 400;
   color: #475569;
 }
 

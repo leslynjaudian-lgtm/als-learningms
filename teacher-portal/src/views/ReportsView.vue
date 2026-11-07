@@ -161,7 +161,7 @@
               <th>MODULES COMPLETED</th>
               <th>AVG. SCORE</th>
               <th>ATTENDANCE</th>
-              <th>STATUS</th>
+              <th class="th-status" style="text-align: center;">STATUS</th>
             </tr>
           </thead>
           <tbody>
@@ -169,13 +169,11 @@
               <td class="cell-index">{{ idx + 1 }}</td>
               <td class="cell-name">{{ item.name }}</td>
               <td class="cell-lrn">{{ item.lrn || '-' }}</td>
-              <td class="cell-level">
-                <span class="level-pill">{{ item.level }}</span>
-              </td>
+              <td class="cell-level table-cell-als-level">{{ formatAlsLevel(item.level) }}</td>
               <td class="cell-modules">{{ item.completedModules }} / {{ item.totalModules }}</td>
-              <td class="cell-score"><strong>{{ item.avgScore }}%</strong></td>
+              <td class="cell-score">{{ item.avgScore }}%</td>
               <td class="cell-attendance">{{ item.attendance }}%</td>
-              <td class="cell-status">
+              <td class="cell-status" style="text-align: center;">
                 <span class="status-badge badge-active">{{ item.status }}</span>
               </td>
             </tr>
@@ -203,11 +201,9 @@
               <td class="cell-index">{{ idx + 1 }}</td>
               <td class="cell-name">{{ item.learnerName }}</td>
               <td class="cell-lrn">{{ item.lrn || '-' }}</td>
-              <td class="cell-level">
-                <span class="level-pill">{{ item.level }}</span>
-              </td>
+              <td class="cell-level table-cell-als-level">{{ formatAlsLevel(item.level) }}</td>
               <td class="cell-activity">{{ item.activityName }}</td>
-              <td class="cell-score"><strong>{{ item.score }}</strong></td>
+              <td class="cell-score">{{ item.score }}</td>
               <td class="cell-remarks">{{ item.remarks }}</td>
               <td class="cell-date">{{ item.date }}</td>
             </tr>
@@ -235,13 +231,11 @@
               <td class="cell-index">{{ idx + 1 }}</td>
               <td class="cell-name">{{ item.name }}</td>
               <td class="cell-lrn">{{ item.lrn || '-' }}</td>
-              <td class="cell-level">
-                <span class="level-pill">{{ item.level }}</span>
-              </td>
+              <td class="cell-level table-cell-als-level">{{ formatAlsLevel(item.level) }}</td>
               <td class="cell-center">{{ item.learningCenter }}</td>
               <td class="cell-sessions">{{ item.totalSessions }}</td>
               <td class="cell-present">{{ item.presentSessions }}</td>
-              <td class="cell-attendance"><strong>{{ item.attendanceRate }}%</strong></td>
+              <td class="cell-attendance">{{ item.attendanceRate }}%</td>
             </tr>
           </tbody>
         </table>
@@ -276,6 +270,14 @@ import { getAssignedLearners } from '../api/learners.js';
 import { exportReportToPdf, printReportDirectly } from '../utils/pdfExport.js';
 
 const { teacherId, teacherName, assignedCenters } = useTeacherSession();
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
 
 const tabs = ['Learner Progress Summary', 'Assessment Summary', 'Attendance Report'];
 const activeTab = ref('Learner Progress Summary');
@@ -654,6 +656,11 @@ onMounted(() => {
 .cell-index {
   color: #94a3b8;
   font-size: 0.8125rem;
+}
+
+.cell-name {
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .learner-name-link {

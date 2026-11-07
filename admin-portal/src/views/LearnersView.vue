@@ -98,26 +98,26 @@
               <th>Level</th>
               <th>Learning Center</th>
               <th>Assigned Teacher</th>
-              <th>Status</th>
+              <th class="text-center">Status</th>
               <th class="th-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(learner, idx) in filteredLearners" :key="learner.id">
               <td>{{ idx + 1 }}</td>
-              <td style="font-weight: 600;">{{ learner.name }}</td>
+              <td class="table-cell-name">{{ learner.name }}</td>
               <td>{{ learner.lrn || '—' }}</td>
-              <td>{{ learner.level === 'ELEMENTARY' ? 'A&E Elementary' : (learner.level === 'JUNIOR' || learner.level === 'LOWER_SECONDARY' || learner.level === 'A&E Junior' || learner.level === 'A&E Junior High' ? 'A&E Junior High' : learner.level) }}</td>
+              <td class="table-cell-als-level">{{ formatAlsLevel(learner.level) }}</td>
               <td>{{ learner.learningCenter }}</td>
               <td>
-                <span v-if="learner.assignedTeacher && learner.assignedTeacher !== '—'" style="font-weight: 600; color: #1e40af;">
+                <span v-if="learner.assignedTeacher && learner.assignedTeacher !== '—'" class="table-cell-name">
                   {{ learner.assignedTeacher }}
                 </span>
                 <span v-else style="color: #94a3b8; font-style: italic;">
                   Unassigned
                 </span>
               </td>
-              <td>
+              <td class="text-center">
                 <span class="badge" :class="learner.status === 'Active' ? 'badge-success' : 'badge-muted'">
                   {{ learner.status }}
                 </span>
@@ -581,6 +581,14 @@ import { getLearners, registerLearner, updateLearner, deleteLearner } from '../a
 import { getTeachers } from '../api/teachers.js';
 
 const route = useRoute();
+
+function formatAlsLevel(val) {
+  if (!val) return '—';
+  const s = String(val).toUpperCase();
+  if (s.includes('ELEM')) return 'A&E Elementary';
+  if (s.includes('JUN') || s.includes('LOWER_SEC') || s.includes('SEC')) return 'A&E Junior High';
+  return String(val).trim();
+}
 
 // Delete Modal state
 const showDeleteModal = ref(false);
@@ -1285,5 +1293,68 @@ onMounted(async () => {
   .modal-footer-fixed {
     padding: 1rem 1.25rem 1.25rem;
   }
+}
+
+/* ==========================================================================
+   Table Cell Vertical Alignment & Typography (Admin Learners Table)
+   ========================================================================== */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  vertical-align: middle;
+  padding: 0.75rem 1rem;
+  text-align: left;
+}
+
+.data-table tbody tr {
+  vertical-align: middle;
+}
+
+.data-table td {
+  padding: 0.85rem 1rem;
+  vertical-align: middle !important;
+  color: var(--color-text, #0f172a);
+}
+
+.table-cell-name {
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  vertical-align: middle !important;
+}
+
+.data-table td.table-cell-als-level,
+.table-cell-als-level {
+  display: table-cell !important;
+  vertical-align: middle !important;
+  text-align: left !important;
+  font-weight: 400 !important;
+  color: var(--color-text, #0f172a) !important;
+  padding: 0.85rem 1rem !important;
+  line-height: normal;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.table-cell-als-level .badge,
+.table-cell-als-level .level-pill,
+.table-cell-als-level .status-badge,
+.table-cell-als-level .pill-level,
+.table-cell-als-level span:not(.learner-name-text) {
+  font-weight: 400 !important;
+  color: inherit !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: inline !important;
+  vertical-align: middle !important;
+  line-height: inherit !important;
 }
 </style>

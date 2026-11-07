@@ -801,11 +801,11 @@ function alertFileOpen() {
 
 .col-num {
   color: #94a3b8;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .col-name {
-  font-weight: 700;
+  font-weight: 600;
   color: #0f172a;
 }
 
