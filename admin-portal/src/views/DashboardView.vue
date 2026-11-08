@@ -1,5 +1,10 @@
 <template>
   <div class="page-container admin-dashboard">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <span class="breadcrumb-current">Dashboard</span>
+    </nav>
+
     <!-- Header -->
     <div class="dashboard-header-row">
       <div class="header-text-group">
@@ -1985,34 +1990,39 @@ onMounted(fetchDashboardData);
 
 .dashboard-header-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem; /* 24px spacing from header to main content */
 }
 
 .dashboard-welcome-title {
-  font-size: 1.65rem;
+  font-size: 1.75rem; /* 28px */
   font-weight: 700;
-  color: var(--color-text);
-  line-height: 1.15;
+  color: #0f172a;
+  line-height: 1.25;
   letter-spacing: -0.02em;
+  margin: 0;
 }
 
 .dashboard-subtitle {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  margin-top: 0.25rem;
+  font-size: 0.875rem; /* 14px */
+  color: #64748b;
+  margin: 0.375rem 0 0 0; /* 6px spacing between title and description */
+  line-height: 1.5;
 }
 
 .refresh-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  font-weight: 600;
-  min-height: 40px;
-  padding: 0.5rem 1rem;
+  font-weight: 500;
+  font-size: 0.875rem; /* 14px */
+  height: 2.375rem; /* 38px */
+  padding: 0 1rem;
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 

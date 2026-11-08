@@ -56,6 +56,32 @@ export function formatTime12h(timeStr) {
   return `${h}:${min} ${ampm}`;
 }
 
+export function formatScheduleDateTimeSpan(date, startTime, endTime) {
+  if (!date) return '';
+  let datePart = '';
+  try {
+    const d = new Date(date);
+    datePart = d.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    datePart = String(date).slice(0, 10);
+  }
+
+  const start12 = formatTime12h(startTime);
+  const end12 = endTime ? formatTime12h(endTime) : '';
+
+  if (start12 && end12) {
+    return `${datePart}, ${start12} – ${end12}`;
+  } else if (start12) {
+    return `${datePart}, ${start12}`;
+  }
+  return datePart;
+}
+
 /**
  * Check if a date represents UTC midnight (00:00:00.000Z), typically produced by
  * date-only parsing (e.g. new Date('YYYY-MM-DD')) which causes false hour offsets.
@@ -339,6 +365,41 @@ export async function notifyActivitySubmitted({ submissionId, isUpdate = false }
       createdByName: learner.fullName,
       createdByRole: 'LEARNER',
     });
+
+    // If all assigned learners have now submitted, clean up any pending missing submissions notification
+    try {
+      let assignedLearnerIds = [];
+      const assignments = await prisma.moduleAssignment.findMany({
+        where: { moduleId: mod.id },
+        select: { learnerId: true },
+      });
+      if (assignments.length > 0) {
+        assignedLearnerIds = assignments.map((a) => a.learnerId);
+      } else if (teacher.id) {
+        const candidates = await prisma.learner.findMany({
+          where: { assignedTeacherId: teacher.id, level: mod.targetLevel, status: 'Active' },
+          select: { id: true },
+        });
+        assignedLearnerIds = candidates.map((c) => c.id);
+      }
+      if (assignedLearnerIds.length > 0) {
+        const submitted = await prisma.submission.findMany({
+          where: { moduleId: mod.id, learnerId: { in: assignedLearnerIds } },
+          select: { learnerId: true },
+        });
+        const unsubmittedCount = assignedLearnerIds.filter((id) => !submitted.some((s) => s.learnerId === id)).length;
+        if (unsubmittedCount === 0) {
+          await prisma.notification.deleteMany({
+            where: {
+              sourceType: 'missing_submissions',
+              sourceId: mod.id,
+            },
+          });
+        }
+      }
+    } catch (_checkErr) {
+      // non-fatal
+    }
   } catch (err) {
     console.error('[NotificationService] notifyActivitySubmitted error:', err);
   }
@@ -346,7 +407,7 @@ export async function notifyActivitySubmitted({ submissionId, isUpdate = false }
 
 /**
  * EVENT 2: Teacher Added a Learner Record
- * Notifies the Admin portal when a teacher records learner performance.
+ * Notifies the Admin portal when a teacher records learner performance with actual learner and module names.
  */
 export async function notifyLearnerRecordCreated({ teacherId, learnerId, moduleTitle, recordId }) {
   try {
@@ -359,31 +420,361 @@ export async function notifyLearnerRecordCreated({ teacherId, learnerId, moduleT
       if (t?.fullName) teacherName = t.fullName;
     }
 
+    let learnerName = 'a learner';
+    if (learnerId) {
+      const l = await prisma.learner.findUnique({
+        where: { id: Number(learnerId) },
+        select: { fullName: true },
+      });
+      if (l?.fullName) learnerName = l.fullName;
+    }
+
     const admins = await prisma.user.findMany({
       where: { role: 'ADMIN', status: 'ACTIVE' },
       select: { id: true },
     });
+
+    const modSuffix = moduleTitle ? ` for ${moduleTitle}` : '';
 
     for (const admin of admins) {
       const notifKey = `record_added:${recordId || Date.now()}:admin:${admin.id}`;
       await createNotification({
         notificationKey: notifKey,
         title: 'New Learner Record',
-        message: `${teacherName} added a performance record for a learner.`,
+        message: `${teacherName} added a performance record for ${learnerName}${modSuffix}.`,
         type: 'RECORD',
         priority: 'NORMAL',
         isImportant: false,
         targetRole: 'ADMIN',
         targetUserId: admin.id,
         sourceType: 'record',
-        sourceId: null,
-        linkUrl: '/dashboard/reports/module-progress',
+        sourceId: recordId ? Number(recordId) : null,
+        linkUrl: '/dashboard/reports/learner-records',
         createdByName: teacherName,
         createdByRole: 'TEACHER',
       });
     }
   } catch (err) {
     console.error('[NotificationService] notifyLearnerRecordCreated error:', err);
+  }
+}
+
+/**
+ * EVENT 2B: New Learner Registered
+ * When a teacher registers a learner, notify District Coordinator (Admin).
+ */
+export async function notifyNewLearnerRegistered({ learner, teacherId, teacherName }) {
+  if (!learner) return;
+
+  try {
+    let resolvedTeacherName = teacherName;
+    if (!resolvedTeacherName && teacherId) {
+      const t = await prisma.teacher.findUnique({
+        where: { id: Number(teacherId) },
+        select: { fullName: true },
+      });
+      resolvedTeacherName = t?.fullName;
+    }
+    if (!resolvedTeacherName) resolvedTeacherName = 'An ALS Teacher';
+
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', status: 'ACTIVE' },
+      select: { id: true },
+    });
+
+    const lrnSuffix = learner.lrn ? ` (${learner.lrn})` : '';
+
+    for (const admin of admins) {
+      const notifKey = `learner_registered:${learner.id}:admin:${admin.id}`;
+      await createNotification({
+        notificationKey: notifKey,
+        title: 'New Learner Registered',
+        message: `${resolvedTeacherName} registered a new learner: ${learner.fullName}${lrnSuffix}.`,
+        type: 'LEARNER',
+        priority: 'NORMAL',
+        isImportant: false,
+        targetRole: 'ADMIN',
+        targetUserId: admin.id,
+        sourceType: 'learner',
+        sourceId: learner.id,
+        linkUrl: '/dashboard/learners',
+        createdByName: resolvedTeacherName,
+        createdByRole: 'TEACHER',
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyNewLearnerRegistered error:', err);
+  }
+}
+
+/**
+ * EVENT 2C: New Learner Assignment
+ * When Admin assigns a learner to a teacher.
+ */
+export async function notifyLearnerAssigned({ learnerId, teacherId, assignedByName = 'District Coordinator' }) {
+  if (!learnerId || !teacherId) return;
+
+  try {
+    const learner = await prisma.learner.findUnique({
+      where: { id: Number(learnerId) },
+      select: { id: true, fullName: true, lrn: true },
+    });
+    const teacher = await prisma.teacher.findUnique({
+      where: { id: Number(teacherId) },
+      include: { user: true },
+    });
+
+    if (!learner || !teacher?.user) return;
+
+    const notifKey = `learner_assigned:${learner.id}:${teacher.id}`;
+    await createNotification({
+      notificationKey: notifKey,
+      title: 'New Learner Assigned',
+      message: `${learner.fullName} has been assigned to you.`,
+      type: 'ASSIGNMENT',
+      priority: 'NORMAL',
+      isImportant: false,
+      targetRole: 'TEACHER',
+      targetUserId: teacher.user.id,
+      targetTeacherId: teacher.id,
+      targetLearnerId: learner.id,
+      sourceType: 'learner_assignment',
+      sourceId: learner.id,
+      linkUrl: `/dashboard/learners/${learner.id}`,
+      createdByName: assignedByName || 'District Coordinator',
+      createdByRole: 'ADMIN',
+    });
+  } catch (err) {
+    console.error('[NotificationService] notifyLearnerAssigned error:', err);
+  }
+}
+
+/**
+ * EVENT 2D: Schedule Created
+ * Informs involved teacher (if created by Admin) or Admin (if created by Teacher).
+ */
+export async function notifyScheduleCreated({ scheduleId, creatorRole, creatorUserId }) {
+  if (!scheduleId) return;
+
+  try {
+    const s = await prisma.schedule.findUnique({
+      where: { id: Number(scheduleId) },
+      include: {
+        learningCenter: { select: { id: true, name: true } },
+        teacher: { include: { user: true } },
+      },
+    });
+
+    if (!s) return;
+
+    const centerName = s.learningCenter?.name || 'Assigned Learning Center';
+    const time12h = formatTime12h(s.startTime);
+    const dateStr = s.date instanceof Date
+      ? s.date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })
+      : String(s.date).slice(0, 10);
+
+    // If created by Admin and assigned to a teacher -> notify teacher
+    if (creatorRole === 'ADMIN' && s.teacher?.user) {
+      await createNotification({
+        notificationKey: `schedule_assigned:${s.id}:teacher:${s.teacher.user.id}`,
+        title: (s.title || 'Schedule').trim(),
+        message: s.description ? s.description.trim() : '',
+        type: 'SCHEDULE',
+        priority: 'NORMAL',
+        isImportant: Boolean(s.isImportant),
+        targetRole: 'TEACHER',
+        targetUserId: s.teacher.user.id,
+        targetTeacherId: s.teacher.id,
+        learningCenterId: s.learningCenterId,
+        sourceType: 'schedule',
+        sourceId: s.id,
+        linkUrl: `/dashboard/schedule?id=${s.id}`,
+        createdByName: 'District Coordinator',
+        createdByRole: 'ADMIN',
+      });
+    }
+
+    // If created by Teacher -> only notify Admin if Admin is explicitly the creator or involved in district session
+    if (creatorRole === 'TEACHER' && s.createdByRole === 'ADMIN') {
+      const teacherName = s.teacher?.fullName || 'An ALS Teacher';
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN', status: 'ACTIVE' },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await createNotification({
+          notificationKey: `schedule_created:${s.id}:admin:${admin.id}`,
+          title: (s.title || 'Schedule').trim(),
+          message: s.description ? s.description.trim() : '',
+          type: 'SCHEDULE',
+          priority: 'NORMAL',
+          isImportant: Boolean(s.isImportant),
+          targetRole: 'ADMIN',
+          targetUserId: admin.id,
+          learningCenterId: s.learningCenterId,
+          sourceType: 'schedule',
+          sourceId: s.id,
+          linkUrl: `/dashboard/schedule?id=${s.id}`,
+          createdByName: teacherName,
+          createdByRole: 'TEACHER',
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyScheduleCreated error:', err);
+  }
+}
+
+/**
+ * EVENT 2E: Schedule Updated
+ * Updates existing linked notifications and cleans up old reminders.
+ */
+export async function notifyScheduleUpdated({ scheduleId, updaterRole, updaterUserId }) {
+  if (!scheduleId) return;
+
+  try {
+    const s = await prisma.schedule.findUnique({
+      where: { id: Number(scheduleId) },
+      include: {
+        learningCenter: { select: { id: true, name: true } },
+        teacher: { include: { user: true } },
+      },
+    });
+
+    if (!s) return;
+
+    // Invalidate/delete old schedule reminders for this schedule
+    await prisma.notification.deleteMany({
+      where: {
+        sourceType: 'schedule',
+        sourceId: s.id,
+        notificationKey: { contains: 'schedule_reminder_' },
+      },
+    }).catch(() => {});
+
+    // Update all existing notifications for this schedule to reflect current title & message
+    await prisma.notification.updateMany({
+      where: {
+        sourceType: 'schedule',
+        sourceId: s.id,
+      },
+      data: {
+        title: (s.title || 'Schedule').trim(),
+        message: s.description ? s.description.trim() : '',
+        isImportant: Boolean(s.isImportant || s.priority === 'IMPORTANT'),
+        priority: s.priority || 'NORMAL',
+        linkUrl: `/dashboard/schedule?id=${s.id}`,
+        updatedAt: new Date(),
+      },
+    }).catch(() => {});
+
+    // If schedule was marked Cancelled, delete its notifications
+    if (s.status === 'Cancelled') {
+      await prisma.notification.deleteMany({
+        where: {
+          sourceType: 'schedule',
+          sourceId: s.id,
+        },
+      }).catch(() => {});
+      return;
+    }
+
+    // If updated by Admin and assigned to a teacher -> notify teacher
+    if (updaterRole === 'ADMIN' && s.teacher?.user) {
+      await createNotification({
+        notificationKey: `schedule_updated:${s.id}:teacher:${s.teacher.user.id}:${Date.now()}`,
+        title: (s.title || 'Schedule').trim(),
+        message: s.description ? s.description.trim() : '',
+        type: 'SCHEDULE',
+        priority: 'IMPORTANT',
+        isImportant: true,
+        targetRole: 'TEACHER',
+        targetUserId: s.teacher.user.id,
+        targetTeacherId: s.teacher.id,
+        learningCenterId: s.learningCenterId,
+        sourceType: 'schedule',
+        sourceId: s.id,
+        linkUrl: `/dashboard/schedule?id=${s.id}`,
+        createdByName: 'District Coordinator',
+        createdByRole: 'ADMIN',
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyScheduleUpdated error:', err);
+  }
+}
+
+/**
+ * EVENT 2F: Schedule Canceled or Deleted
+ * Cleans up existing reminders and notifications for the deleted schedule.
+ */
+export async function notifyScheduleCanceled({ schedule, cancelerRole, cancelerUserId }) {
+  if (!schedule) return;
+
+  try {
+    // Delete all existing schedule notifications for this schedule
+    await prisma.notification.deleteMany({
+      where: {
+        OR: [
+          { sourceType: 'schedule', sourceId: schedule.id },
+          { notificationKey: { contains: `:${schedule.id}:` } },
+        ],
+      },
+    }).catch(() => {});
+
+    await prisma.notificationRead.deleteMany({
+      where: {
+        notificationKey: { contains: `:${schedule.id}:` },
+      },
+    }).catch(() => {});
+  } catch (err) {
+    console.error('[NotificationService] notifyScheduleCanceled error:', err);
+  }
+}
+
+/**
+ * EVENT 2G: Learning Center Updated
+ * Notifies District Coordinator (Admin) when learning center details are modified.
+ */
+export async function notifyLearningCenterUpdated({ centerId, updaterName, updaterRole }) {
+  if (!centerId) return;
+
+  try {
+    const center = await prisma.learningCenter.findUnique({
+      where: { id: Number(centerId) },
+      select: { id: true, name: true },
+    });
+
+    if (!center) return;
+
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN', status: 'ACTIVE' },
+      select: { id: true },
+    });
+
+    const updaterSuffix = updaterName ? ` by ${updaterName}` : '';
+
+    for (const admin of admins) {
+      const notifKey = `center_updated:${center.id}:${Math.floor(Date.now() / 60000)}:admin:${admin.id}`;
+      await createNotification({
+        notificationKey: notifKey,
+        title: 'Learning Center Updated',
+        message: `Details for ${center.name} have been updated${updaterSuffix}.`,
+        type: 'CENTER',
+        priority: 'NORMAL',
+        isImportant: false,
+        targetRole: 'ADMIN',
+        targetUserId: admin.id,
+        learningCenterId: center.id,
+        sourceType: 'center',
+        sourceId: center.id,
+        linkUrl: '/dashboard/learning-centers',
+        createdByName: updaterName || 'ALS User',
+        createdByRole: updaterRole || 'ADMIN',
+      });
+    }
+  } catch (err) {
+    console.error('[NotificationService] notifyLearningCenterUpdated error:', err);
   }
 }
 
@@ -453,7 +844,7 @@ export async function notifyAnnouncementPublished(announcementId) {
             learningCenterId: ann.learningCenterId,
             sourceType: 'announcement',
             sourceId: ann.id,
-            linkUrl: '/dashboard/announcements',
+            linkUrl: `/dashboard/announcements?id=${ann.id}`,
             createdByName: adminSender,
             createdByRole: 'ADMIN',
             createdAt: new Date(),
@@ -570,6 +961,82 @@ export async function notifyAnnouncementPublished(announcementId) {
 }
 
 /**
+ * Updates existing linked notifications when an announcement is updated
+ */
+export async function notifyAnnouncementUpdated(announcementId) {
+  if (!announcementId) return;
+  try {
+    const ann = await prisma.announcement.findUnique({
+      where: { id: Number(announcementId) },
+      include: {
+        author: {
+          include: { adminProfile: true, teacherProfile: true },
+        },
+      },
+    });
+
+    if (!ann || ann.status !== 'PUBLISHED') {
+      await prisma.notification.deleteMany({
+        where: {
+          sourceType: 'announcement',
+          sourceId: Number(announcementId),
+        },
+      }).catch(() => {});
+      return;
+    }
+
+    const sender =
+      ann.creatorRole === 'TEACHER'
+        ? (ann.author?.teacherProfile?.fullName || 'Assigned Teacher')
+        : (ann.author?.adminProfile?.fullName || 'District Coordinator');
+
+    await prisma.notification.updateMany({
+      where: {
+        sourceType: 'announcement',
+        sourceId: ann.id,
+      },
+      data: {
+        title: (ann.title || 'Announcement').trim(),
+        message: (ann.content || '').trim(),
+        isImportant: Boolean(ann.isImportant || ann.isPinned),
+        priority: ann.priority || 'NORMAL',
+        createdByName: sender,
+        deadlineAt: ann.deadlineAt || null,
+        linkUrl: `/dashboard/announcements?id=${ann.id}`,
+        updatedAt: new Date(),
+      },
+    }).catch(() => {});
+  } catch (err) {
+    console.error('[NotificationService] notifyAnnouncementUpdated error:', err);
+  }
+}
+
+/**
+ * Removes all linked notifications and reads when an announcement is deleted
+ */
+export async function notifyAnnouncementDeleted(announcementId) {
+  if (!announcementId) return;
+  try {
+    await prisma.notification.deleteMany({
+      where: {
+        OR: [
+          { sourceType: 'announcement', sourceId: Number(announcementId) },
+          { notificationKey: { contains: `announcement:${announcementId}:` } },
+        ],
+      },
+    }).catch(() => {});
+
+    await prisma.notificationRead.deleteMany({
+      where: {
+        notificationKey: { contains: `announcement:${announcementId}` },
+      },
+    }).catch(() => {});
+  } catch (err) {
+    console.error('[NotificationService] notifyAnnouncementDeleted error:', err);
+  }
+}
+
+/**
  * EVENT 4: New Module Available
  * When an assigned teacher publishes a module, notify the eligible learners.
  */
@@ -677,27 +1144,33 @@ export async function checkScheduleReminders() {
 
       const centerName = s.learningCenter?.name || 'Assigned Learning Center';
       const time12h = formatTime12h(s.startTime);
+      const adminInvolved = (s.createdByRole === 'ADMIN' && !s.teacherId) || (!s.teacherId && !s.createdByUserId);
+      const schedTitle = (s.title || 'Schedule').trim();
+      const schedMessage = s.description ? s.description.trim() : '';
 
       // --- 1 DAY BEFORE (within 24 hours and > 1 hour remaining) ---
       if (diffHours <= 24 && diffHours > 1) {
-        // A. For Admin
-        for (const admin of admins) {
-          const key = `schedule_reminder_1d:${s.id}:admin:${admin.id}`;
-          await createNotification({
-            notificationKey: key,
-            title: 'Upcoming Schedule',
-            message: `Your scheduled learning session at ${centerName} starts tomorrow at ${time12h}.`,
-            type: 'SCHEDULE',
-            priority: 'IMPORTANT',
-            isImportant: true,
-            targetRole: 'ADMIN',
-            targetUserId: admin.id,
-            learningCenterId: s.learningCenterId,
-            sourceType: 'schedule',
-            sourceId: s.id,
-            linkUrl: '/dashboard/schedule',
-            deadlineAt: schedStart,
-          });
+        // A. For Admin (only if Admin is involved: created by Admin or district coordination session)
+        if (adminInvolved) {
+          for (const admin of admins) {
+            if (s.createdByUserId && s.createdByUserId !== admin.id) continue;
+            const key = `schedule_reminder_1d:${s.id}:admin:${admin.id}`;
+            await createNotification({
+              notificationKey: key,
+              title: schedTitle,
+              message: schedMessage,
+              type: 'SCHEDULE',
+              priority: 'IMPORTANT',
+              isImportant: true,
+              targetRole: 'ADMIN',
+              targetUserId: admin.id,
+              learningCenterId: s.learningCenterId,
+              sourceType: 'schedule',
+              sourceId: s.id,
+              linkUrl: `/dashboard/schedule?id=${s.id}`,
+              deadlineAt: schedStart,
+            });
+          }
         }
 
         // B. For Teacher (if assigned)
@@ -705,8 +1178,8 @@ export async function checkScheduleReminders() {
           const key = `schedule_reminder_1d:${s.id}:teacher:${s.teacher.userId}`;
           await createNotification({
             notificationKey: key,
-            title: 'Upcoming Schedule',
-            message: `You have a learning session tomorrow at ${time12h} at ${centerName}.`,
+            title: schedTitle,
+            message: schedMessage,
             type: 'SCHEDULE',
             priority: 'IMPORTANT',
             isImportant: true,
@@ -716,7 +1189,7 @@ export async function checkScheduleReminders() {
             learningCenterId: s.learningCenterId,
             sourceType: 'schedule',
             sourceId: s.id,
-            linkUrl: '/dashboard/schedule',
+            linkUrl: `/dashboard/schedule?id=${s.id}`,
             deadlineAt: schedStart,
           });
         }
@@ -724,24 +1197,27 @@ export async function checkScheduleReminders() {
 
       // --- 1 HOUR BEFORE (within 1 hour and > 0 minutes remaining) ---
       if (diffHours <= 1 && diffHours > 0) {
-        // A. For Admin
-        for (const admin of admins) {
-          const key = `schedule_reminder_1h:${s.id}:admin:${admin.id}`;
-          await createNotification({
-            notificationKey: key,
-            title: 'Upcoming Schedule',
-            message: `Your scheduled learning session at ${centerName} starts in 1 hour at ${time12h}.`,
-            type: 'SCHEDULE',
-            priority: 'IMPORTANT',
-            isImportant: true,
-            targetRole: 'ADMIN',
-            targetUserId: admin.id,
-            learningCenterId: s.learningCenterId,
-            sourceType: 'schedule',
-            sourceId: s.id,
-            linkUrl: '/dashboard/schedule',
-            deadlineAt: schedStart,
-          });
+        // A. For Admin (only if Admin is directly involved)
+        if (adminInvolved) {
+          for (const admin of admins) {
+            if (s.createdByUserId && s.createdByUserId !== admin.id) continue;
+            const key = `schedule_reminder_1h:${s.id}:admin:${admin.id}`;
+            await createNotification({
+              notificationKey: key,
+              title: schedTitle,
+              message: schedMessage,
+              type: 'SCHEDULE',
+              priority: 'IMPORTANT',
+              isImportant: true,
+              targetRole: 'ADMIN',
+              targetUserId: admin.id,
+              learningCenterId: s.learningCenterId,
+              sourceType: 'schedule',
+              sourceId: s.id,
+              linkUrl: `/dashboard/schedule?id=${s.id}`,
+              deadlineAt: schedStart,
+            });
+          }
         }
 
         // B. For Teacher (if assigned)
@@ -749,8 +1225,8 @@ export async function checkScheduleReminders() {
           const key = `schedule_reminder_1h:${s.id}:teacher:${s.teacher.userId}`;
           await createNotification({
             notificationKey: key,
-            title: 'Upcoming Schedule',
-            message: `You have a learning session starting in 1 hour at ${time12h} at ${centerName}.`,
+            title: schedTitle,
+            message: schedMessage,
             type: 'SCHEDULE',
             priority: 'IMPORTANT',
             isImportant: true,
@@ -760,7 +1236,7 @@ export async function checkScheduleReminders() {
             learningCenterId: s.learningCenterId,
             sourceType: 'schedule',
             sourceId: s.id,
-            linkUrl: '/dashboard/schedule',
+            linkUrl: `/dashboard/schedule?id=${s.id}`,
             deadlineAt: schedStart,
           });
         }
@@ -839,7 +1315,15 @@ export async function checkModuleDeadlineReminders() {
       });
 
       // --- TEACHER MISSING SUBMISSION REMINDER (2 Days Before) ---
-      if (diffHours <= 48 && diffHours > 0 && m.teacher?.userId && unsubmittedLearners.length > 0) {
+      if (unsubmittedLearners.length === 0) {
+        // If all learners have submitted, stop and clean up any pending reminder
+        await prisma.notification.deleteMany({
+          where: {
+            sourceType: 'missing_submissions',
+            sourceId: m.id,
+          },
+        }).catch(() => {});
+      } else if (diffHours <= 48 && diffHours > 0 && m.teacher?.userId && unsubmittedLearners.length > 0) {
         const key = `missing_submissions_2d:${m.id}:${m.teacher.id}`;
         await createNotification({
           notificationKey: key,
@@ -1111,24 +1595,107 @@ export async function cleanupLegacyNotificationDuplicates() {
         }
       }
 
-      // 3. For any announcement notifications that have legacy generic title/message, upgrade from announcements table
-      const legacyNotifs = await prisma.notification.findMany({
+      // 3. Clean up and synchronize schedule notifications
+      const scheduleNotifs = await prisma.notification.findMany({
         where: {
-          sourceType: 'announcement',
-          sourceId: { not: null },
           OR: [
-            { title: 'New Announcement' },
-            { title: 'Message from Your Teacher' },
-            { message: { contains: 'The District Coordinator posted a new announcement' } },
-            { message: { contains: 'Your teacher posted a new announcement' } },
+            { sourceType: 'schedule' },
+            { type: 'SCHEDULE' },
+            { notificationKey: { contains: 'schedule_' } },
           ],
         },
       });
 
-      for (const notif of legacyNotifs) {
-        if (!notif.sourceId) continue;
+      for (const notif of scheduleNotifs) {
+        let schedId = notif.sourceId ? Number(notif.sourceId) : null;
+        if (!schedId && notif.notificationKey) {
+          const m = notif.notificationKey.match(/schedule_[^:]+:(\d+):/);
+          if (m) schedId = Number(m[1]);
+        }
+
+        if (!schedId) {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
+
+        const sched = await prisma.schedule.findUnique({
+          where: { id: schedId },
+          include: {
+            learningCenter: true,
+            teacher: true,
+          },
+        });
+
+        if (!sched || sched.status === 'Cancelled') {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
+
+        // Check audience relevance
+        if (notif.targetRole === 'ADMIN') {
+          const isAdminRelevant =
+            (sched.createdByRole === 'ADMIN' && !sched.teacherId) ||
+            (!sched.teacherId && !sched.createdByUserId) ||
+            (sched.createdByUserId === notif.targetUserId && sched.createdByRole === 'ADMIN');
+          if (!isAdminRelevant) {
+            // Delete invalid admin notifications for teacher-specific schedules (e.g. notification #91)
+            await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+            continue;
+          }
+        } else if (notif.targetRole === 'TEACHER') {
+          const isTeacherRelevant =
+            sched.teacherId === notif.targetTeacherId ||
+            sched.createdByUserId === notif.targetUserId;
+          if (!isTeacherRelevant) {
+            await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+            continue;
+          }
+        }
+
+        // Sync to actual schedule details
+        const schedTitle = (sched.title || 'Schedule').trim();
+        const schedMessage = sched.description ? sched.description.trim() : '';
+        const sender = sched.teacher?.fullName || (sched.createdByRole === 'ADMIN' ? 'District Coordinator' : 'System');
+
+        await prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            title: schedTitle,
+            message: schedMessage,
+            createdByName: sender,
+            sourceType: 'schedule',
+            sourceId: sched.id,
+            type: 'SCHEDULE',
+            linkUrl: `/dashboard/schedule?id=${sched.id}`,
+            updatedAt: new Date(),
+          },
+        }).catch(() => {});
+      }
+
+      // 4. Clean up orphaned announcement notifications and sync
+      const announcementNotifs = await prisma.notification.findMany({
+        where: {
+          OR: [
+            { sourceType: 'announcement' },
+            { notificationKey: { contains: 'announcement:' } },
+          ],
+        },
+      });
+
+      for (const notif of announcementNotifs) {
+        let annId = notif.sourceId ? Number(notif.sourceId) : null;
+        if (!annId && notif.notificationKey) {
+          const m = notif.notificationKey.match(/announcement:(\d+):/);
+          if (m) annId = Number(m[1]);
+        }
+
+        if (!annId) {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
+
         const ann = await prisma.announcement.findUnique({
-          where: { id: Number(notif.sourceId) },
+          where: { id: annId },
           include: {
             author: {
               include: { adminProfile: true, teacherProfile: true },
@@ -1136,37 +1703,72 @@ export async function cleanupLegacyNotificationDuplicates() {
           },
         });
 
-        if (ann && ann.status === 'PUBLISHED') {
-          let sender = ann.author?.adminProfile?.fullName || 'District Coordinator';
-          if (ann.creatorRole === 'TEACHER') {
-            let teacherName = ann.author?.teacherProfile?.fullName;
-            if (!teacherName && ann.teacherId) {
-              const t = await prisma.teacher.findUnique({
-                where: { id: ann.teacherId },
-                select: { fullName: true },
-              });
-              teacherName = t?.fullName;
-            }
-            sender = teacherName || 'Assigned Teacher';
-          }
+        if (!ann || ann.status !== 'PUBLISHED') {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
 
-          await prisma.notification.update({
-            where: { id: notif.id },
-            data: {
-              title: ann.title.trim(),
-              message: ann.content.trim(),
-              createdByName: sender,
-              createdAt: ann.createdAt,
-              linkUrl: '/notifications',
-            },
-          });
-        } else if (!ann || ann.status !== 'PUBLISHED') {
-          // Orphaned draft/deleted announcement notification: clean it up
+        let sender = ann.author?.adminProfile?.fullName || 'District Coordinator';
+        if (ann.creatorRole === 'TEACHER') {
+          let teacherName = ann.author?.teacherProfile?.fullName;
+          if (!teacherName && ann.teacherId) {
+            const t = await prisma.teacher.findUnique({
+              where: { id: ann.teacherId },
+              select: { fullName: true },
+            });
+            teacherName = t?.fullName;
+          }
+          sender = teacherName || 'Assigned Teacher';
+        }
+
+        const targetUrl = notif.targetRole === 'LEARNER' ? '/notifications' : `/dashboard/announcements?id=${ann.id}`;
+
+        await prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            title: (ann.title || 'Announcement').trim(),
+            message: (ann.content || '').trim(),
+            createdByName: sender,
+            sourceType: 'announcement',
+            sourceId: ann.id,
+            type: 'ANNOUNCEMENT',
+            isImportant: Boolean(ann.isImportant || ann.isPinned),
+            linkUrl: targetUrl,
+            updatedAt: new Date(),
+          },
+        }).catch(() => {});
+      }
+
+      // 5. Clean up orphaned module and submission notifications
+      const moduleNotifs = await prisma.notification.findMany({
+        where: { sourceType: 'module' },
+      });
+      for (const notif of moduleNotifs) {
+        if (!notif.sourceId) {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
+        const m = await prisma.module.findUnique({ where: { id: Number(notif.sourceId) } });
+        if (!m || m.status === 'ARCHIVED') {
           await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
         }
       }
 
-      // 4. Delete ANY remaining notification records that still have legacy placeholder titles or messages
+      const submissionNotifs = await prisma.notification.findMany({
+        where: { sourceType: 'submission' },
+      });
+      for (const notif of submissionNotifs) {
+        if (!notif.sourceId) {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+          continue;
+        }
+        const s = await prisma.submission.findUnique({ where: { id: Number(notif.sourceId) } });
+        if (!s) {
+          await prisma.notification.delete({ where: { id: notif.id } }).catch(() => {});
+        }
+      }
+
+      // 6. Delete ANY remaining notification records that still have legacy placeholder titles or messages
       await prisma.notification.deleteMany({
         where: {
           OR: [

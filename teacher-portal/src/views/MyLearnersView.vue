@@ -1,19 +1,13 @@
 <template>
   <div class="page-container my-learners-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb-nav">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">My Learners</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1 class="page-title">My Assigned Learners</h1>
-        <p class="page-subtitle">View and manage learners assigned to you.</p>
-      </div>
-    </div>
+    <PageHeader
+      title="My Assigned Learners"
+      description="View and manage learners assigned to you."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'My Learners' },
+      ]"
+    />
 
     <!-- Filter Section Card -->
     <div class="filter-card learners-filter-card">
@@ -204,6 +198,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 

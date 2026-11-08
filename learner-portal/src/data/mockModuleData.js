@@ -272,6 +272,8 @@ export const POST_TEST_QUESTIONS = [
   }
 ];
 
+import { calculateOverallModuleProgress } from '../utils/moduleProgress.js';
+
 // Helper to get storage key scoped to current learner if available
 export function getMockProgressStorageKey() {
   let userId = 'guest';
@@ -299,7 +301,10 @@ export function getDefaultMockProgress() {
     readingStarted: false,
     readingConfirmed: false,
     pdfCurrentPage: 1,
+    pdfTotalPages: 29,
     pdfViewMode: 'long', // 'long' or 'wide'
+    pagesRead: [],
+    completedPages: 0,
     postTestAnswers: {},
     postTestCompleted: false,
     postTestScore: 0,
@@ -317,7 +322,19 @@ export function loadMockProgress() {
     const raw = localStorage.getItem(key);
     if (!raw) return getDefaultMockProgress();
     const parsed = JSON.parse(raw);
-    return { ...getDefaultMockProgress(), ...parsed };
+    const pagesReadArr = Array.isArray(parsed.pagesRead)
+      ? Array.from(new Set(parsed.pagesRead.map(Number).filter(n => n > 0))).sort((a, b) => a - b)
+      : [];
+    const totalPages = Number(parsed.pdfTotalPages) || 29;
+    const isDone = Boolean(totalPages > 0 && pagesReadArr.length >= totalPages);
+
+    return {
+      ...getDefaultMockProgress(),
+      ...parsed,
+      pagesRead: pagesReadArr,
+      completedPages: pagesReadArr.length,
+      readingConfirmed: isDone
+    };
   } catch (e) {
     console.error('Failed to parse mock progress', e);
     return getDefaultMockProgress();
@@ -336,12 +353,15 @@ export function saveMockProgress(progress) {
 
 // Compute module card status: 'Not Started' | 'In Progress' | 'Completed'
 export function getMockModuleStatus(progress = loadMockProgress()) {
-  if (progress.activitySubmitted && progress.postTestCompleted) {
+  const pct = getMockModulePercentage(progress);
+  if (pct === 100) {
     return 'Completed';
   }
   if (
+    pct > 0 ||
     progress.preTestCompleted ||
     progress.readingStarted ||
+    (progress.pagesRead && progress.pagesRead.length > 0) ||
     Object.keys(progress.preTestAnswers || {}).length > 0 ||
     progress.currentStep > 1
   ) {
@@ -352,14 +372,19 @@ export function getMockModuleStatus(progress = loadMockProgress()) {
 
 // Compute overall percentage for mock module
 export function getMockModulePercentage(progress = loadMockProgress()) {
-  if (progress.activitySubmitted && progress.postTestCompleted) {
-    return 100;
-  }
-  let pct = 0;
-  if (progress.preTestCompleted) pct += 25;
-  if (progress.readingConfirmed) pct += 35;
-  if (progress.postTestCompleted) pct += 25;
-  if (progress.activitySubmitted) pct += 15;
-  return Math.min(100, pct);
+  const totalPages = Number(progress.pdfTotalPages) || 29;
+  const pagesReadCount = Array.isArray(progress.pagesRead)
+    ? progress.pagesRead.length
+    : (Number(progress.completedPages) || 0);
+
+  return calculateOverallModuleProgress({
+    preTestCompleted: Boolean(progress.preTestCompleted),
+    currentPage: Number(progress.pdfCurrentPage) || 1,
+    highestPageReached: pagesReadCount,
+    totalPages,
+    postTestCompleted: Boolean(progress.postTestCompleted),
+    activitySubmitted: Boolean(progress.activitySubmitted),
+    isLegitimateFullCompletion: Boolean(progress.completedAt && progress.activitySubmitted && progress.postTestCompleted)
+  });
 }
 

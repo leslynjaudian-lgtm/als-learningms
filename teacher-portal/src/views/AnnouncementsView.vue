@@ -13,27 +13,25 @@
       </div>
     </transition>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Announcements</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row announcement-header">
-      <div class="page-title-group">
-        <h1>Announcements</h1>
-        <p>Create and manage announcements for your learners.</p>
-      </div>
-      <button type="button" class="btn btn-primary" @click="openCreateModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Create Announcement</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Announcements"
+      description="Create and manage announcements for your learners."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Announcements' },
+      ]"
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Create Announcement</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter Section -->
     <div class="filter-card announcement-filters">
@@ -747,6 +745,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherProfile } from '../api/auth.js';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, publishAnnouncement, scheduleAnnouncement } from '../api/announcements.js';
@@ -1761,11 +1760,13 @@ onMounted(async () => {
   if (route.query.action === 'create') {
     openCreateModal();
     router.replace({ path: route.path, query: {} });
-  } else if (route.query.view) {
-    const targetId = Number(route.query.view);
+  } else if (route.query.view || route.query.id) {
+    const targetId = Number(route.query.view || route.query.id);
     const found = announcements.value.find((a) => Number(a.id) === targetId);
     if (found) {
       openViewModal(found);
+    } else {
+      showToast('The requested announcement was not found or is no longer available.', 'error');
     }
     router.replace({ path: route.path, query: {} });
   }

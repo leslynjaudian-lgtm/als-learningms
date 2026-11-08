@@ -1,7 +1,28 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.join(__dirname, '../../data');
+const AF2_FILE = path.join(DATA_DIR, 'af2_records.json');
+
+function readAf2Records() {
+  try {
+    if (fs.existsSync(AF2_FILE)) {
+      const raw = fs.readFileSync(AF2_FILE, 'utf-8');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (err) {
+    console.warn('Could not read AF2 records file in reports route:', err);
+  }
+  return [];
+}
 
 const router = Router();
 
@@ -89,105 +110,30 @@ router.get('/module-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), 
       include: {
         learningCenter: { select: { id: true, name: true, code: true } },
         assignedTeacher: { select: { id: true, fullName: true, position: true } },
-        assignedModules: {
-          include: {
-            module: {
-              include: {
-                learningArea: true,
-                assessments: {
-                  include: {
-                    _count: { select: { questions: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        progressRecords: {
-          include: {
-            module: {
-              include: {
-                learningArea: true,
-                assessments: {
-                  include: {
-                    _count: { select: { questions: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        attempts: {
-          include: {
-            assessment: true,
-          },
-        },
       },
       orderBy: { fullName: 'asc' },
     });
 
-    // Also fetch all published modules to link any curriculum level modules if needed
-    const publishedModules = await prisma.module.findMany({
-      where: { status: 'PUBLISHED' },
-      include: {
-        learningArea: true,
-        assessments: {
-          include: {
-            _count: { select: { questions: true } },
-          },
-        },
-      },
-    });
+    // 3. Load authoritative saved performance records
+    const allSavedRecords = readAf2Records();
 
-    // 3. Process each learner's module usage and progress calculation
+    // 4. Process each learner's module usage and progress calculation from saved records ONLY
+    // Do not include unrecorded assignments, progress, or published modules
     const processedLearners = learners.map((learner) => {
-      // Collect unique modules for this learner
-      const moduleMap = new Map();
+      const learnerSavedRecords = allSavedRecords.filter((r) => {
+        if (r.learnerId && Number(r.learnerId) === learner.id) return true;
+        if (r.lrn && learner.lrn && String(r.lrn).trim() === String(learner.lrn).trim()) return true;
+        return false;
+      });
 
-      // a. Explicitly assigned modules
-      if (Array.isArray(learner.assignedModules)) {
-        for (const assign of learner.assignedModules) {
-          if (assign.module) {
-            moduleMap.set(assign.module.id, assign.module);
-          }
-        }
-      }
-
-      // b. Modules with progress records
-      if (Array.isArray(learner.progressRecords)) {
-        for (const prog of learner.progressRecords) {
-          if (prog.module) {
-            moduleMap.set(prog.module.id, prog.module);
-          }
-        }
-      }
-
-      // c. If no explicit assignments or progress, check published modules for their target level
-      if (moduleMap.size === 0) {
-        const levelModules = publishedModules.filter((m) => m.targetLevel === learner.level);
-        for (const m of levelModules) {
-          moduleMap.set(m.id, m);
-        }
-      }
-
-      // Map progress and attempts
-      const progressByModule = new Map();
-      if (Array.isArray(learner.progressRecords)) {
-        for (const prog of learner.progressRecords) {
-          progressByModule.set(prog.moduleId, prog);
-        }
-      }
-
-      const attemptsByAssessment = new Map();
-      if (Array.isArray(learner.attempts)) {
-        for (const att of learner.attempts) {
-          // Keep best or most recent attempt
-          const existing = attemptsByAssessment.get(att.assessmentId);
-          if (!existing || Number(att.score) > Number(existing.score)) {
-            attemptsByAssessment.set(att.assessmentId, att);
-          }
-        }
-      }
+      // Filter saved records by date range if specified (using finished date or started date)
+      const filteredRecords = learnerSavedRecords.filter((r) => {
+        const d = (r.dateFinished || r.dateCompleted || r.dateStarted || '').trim().split('T')[0];
+        if (!d) return true;
+        if (fromDate && d < fromDate) return false;
+        if (toDate && d > toDate) return false;
+        return true;
+      });
 
       let masteredCount = 0;
       let notMasteredCount = 0;
@@ -195,53 +141,36 @@ router.get('/module-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), 
 
       const moduleDetails = [];
 
-      for (const [modId, mod] of moduleMap.entries()) {
-        const prog = progressByModule.get(modId);
-        let status = 'Pending';
-        let preScore = prog?.preTestScore != null ? Number(prog.preTestScore) : null;
-        let postScore = prog?.postTestScore != null ? Number(prog.postTestScore) : null;
-
-        // Check assessments attached to module
-        const preAss = mod.assessments?.find((a) => a.type === 'PRE_TEST');
-        const postAss = mod.assessments?.find((a) => a.type === 'POST_TEST');
-
-        const preAtt = preAss ? attemptsByAssessment.get(preAss.id) : null;
-        const postAtt = postAss ? attemptsByAssessment.get(postAss.id) : null;
-
-        if (preScore == null && preAtt) {
-          preScore = Number(preAtt.score);
-        }
-        if (postScore == null && postAtt) {
-          postScore = Number(postAtt.score);
-        }
-
-        // Determine mastery
-        if (prog?.masteryStatus === 'MASTERED' || prog?.status === 'COMPLETED' || postAtt?.isPassed) {
+      for (const r of filteredRecords) {
+        const isMastered = r.assessment === 'Mastered' || r.moduleStatus === 'Mastered';
+        const isNotMastered = r.assessment === 'Not Mastered' || r.moduleStatus === 'Not Mastered';
+        let status = 'In Progress';
+        if (isMastered) {
           status = 'Mastered';
           masteredCount++;
-        } else if (prog?.masteryStatus === 'NOT_MASTERED' || (postAtt && !postAtt.isPassed && postAtt.status === 'SUBMITTED')) {
+        } else if (isNotMastered) {
           status = 'Not Mastered';
           notMasteredCount++;
         } else {
-          status = 'Pending';
+          status = r.assessment || r.moduleStatus || 'In Progress';
           pendingCount++;
         }
 
         moduleDetails.push({
-          moduleId: mod.id,
-          title: mod.title,
-          code: mod.code || `MOD-${mod.id}`,
-          strand: mod.learningArea?.name || 'General',
+          moduleId: r.moduleId || r.id,
+          title: r.moduleTitle || 'Learning Module',
+          code: r.moduleCode || (r.moduleId ? `MOD-${r.moduleId}` : '—'),
+          strand: r.strandName || 'General',
           status,
-          preTestScore: preScore,
-          postTestScore: postScore,
-          completedPages: prog?.completedPages || 0,
-          totalPages: prog?.totalPages || 0,
-          dateCompleted: prog?.completedAt ? prog.completedAt.toISOString().split('T')[0] : null,
+          preTestScore: r.preTestScore != null && r.preTestScore !== '' ? Number(r.preTestScore) : null,
+          postTestScore: r.postTestScore != null && r.postTestScore !== '' ? Number(r.postTestScore) : null,
+          completedPages: 0,
+          totalPages: 0,
+          dateCompleted: r.dateFinished || r.dateCompleted || null,
         });
       }
 
-      const totalModules = moduleMap.size;
+      const totalModules = filteredRecords.length;
       const progressPct = totalModules > 0 ? Math.round((masteredCount / totalModules) * 100) : 0;
 
       // Clean gender categorization
@@ -324,50 +253,6 @@ router.get('/module-progress/learner/:id', authenticate, requireRole(['ADMIN', '
       include: {
         learningCenter: true,
         assignedTeacher: true,
-        assignedModules: {
-          include: {
-            module: {
-              include: {
-                learningArea: true,
-                assessments: {
-                  include: {
-                    _count: { select: { questions: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        progressRecords: {
-          include: {
-            module: {
-              include: {
-                learningArea: true,
-                assessments: {
-                  include: {
-                    _count: { select: { questions: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-        attempts: {
-          include: {
-            assessment: {
-              include: {
-                module: true,
-              },
-            },
-          },
-          orderBy: { startedAt: 'desc' },
-        },
-        submissions: {
-          include: {
-            module: true,
-          },
-          orderBy: { submittedAt: 'desc' },
-        },
       },
     });
 
@@ -380,122 +265,68 @@ router.get('/module-progress/learner/:id', authenticate, requireRole(['ADMIN', '
       return res.status(403).json({ error: 'Access denied. You can only view details of your assigned learners.' });
     }
 
-    // Collect all modules
-    const moduleMap = new Map();
-    if (Array.isArray(learner.assignedModules)) {
-      for (const a of learner.assignedModules) {
-        if (a.module) moduleMap.set(a.module.id, a.module);
-      }
-    }
-    if (Array.isArray(learner.progressRecords)) {
-      for (const p of learner.progressRecords) {
-        if (p.module) moduleMap.set(p.module.id, p.module);
-      }
-    }
-
-    // If none explicitly assigned, fallback to level modules
-    if (moduleMap.size === 0) {
-      const levelModules = await prisma.module.findMany({
-        where: { targetLevel: learner.level, status: 'PUBLISHED' },
-        include: {
-          learningArea: true,
-          assessments: {
-            include: {
-              _count: { select: { questions: true } },
-            },
-          },
-        },
-      });
-      for (const m of levelModules) {
-        moduleMap.set(m.id, m);
-      }
-    }
-
-    const progressMap = new Map();
-    for (const p of learner.progressRecords || []) {
-      progressMap.set(p.moduleId, p);
-    }
-
-    const attemptsByAssessment = new Map();
-    for (const att of learner.attempts || []) {
-      const existing = attemptsByAssessment.get(att.assessmentId);
-      if (!existing || Number(att.score) > Number(existing.score)) {
-        attemptsByAssessment.set(att.assessmentId, att);
-      }
-    }
-
-    const submissionByModule = new Map();
-    for (const sub of learner.submissions || []) {
-      if (!submissionByModule.has(sub.moduleId)) {
-        submissionByModule.set(sub.moduleId, sub);
-      }
-    }
+    // Load saved records strictly for this learner from authoritative saved AF2 records
+    const allSavedRecords = readAf2Records();
+    const learnerSaved = allSavedRecords.filter((r) => {
+      if (r.learnerId && Number(r.learnerId) === learner.id) return true;
+      if (r.lrn && learner.lrn && String(r.lrn).trim() === String(learner.lrn).trim()) return true;
+      return false;
+    });
 
     let masteredCount = 0;
     let notMasteredCount = 0;
     let pendingCount = 0;
 
-    const moduleItems = [];
+    const moduleItems = learnerSaved.map((r) => {
+      const isMastered = r.assessment === 'Mastered' || r.moduleStatus === 'Mastered';
+      const isNotMastered = r.assessment === 'Not Mastered' || r.moduleStatus === 'Not Mastered';
 
-    for (const [modId, mod] of moduleMap.entries()) {
-      const prog = progressMap.get(modId);
-      const sub = submissionByModule.get(modId);
-
-      const preAss = mod.assessments?.find((a) => a.type === 'PRE_TEST');
-      const postAss = mod.assessments?.find((a) => a.type === 'POST_TEST');
-
-      const preAtt = preAss ? attemptsByAssessment.get(preAss.id) : null;
-      const postAtt = postAss ? attemptsByAssessment.get(postAss.id) : null;
-
-      let preScore = prog?.preTestScore != null ? Number(prog.preTestScore) : (preAtt ? Number(preAtt.score) : null);
-      let postScore = prog?.postTestScore != null ? Number(prog.postTestScore) : (postAtt ? Number(postAtt.score) : null);
-
-      let status = 'Pending';
-      if (prog?.masteryStatus === 'MASTERED' || prog?.status === 'COMPLETED' || postAtt?.isPassed) {
+      let status = 'In Progress';
+      if (isMastered) {
         status = 'Mastered';
         masteredCount++;
-      } else if (prog?.masteryStatus === 'NOT_MASTERED' || (postAtt && !postAtt.isPassed && postAtt.status === 'SUBMITTED')) {
+      } else if (isNotMastered) {
         status = 'Not Mastered';
         notMasteredCount++;
       } else {
-        status = 'Pending';
+        status = r.assessment || r.moduleStatus || 'In Progress';
         pendingCount++;
       }
 
-      moduleItems.push({
-        id: mod.id,
-        code: mod.code || `MOD-${mod.id}`,
-        title: mod.title,
-        strand: mod.learningArea?.name || 'General',
+      const preScore = r.preTestScore != null && r.preTestScore !== '' ? Number(r.preTestScore) : null;
+      const preMax = r.preTestTotal != null && r.preTestTotal !== '' ? Number(r.preTestTotal) : (preScore != null ? 10 : null);
+      const prePct = preScore != null && preMax > 0 ? Math.round((preScore / preMax) * 100) : null;
+
+      const postScore = r.postTestScore != null && r.postTestScore !== '' ? Number(r.postTestScore) : null;
+      const postMax = r.postTestTotal != null && r.postTestTotal !== '' ? Number(r.postTestTotal) : (postScore != null ? 10 : null);
+      const postPct = postScore != null && postMax > 0 ? Math.round((postScore / postMax) * 100) : null;
+
+      return {
+        id: r.id || r.moduleId,
+        code: r.moduleCode || (r.moduleId ? `MOD-${r.moduleId}` : '—'),
+        title: r.moduleTitle || 'Learning Module',
+        strand: r.strandName || 'General',
         status,
         preTest: {
           score: preScore,
-          max: preAss?._count?.questions || (preAtt ? Number(preAtt.maxScore) : 10),
-          percentage: preAtt ? Number(preAtt.percentage) : (preScore != null ? Math.round((preScore / 10) * 100) : null),
+          max: preMax,
+          percentage: prePct,
         },
         postTest: {
           score: postScore,
-          max: postAss?._count?.questions || (postAtt ? Number(postAtt.maxScore) : 10),
-          percentage: postAtt ? Number(postAtt.percentage) : (postScore != null ? Math.round((postScore / 10) * 100) : null),
-          isPassed: postAtt ? Boolean(postAtt.isPassed) : (postScore != null ? postScore >= 7.5 : false),
+          max: postMax,
+          percentage: postPct,
+          isPassed: isMastered,
         },
-        submission: sub ? {
-          title: sub.title,
-          fileName: sub.fileName,
-          fileUrl: sub.fileUrl,
-          grade: sub.grade,
-          feedback: sub.feedback,
-          status: sub.status,
-          submittedAt: sub.submittedAt,
-        } : null,
-        completedPages: prog?.completedPages || 0,
-        totalPages: prog?.totalPages || 0,
-        completedAt: prog?.completedAt || null,
-        dateStarted: prog?.createdAt || null,
-      });
-    }
+        submission: null,
+        completedPages: 0,
+        totalPages: 0,
+        completedAt: r.dateFinished || r.dateCompleted || null,
+        dateStarted: r.dateStarted || null,
+      };
+    });
 
-    const totalModules = moduleMap.size;
+    const totalModules = learnerSaved.length;
     const progressPct = totalModules > 0 ? Math.round((masteredCount / totalModules) * 100) : 0;
 
     res.json({

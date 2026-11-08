@@ -1,21 +1,11 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Attendance</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Attendance Report</h1>
-        <p>View consolidated attendance records across learning centers.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <ReportsPageHeader
+      title="Attendance Report"
+      breadcrumb-title="Attendance"
+      description="View consolidated attendance records across learning centers."
+    />
 
     <!-- Filter Card -->
     <div class="filter-card">
@@ -80,6 +70,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 
 const selectedCenter = ref('');

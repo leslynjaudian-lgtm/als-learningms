@@ -12,26 +12,24 @@
       </div>
     </div>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Learners</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Learners</h1>
-        <p>Manage all learners enrolled in the ALS program.</p>
-      </div>
-      <button class="btn btn-primary" @click="openAddModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Add Learner</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Learners"
+      description="Manage all learners enrolled in the ALS program."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Learners' },
+      ]"
+    >
+      <template #actions>
+        <button class="btn btn-primary" @click="openAddModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add Learner</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter Card -->
     <div class="filter-card">
@@ -437,14 +435,17 @@
             <div class="form-grid-2">
               <div class="field-group">
                 <label class="field-label" for="learner-login-name">Login Name (Full Name)</label>
-                <input
-                  id="learner-login-name"
-                  :value="learnerFullNamePreview || '—'"
-                  type="text"
-                  class="field-input"
-                  readonly
-                  style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
-                />
+                <LockedFieldTooltip message="This field cannot be edited.">
+                  <input
+                    id="learner-login-name"
+                    :value="learnerFullNamePreview || '—'"
+                    type="text"
+                    class="field-input"
+                    readonly
+                    title="This field cannot be edited."
+                    style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
+                  />
+                </LockedFieldTooltip>
               </div>
 
               <div class="field-group">
@@ -575,7 +576,9 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getLearners, registerLearner, updateLearner, deleteLearner } from '../api/learners.js';
 import { getTeachers } from '../api/teachers.js';

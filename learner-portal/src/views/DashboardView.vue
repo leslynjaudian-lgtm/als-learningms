@@ -138,31 +138,33 @@
           class="learner-card active-module-card"
         >
           <div class="active-module-header">
-            <div class="active-module-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
-            </div>
+            <!-- Module Thumbnail (First page of uploaded PDF) -->
+            <ModuleThumbnail
+              :file-url="mod.fileUrl"
+              :cover-image-url="mod.coverImageUrl"
+              :title="mod.title"
+              :module-id="mod.id"
+            />
             <div class="active-module-info">
               <h3 class="active-module-title">
                 {{ mod.title }}
               </h3>
+              <p v-if="getModuleInstructions(mod)" class="active-module-instructions">
+                {{ getModuleInstructions(mod) }}
+              </p>
               <div class="active-module-strand">
                 {{ getModuleStrand(mod) }}
               </div>
-              <div class="active-module-teacher">
-                Teacher: {{ mod.teacherName || mod.teacher?.fullName || (typeof mod.teacher === 'string' ? mod.teacher : 'Assigned Teacher') }}
-              </div>
-            </div>
-          </div>
 
-          <div class="active-module-progress-wrap">
-            <div class="active-module-progress-text">
-              {{ mod.progress || 0 }}%
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" :style="{ width: `${mod.progress || 0}%` }"></div>
+              <!-- Progress Percentage & Progress Bar directly below Learning Strand -->
+              <div class="active-module-progress-wrap">
+                <div class="active-module-progress-text">
+                  {{ mod.progress || 0 }}%
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" :style="{ width: `${mod.progress || 0}%` }"></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -192,6 +194,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import api from '../api/axios';
+import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import { useNotifications } from '../composables/useNotifications.js';
 import { formatStrandName } from '../utils/formatStrand.js';
 
@@ -269,6 +272,12 @@ function getModuleStrand(mod) {
   if (!mod) return 'General Curriculum';
   const raw = mod.strand?.name || mod.strand || mod.learningArea?.name || 'General Curriculum';
   return formatStrandName(raw, mod.strand?.code || mod.code || mod.learningArea?.code);
+}
+
+function getModuleInstructions(mod) {
+  if (!mod) return '';
+  const raw = mod.instructions || mod.description || '';
+  return typeof raw === 'string' ? raw.trim() : '';
 }
 
 // Published/assigned modules excluding mock dummy records
@@ -673,8 +682,10 @@ onUnmounted(() => {
 .active-module-card {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  justify-content: flex-start;
+  gap: 0.75rem;
   padding: 1.15rem;
+  height: auto;
 }
 
 .active-module-header {
@@ -683,21 +694,11 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 
-.active-module-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #eff6ff;
-  color: #165dfc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 .active-module-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .active-module-title {
@@ -708,29 +709,30 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
-.active-module-strand {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #64748b;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.active-module-instructions {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #475569;
+  line-height: 1.45;
+  margin-top: 0.35rem;
+  word-break: break-word;
+  white-space: normal;
 }
 
-.active-module-teacher {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.active-module-strand {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 0.35rem;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .active-module-progress-wrap {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 14px;
 }
 
 .active-module-progress-text {
@@ -739,12 +741,13 @@ onUnmounted(() => {
   font-size: 0.75rem;
   font-weight: 700;
   color: #165dfc;
+  line-height: 1.2;
 }
 
 .continue-btn {
   width: 100%;
   text-align: center;
-  margin-top: 0.25rem;
+  margin-top: 0;
 }
 
 .empty-module-card {

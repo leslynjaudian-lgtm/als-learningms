@@ -7,6 +7,7 @@ import {
   formatRelativeTime,
   isMidnightUtc,
   cleanupLegacyNotificationDuplicates,
+  formatScheduleDateTimeSpan,
 } from '../services/notificationService.js';
 
 const router = Router();
@@ -176,9 +177,26 @@ export async function buildUserNotifications(user) {
     uniqueNotifications.push(n);
   }
 
-  // 4. Batch fetch real announcement metadata for announcement notifications
+  // 4. Batch fetch real records to validate existence and sync details
   const announcementIds = uniqueNotifications
     .filter((n) => n.sourceType === 'announcement' && n.sourceId)
+    .map((n) => Number(n.sourceId));
+
+  const scheduleIds = uniqueNotifications
+    .filter((n) => n.sourceType === 'schedule' || n.type === 'SCHEDULE' || (n.notificationKey && n.notificationKey.includes('schedule_')))
+    .map((n) => {
+      if (n.sourceId) return Number(n.sourceId);
+      const m = n.notificationKey?.match(/schedule_[^:]+:(\d+):/);
+      return m ? Number(m[1]) : null;
+    })
+    .filter(Boolean);
+
+  const moduleIds = uniqueNotifications
+    .filter((n) => n.sourceType === 'module' && n.sourceId)
+    .map((n) => Number(n.sourceId));
+
+  const submissionIds = uniqueNotifications
+    .filter((n) => n.sourceType === 'submission' && n.sourceId)
     .map((n) => Number(n.sourceId));
 
   const announcementMap = new Map();
@@ -200,6 +218,54 @@ export async function buildUserNotifications(user) {
     }
   }
 
+  const scheduleMap = new Map();
+  if (scheduleIds.length > 0) {
+    try {
+      const scheds = await prisma.schedule.findMany({
+        where: { id: { in: scheduleIds } },
+        include: {
+          learningCenter: true,
+          teacher: true,
+        },
+      });
+      for (const s of scheds) {
+        scheduleMap.set(s.id, s);
+      }
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  const moduleMap = new Map();
+  if (moduleIds.length > 0) {
+    try {
+      const mods = await prisma.module.findMany({
+        where: { id: { in: moduleIds } },
+        select: { id: true, title: true, status: true },
+      });
+      for (const m of mods) {
+        moduleMap.set(m.id, m);
+      }
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  const submissionMap = new Map();
+  if (submissionIds.length > 0) {
+    try {
+      const subs = await prisma.submission.findMany({
+        where: { id: { in: submissionIds } },
+        select: { id: true },
+      });
+      for (const s of subs) {
+        submissionMap.set(s.id, s);
+      }
+    } catch (_err) {
+      // ignore
+    }
+  }
+
   // 5. Format notification records with actual metadata
   const formatted = [];
   const now = new Date();
@@ -209,14 +275,78 @@ export async function buildUserNotifications(user) {
     let message = n.message;
     let sender = n.createdByName;
     let isImportant = Boolean(n.isImportant);
-
+    let type = n.type || 'ANNOUNCEMENT';
+    let actionUrl = n.linkUrl;
+    let scheduleTime = null;
     let ann = null;
-    if (n.sourceType === 'announcement' && n.sourceId && announcementMap.has(Number(n.sourceId))) {
-      ann = announcementMap.get(Number(n.sourceId));
-      // Never show draft announcements or future scheduled announcements
-      if (ann.status !== 'PUBLISHED') continue;
+
+    // A. SCHEDULE VALIDATION & SYNC
+    if (n.sourceType === 'schedule' || n.type === 'SCHEDULE' || (n.notificationKey && n.notificationKey.includes('schedule_'))) {
+      let sId = n.sourceId ? Number(n.sourceId) : null;
+      if (!sId && n.notificationKey) {
+        const m = n.notificationKey.match(/schedule_[^:]+:(\d+):/);
+        if (m) sId = Number(m[1]);
+      }
+
+      if (!sId || !scheduleMap.has(sId)) {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
+
+      const sched = scheduleMap.get(sId);
+      if (sched.status === 'Cancelled') {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
+
+      if (role === 'ADMIN') {
+        const isAdminRelevant =
+          (sched.createdByRole === 'ADMIN' && !sched.teacherId) ||
+          (!sched.teacherId && !sched.createdByUserId) ||
+          (sched.createdByUserId === userId && sched.createdByRole === 'ADMIN');
+        if (!isAdminRelevant) {
+          await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+          continue;
+        }
+      } else if (role === 'TEACHER') {
+        const isTeacherRelevant =
+          sched.teacherId === user.teacherProfile?.id ||
+          sched.createdByUserId === userId;
+        if (!isTeacherRelevant) {
+          await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+          continue;
+        }
+      }
+
+      type = 'SCHEDULE';
+      title = (sched.title || 'Schedule').trim();
+      message = sched.description ? sched.description.trim() : '';
+      scheduleTime = formatScheduleDateTimeSpan(sched.date, sched.startTime, sched.endTime);
+      actionUrl = `/dashboard/schedule?id=${sched.id}`;
+      sender = sched.teacher?.fullName || (sched.createdByRole === 'ADMIN' ? 'District Coordinator' : 'System');
+    }
+
+    // B. ANNOUNCEMENT VALIDATION & SYNC
+    else if (n.sourceType === 'announcement' || (n.notificationKey && n.notificationKey.includes('announcement:'))) {
+      let aId = n.sourceId ? Number(n.sourceId) : null;
+      if (!aId && n.notificationKey) {
+        const m = n.notificationKey.match(/announcement:(\d+):/);
+        if (m) aId = Number(m[1]);
+      }
+
+      if (!aId || !announcementMap.has(aId)) {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
+
+      ann = announcementMap.get(aId);
+      if (ann.status !== 'PUBLISHED') {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
       if (ann.scheduledAt && new Date(ann.scheduledAt) > now) continue;
 
+      type = 'ANNOUNCEMENT';
       title = ann.title ? ann.title.trim() : title;
       message = ann.content ? ann.content.trim() : message;
       isImportant = Boolean(ann.isImportant || ann.isPinned);
@@ -224,6 +354,25 @@ export async function buildUserNotifications(user) {
         ann.creatorRole === 'TEACHER'
           ? (ann.author?.teacherProfile?.fullName || 'Assigned Teacher')
           : (ann.author?.adminProfile?.fullName || 'District Coordinator');
+      actionUrl = role === 'LEARNER' ? '/notifications' : `/dashboard/announcements?id=${ann.id}`;
+    }
+
+    // C. MODULE VALIDATION
+    else if (n.sourceType === 'module') {
+      const mId = Number(n.sourceId);
+      if (!mId || !moduleMap.has(mId) || moduleMap.get(mId).status === 'ARCHIVED') {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
+    }
+
+    // D. SUBMISSION VALIDATION
+    else if (n.sourceType === 'submission') {
+      const subId = Number(n.sourceId);
+      if (!subId || !submissionMap.has(subId)) {
+        await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
+        continue;
+      }
     }
 
     // Never return generic placeholder notifications
@@ -264,11 +413,12 @@ export async function buildUserNotifications(user) {
       notificationKey: key,
       title,
       message,
-      type: n.type || 'ANNOUNCEMENT',
+      scheduleTime: scheduleTime || null,
+      type,
       priority: n.priority || 'NORMAL',
       isImportant,
       sender: sender || (role === 'LEARNER' ? 'ALS System' : 'System'),
-      actionUrl: n.linkUrl || (role === 'LEARNER' ? '/notifications' : '/dashboard/announcements'),
+      actionUrl: actionUrl || (role === 'LEARNER' ? '/notifications' : '/dashboard/announcements'),
       deadlineAt: n.deadlineAt,
       isRead,
       readAt: readMap.get(key) || null,

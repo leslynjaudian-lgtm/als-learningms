@@ -486,12 +486,15 @@
           <!-- 1. Learner (Fixed/Selected) -->
           <div class="form-group">
             <label class="form-label">Learner Name</label>
-            <input
-              type="text"
-              class="form-input"
-              :value="reportData.learnerName"
-              disabled
-            />
+            <LockedFieldTooltip message="This field cannot be edited.">
+              <input
+                type="text"
+                class="form-input"
+                :value="reportData.learnerName"
+                readonly
+                title="This field cannot be edited."
+              />
+            </LockedFieldTooltip>
           </div>
 
           <!-- 2. Module Title -->
@@ -677,6 +680,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useAf2Records } from '../composables/useAf2Records.js';
@@ -929,35 +933,36 @@ async function generateReport() {
     };
 
     let serverRecords = [];
+    let fetchSuccessful = false;
     try {
       const res = await getRecords(params);
-      serverRecords = Array.isArray(res.data) ? res.data : [];
+      if (Array.isArray(res.data)) {
+        serverRecords = res.data;
+        fetchSuccessful = true;
+      }
     } catch (apiErr) {
       console.warn('Could not fetch records from /api/records, trying direct lookup:', apiErr);
-    }
-
-    // Direct lookup fallback if query with center/level returned empty
-    if (serverRecords.length === 0) {
       try {
         const fallbackRes = await getRecords({ learnerId: found.id, teacherId: tid || undefined });
-        if (Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+        if (Array.isArray(fallbackRes.data)) {
           serverRecords = fallbackRes.data;
+          fetchSuccessful = true;
         }
       } catch (fbErr) {
         console.warn('Fallback direct lookup error:', fbErr);
       }
     }
 
-    // Secondary fallback: check /api/af2
-    if (serverRecords.length === 0) {
-      try {
-        const af2Res = await api.get('/af2', { params: { learnerId: found.id } });
-        if (Array.isArray(af2Res.data) && af2Res.data.length > 0) {
-          serverRecords = af2Res.data;
-        }
-      } catch (af2Err) {
-        // ignore
-      }
+    // Only if backend request failed entirely (offline mode), fallback to local storage
+    if (!fetchSuccessful) {
+      serverRecords = getRecordsForLearner({
+        learnerId: found.id,
+        learnerName: found.name,
+        level: reportData.level,
+        learningCenter: reportData.learningCenter,
+        dateStarted: filterDateStarted.value,
+        dateFinished: filterDateFinished.value,
+      });
     }
 
     // If date filters were applied, filter serverRecords inclusively
@@ -972,28 +977,6 @@ async function generateReport() {
         const matchesStart = startDate && (!startRange || startDate >= startRange) && (!endRange || startDate <= endRange);
         return matchesFinish || matchesStart;
       });
-    }
-
-    // 2. Merge any local AF2 records stored in browser (offline fallback / manual entries)
-    const existingKeys = new Set(
-      serverRecords.map((r) => `${r.learnerId}_${(r.moduleId || r.moduleTitle || '').toString().trim().toLowerCase()}`)
-    );
-
-    const localRecs = getRecordsForLearner({
-      learnerId: found.id,
-      learnerName: found.name,
-      level: reportData.level,
-      learningCenter: reportData.learningCenter,
-      dateStarted: filterDateStarted.value,
-      dateFinished: filterDateFinished.value,
-    });
-
-    for (const lr of localRecs) {
-      const key = `${lr.learnerId}_${(lr.moduleId || lr.moduleTitle || '').toString().trim().toLowerCase()}`;
-      if (!existingKeys.has(key)) {
-        serverRecords.push(lr);
-        existingKeys.add(key);
-      }
     }
 
     reportData.records = serverRecords;
@@ -1066,64 +1049,98 @@ function createBlankRow(key) {
   };
 }
 
+let textMeasureCanvas = null;
+
+function getTextWidthPx(text, font = '9pt Arial, Helvetica, sans-serif') {
+  if (typeof document === 'undefined') {
+    return text.length * 5.2;
+  }
+  if (!textMeasureCanvas) {
+    textMeasureCanvas = document.createElement('canvas');
+  }
+  const ctx = textMeasureCanvas.getContext('2d');
+  if (ctx) {
+    ctx.font = font;
+    return ctx.measureText(text).width;
+  }
+  return text.length * 5.2;
+}
+
 /**
- * Splits multi-line or long text into individual single-line segments that fit within
- * a fixed-height table row under the same column without truncating any characters.
+ * Splits text into lines that naturally fill the available width of a column (in pt)
+ * based on actual font metrics (9pt Arial), avoiding premature wrapping.
+ * Preserves complete words and avoids clipping or overflowing.
  */
-function splitTextToLines(rawText, maxCharsPerLine = 24) {
+function wrapTextToColumnWidth(rawText, columnWidthPt, font = '9pt Arial, Helvetica, sans-serif') {
   if (rawText == null) return [];
   const str = String(rawText).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
   if (!str || str === '—') return [];
 
-  const rawLines = str.split('\n');
+  // Usable width in pixels: (columnWidthPt - 6pt padding - 2pt safety margin) * (96 / 72)
+  const usableWidthPt = Math.max(20, columnWidthPt - 8);
+  const maxPx = usableWidthPt * (96 / 72);
+
+  const rawParagraphs = str.split('\n');
   const result = [];
 
-  for (const rawLine of rawLines) {
-    const trimmed = rawLine.trim();
-    if (!trimmed) continue;
+  for (const para of rawParagraphs) {
+    const trimmedPara = para.trim();
+    if (!trimmedPara) continue;
 
-    if (trimmed.length <= maxCharsPerLine) {
-      result.push(trimmed);
+    // If entire paragraph fits within the column width, keep it on one line
+    if (getTextWidthPx(trimmedPara, font) <= maxPx) {
+      result.push(trimmedPara);
       continue;
     }
 
-    const words = trimmed.split(/\s+/);
+    const words = trimmedPara.split(/\s+/);
     let currentLine = '';
 
     for (const word of words) {
       if (!currentLine) {
-        if (word.length <= maxCharsPerLine) {
+        if (getTextWidthPx(word, font) <= maxPx) {
           currentLine = word;
         } else {
-          // Break an unbroken long token into chunks so no character is lost or clipped
-          let idx = 0;
-          while (idx < word.length) {
-            const chunk = word.slice(idx, idx + maxCharsPerLine);
-            if (chunk.length === maxCharsPerLine && idx + maxCharsPerLine < word.length) {
+          // Break an unbroken long token only if it cannot fit within the available column width
+          let remaining = word;
+          while (remaining.length > 0) {
+            let sliceLen = remaining.length;
+            while (sliceLen > 1 && getTextWidthPx(remaining.slice(0, sliceLen), font) > maxPx) {
+              sliceLen--;
+            }
+            const chunk = remaining.slice(0, sliceLen);
+            remaining = remaining.slice(sliceLen);
+            if (remaining.length > 0) {
               result.push(chunk);
             } else {
               currentLine = chunk;
             }
-            idx += maxCharsPerLine;
           }
         }
-      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
-        currentLine += ' ' + word;
       } else {
-        result.push(currentLine);
-        if (word.length <= maxCharsPerLine) {
-          currentLine = word;
+        const candidate = currentLine + ' ' + word;
+        if (getTextWidthPx(candidate, font) <= maxPx) {
+          currentLine = candidate;
         } else {
-          currentLine = '';
-          let idx = 0;
-          while (idx < word.length) {
-            const chunk = word.slice(idx, idx + maxCharsPerLine);
-            if (chunk.length === maxCharsPerLine && idx + maxCharsPerLine < word.length) {
-              result.push(chunk);
-            } else {
-              currentLine = chunk;
+          result.push(currentLine);
+          if (getTextWidthPx(word, font) <= maxPx) {
+            currentLine = word;
+          } else {
+            currentLine = '';
+            let remaining = word;
+            while (remaining.length > 0) {
+              let sliceLen = remaining.length;
+              while (sliceLen > 1 && getTextWidthPx(remaining.slice(0, sliceLen), font) > maxPx) {
+                sliceLen--;
+              }
+              const chunk = remaining.slice(0, sliceLen);
+              remaining = remaining.slice(sliceLen);
+              if (remaining.length > 0) {
+                result.push(chunk);
+              } else {
+                currentLine = chunk;
+              }
             }
-            idx += maxCharsPerLine;
           }
         }
       }
@@ -1143,10 +1160,10 @@ function splitTextToLines(rawText, maxCharsPerLine = 24) {
  * continues onto consecutive rows in the same column without increasing row height.
  */
 function expandRecordToRows(rec, recIdx) {
-  const titleLines = splitTextToLines(rec.moduleTitle, 32);
-  const activityLines = splitTextToLines(rec.otherActivities, 22);
-  const selfLines = splitTextToLines(rec.selfAssessment, 17);
-  const remarkLines = splitTextToLines(rec.remarks, 24);
+  const titleLines = wrapTextToColumnWidth(rec.moduleTitle, 108.57);
+  const activityLines = wrapTextToColumnWidth(rec.otherActivities, 127.09);
+  const selfLines = wrapTextToColumnWidth(rec.selfAssessment, 97.76);
+  const remarkLines = wrapTextToColumnWidth(rec.remarks, 138.51);
 
   const totalLines = Math.max(
     1,

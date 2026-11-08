@@ -1,12 +1,20 @@
 <template>
   <div class="page-container learner-profile-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb-nav">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/learners" class="breadcrumb-link">My Learners</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">{{ learner.name || 'Learner Profile' }}</span>
+    <!-- Standardized Breadcrumbs -->
+    <nav class="page-breadcrumbs" aria-label="Breadcrumb">
+      <ol class="breadcrumbs-list">
+        <li class="breadcrumb-item">
+          <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
+          <span class="breadcrumb-separator">/</span>
+        </li>
+        <li class="breadcrumb-item">
+          <router-link to="/dashboard/learners" class="breadcrumb-link">My Learners</router-link>
+          <span class="breadcrumb-separator">/</span>
+        </li>
+        <li class="breadcrumb-item">
+          <span class="breadcrumb-current">{{ learner.name || 'Learner Profile' }}</span>
+        </li>
+      </ol>
     </nav>
 
     <!-- Loading State -->

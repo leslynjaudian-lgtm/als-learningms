@@ -1,24 +1,12 @@
 <template>
   <div class="page-container af2-summary-view">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb print-hidden">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">ALS AF2 Summary</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row print-hidden">
-      <div class="page-title-group">
-        <h1>ALS AF2 Summary</h1>
-        <p>Monitor learner module progress records from all Community Learning Centers.</p>
-      </div>
-
-      <div class="header-actions-group">
+    <!-- Standardized Page Header -->
+    <ReportsPageHeader
+      title="ALS AF2 Summary"
+      description="Monitor learner module progress records from all Community Learning Centers."
+    >
+      <template v-if="showPreview" #actions>
         <button
-          v-if="showPreview"
           type="button"
           class="btn btn-secondary"
           @click="printReport"
@@ -30,8 +18,8 @@
           </svg>
           <span>Print AF2</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </ReportsPageHeader>
 
     <!-- Summary Cards (Single Horizontal Row) -->
     <div class="report-stats-grid print-hidden">
@@ -500,6 +488,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';

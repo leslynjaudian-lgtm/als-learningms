@@ -1,19 +1,14 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">User Management</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>User Management</h1>
-        <p>Manage all system users (Teachers / Implementors and Learners).</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="User Management"
+      description="Manage all system users (Teachers / Implementors and Learners)."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'User Management' },
+      ]"
+    />
 
     <!-- 3 Summary / Stat Cards -->
     <div class="stats-grid-3">
@@ -387,6 +382,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 

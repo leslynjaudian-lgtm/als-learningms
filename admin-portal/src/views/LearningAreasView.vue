@@ -12,26 +12,24 @@
       </div>
     </div>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Learning Areas</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Learning Areas</h1>
-        <p>Manage ALS learning strands and subject areas.</p>
-      </div>
-      <button type="button" class="btn btn-primary" @click="openAddModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Add Learning Area</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Learning Areas"
+      description="Manage ALS learning strands and subject areas."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Learning Areas' },
+      ]"
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="openAddModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add Learning Area</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Table Card -->
     <div class="table-card">
@@ -286,6 +284,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 
 // --- Toast Notifications ---

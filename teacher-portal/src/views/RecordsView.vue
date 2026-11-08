@@ -4,13 +4,15 @@
     <!-- VIEW 1: MAIN RECORDS LIST (ASSIGNED LEARNERS)                -->
     <!-- ============================================================ -->
     <template v-if="!selectedLearner">
-      <!-- Page Header -->
-      <div class="page-header-row">
-        <div class="page-title-group">
-          <h1>Records</h1>
-          <p>Learner performance records across all your learning centers.</p>
-        </div>
-      </div>
+      <!-- Standardized Page Header -->
+      <PageHeader
+        title="Records"
+        description="Learner performance records across all your learning centers."
+        :breadcrumbs="[
+          { label: 'Dashboard', to: '/dashboard' },
+          { label: 'Records' },
+        ]"
+      />
 
       <!-- Filter Card: Rearranged horizontally in exact order:
            1. Learning Center -> 2. ALS Level -> 3. Learner Name -> 4. Clear Filters -->
@@ -185,8 +187,8 @@
                     <button
                       type="button"
                       class="btn-chevron-action"
-                      title="View Learner Records"
-                      aria-label="View Learner Records"
+                      title="Open Learner Records"
+                      aria-label="Open Learner Records"
                       @click.stop="selectLearnerForRecords(learner)"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -226,16 +228,26 @@
     <template v-else>
       <!-- Top Navigation Bar: Breadcrumb + Back to Records -->
       <div class="learner-records-topbar">
-        <nav class="records-breadcrumb-nav" aria-label="Breadcrumb">
-          <button
-            type="button"
-            class="breadcrumb-link-btn"
-            @click="backToRecordsList"
-          >
-            Records
-          </button>
-          <span class="breadcrumb-sep">/</span>
-          <span class="breadcrumb-current">Learner Records</span>
+        <nav class="page-breadcrumbs" aria-label="Breadcrumb">
+          <ol class="breadcrumbs-list">
+            <li class="breadcrumb-item">
+              <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
+              <span class="breadcrumb-separator">/</span>
+            </li>
+            <li class="breadcrumb-item">
+              <button
+                type="button"
+                class="breadcrumb-link-btn"
+                @click="backToRecordsList"
+              >
+                Records
+              </button>
+              <span class="breadcrumb-separator">/</span>
+            </li>
+            <li class="breadcrumb-item">
+              <span class="breadcrumb-current">Learner Records</span>
+            </li>
+          </ol>
         </nav>
 
         <button
@@ -294,19 +306,29 @@
           </div>
           <div class="learner-meta-item">
             <span class="meta-item-label">LRN</span>
-            <span class="meta-item-value mono">{{ selectedLearner.lrn || '—' }}</span>
+            <span class="meta-item-value">{{ selectedLearner.lrn || '—' }}</span>
           </div>
           <div class="learner-meta-item">
             <span class="meta-item-label">ALS Level</span>
-            <span class="meta-item-value">
-              <span class="als-level-subtle-badge">{{ formatAlsLevel(selectedLearner.level) }}</span>
-            </span>
+            <span class="meta-item-value">{{ formatAlsLevel(selectedLearner.level) }}</span>
           </div>
           <div class="learner-meta-item">
             <span class="meta-item-label">Learning Center</span>
             <span class="meta-item-value">{{ selectedLearner.learningCenter || '—' }}</span>
           </div>
         </div>
+      </div>
+
+      <!-- Success Banner for Learner Records -->
+      <div v-if="recordsSuccessMessage" class="records-success-banner" role="status">
+        <div class="records-success-content">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span>{{ recordsSuccessMessage }}</span>
+        </div>
+        <button type="button" class="btn-dismiss-banner" @click="recordsSuccessMessage = ''">&times;</button>
       </div>
 
       <!-- Error Banner for Learner Records -->
@@ -576,7 +598,7 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- MODAL: EDIT RECORD (Scores, Status, Remarks)                 -->
+    <!-- MODAL: EDIT RECORD (Read-Only System Fields + 3 Editable)    -->
     <!-- ============================================================ -->
     <div v-if="editingRecord" class="modal-overlay" @click.self="editingRecord = null">
       <div class="modal-box record-edit-modal">
@@ -589,72 +611,107 @@
         </div>
 
         <form @submit.prevent="saveEditedRecord" class="record-edit-form">
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Pre-Test Score</label>
-              <div class="score-input-split">
-                <input
-                  v-model.number="editingRecord.preTestScore"
-                  type="number"
-                  min="0"
-                  :max="editingRecord.preTestTotal || undefined"
-                  class="form-input score-num-in"
-                  placeholder="Score"
-                />
-                <span class="slash-div">/</span>
-                <input
-                  v-model.number="editingRecord.preTestTotal"
-                  type="number"
-                  min="1"
-                  class="form-input score-num-in"
-                  placeholder=""
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Post-Test Score</label>
-              <div class="score-input-split">
-                <input
-                  v-model.number="editingRecord.postTestScore"
-                  type="number"
-                  min="0"
-                  :max="editingRecord.postTestTotal || undefined"
-                  class="form-input score-num-in"
-                  placeholder="Score"
-                />
-                <span class="slash-div">/</span>
-                <input
-                  v-model.number="editingRecord.postTestTotal"
-                  type="number"
-                  min="1"
-                  class="form-input score-num-in"
-                  placeholder=""
-                />
-              </div>
-            </div>
+          <!-- 1. Learner Name (Read-Only) -->
+          <div class="form-group">
+            <label class="form-label">Learner Name</label>
+            <LockedFieldTooltip message="This field cannot be edited.">
+              <input
+                :value="editingRecord.learnerName || selectedLearner?.name || '—'"
+                type="text"
+                class="form-input is-readonly-field"
+                readonly
+                title="This field cannot be edited."
+              />
+            </LockedFieldTooltip>
           </div>
 
+          <!-- 2. Module Title (Read-Only) -->
+          <div class="form-group">
+            <label class="form-label">Module Title</label>
+            <LockedFieldTooltip message="This field cannot be edited.">
+              <input
+                :value="editingRecord.moduleTitle || '—'"
+                type="text"
+                class="form-input is-readonly-field"
+                readonly
+                title="This field cannot be edited."
+              />
+            </LockedFieldTooltip>
+          </div>
+
+          <!-- 3. Learning Strand (Read-Only) -->
+          <div class="form-group">
+            <label class="form-label">Learning Strand</label>
+            <LockedFieldTooltip message="This field cannot be edited.">
+              <input
+                :value="editingRecord.strandName || '—'"
+                type="text"
+                class="form-input is-readonly-field"
+                readonly
+                title="This field cannot be edited."
+              />
+            </LockedFieldTooltip>
+          </div>
+
+          <!-- 4 & 5. Date Started & Date Finished (Read-Only 2-Column Grid) -->
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">Date Started</label>
-              <input
-                v-model="editingRecord.dateStarted"
-                type="date"
-                class="form-input date-input"
-              />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  :value="editingRecord.dateStarted || '—'"
+                  type="text"
+                  class="form-input is-readonly-field"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
             </div>
 
             <div class="form-group">
               <label class="form-label">Date Finished</label>
-              <input
-                v-model="editingRecord.dateFinished"
-                type="date"
-                class="form-input date-input"
-              />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  :value="editingRecord.dateFinished || '—'"
+                  type="text"
+                  class="form-input is-readonly-field"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
             </div>
           </div>
 
+          <!-- 6 & 7. Pre-Test Score & Post-Test Score (Read-Only 2-Column Grid) -->
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Pre-Test Score</label>
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  :value="formatScoreDisplay(editingRecord.preTestScore, editingRecord.preTestTotal)"
+                  type="text"
+                  class="form-input is-readonly-field score-readonly-input"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Post-Test Score</label>
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  :value="formatScoreDisplay(editingRecord.postTestScore, editingRecord.postTestTotal)"
+                  type="text"
+                  class="form-input is-readonly-field score-readonly-input"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
+            </div>
+          </div>
+
+          <!-- Teacher-Editable Field 1: Other Related Activities Accomplished -->
           <div class="form-group">
             <label class="form-label">Other Related Activities Accomplished</label>
             <textarea
@@ -665,20 +722,21 @@
             ></textarea>
           </div>
 
+          <!-- Teacher-Editable Field 2: ALS Teacher's Assessment -->
           <div class="form-group">
             <label class="form-label">ALS Teacher's Assessment <span class="req">*</span></label>
             <div class="assessment-cards-grid">
               <div
                 class="assessment-card card-mastered"
-                :class="{ 'is-selected': editingRecord.assessment === 'Mastered' || editingRecord.moduleStatus === 'Mastered' }"
+                :class="{ 'is-selected': editingRecord.assessment === 'Mastered' }"
                 role="button"
                 tabindex="0"
-                @click="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered';"
-                @keydown.space.prevent="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered';"
-                @keydown.enter.prevent="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered';"
+                @click="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered'; editFormError = '';"
+                @keydown.space.prevent="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered'; editFormError = '';"
+                @keydown.enter.prevent="editingRecord.assessment = 'Mastered'; editingRecord.moduleStatus = 'Mastered'; editFormError = '';"
               >
                 <div class="assessment-radio-circle">
-                  <span v-if="editingRecord.assessment === 'Mastered' || editingRecord.moduleStatus === 'Mastered'" class="radio-dot"></span>
+                  <span v-if="editingRecord.assessment === 'Mastered'" class="radio-dot"></span>
                 </div>
                 <div class="assessment-card-info">
                   <span class="assessment-card-title">Mastered</span>
@@ -688,15 +746,15 @@
 
               <div
                 class="assessment-card card-not-mastered"
-                :class="{ 'is-selected': editingRecord.assessment === 'Not Mastered' || editingRecord.moduleStatus === 'Not Mastered' }"
+                :class="{ 'is-selected': editingRecord.assessment === 'Not Mastered' }"
                 role="button"
                 tabindex="0"
-                @click="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered';"
-                @keydown.space.prevent="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered';"
-                @keydown.enter.prevent="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered';"
+                @click="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered'; editFormError = '';"
+                @keydown.space.prevent="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered'; editFormError = '';"
+                @keydown.enter.prevent="editingRecord.assessment = 'Not Mastered'; editingRecord.moduleStatus = 'Not Mastered'; editFormError = '';"
               >
                 <div class="assessment-radio-circle">
-                  <span v-if="editingRecord.assessment === 'Not Mastered' || editingRecord.moduleStatus === 'Not Mastered'" class="radio-dot"></span>
+                  <span v-if="editingRecord.assessment === 'Not Mastered'" class="radio-dot"></span>
                 </div>
                 <div class="assessment-card-info">
                   <span class="assessment-card-title">Not Mastered</span>
@@ -704,8 +762,10 @@
                 </div>
               </div>
             </div>
+            <p v-if="editFormError" class="modal-validation-error">{{ editFormError }}</p>
           </div>
 
+          <!-- Teacher-Editable Field 3: Teacher Remarks -->
           <div class="form-group">
             <label class="form-label">Teacher Remarks</label>
             <textarea
@@ -720,8 +780,8 @@
             <button type="button" class="btn btn-secondary" @click="editingRecord = null">
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary">
-              Save Changes
+            <button type="submit" class="btn btn-primary" :disabled="savingRecord">
+              {{ savingRecord ? 'Saving...' : 'Save Changes' }}
             </button>
           </div>
         </form>
@@ -731,211 +791,17 @@
     <!-- ============================================================ -->
     <!-- MODAL: ADD LEARNER RECORD                                    -->
     <!-- ============================================================ -->
-    <div v-if="isAddingRecord" class="modal-overlay" @click.self="isAddingRecord = false">
-      <div class="modal-box record-edit-modal">
-        <div class="modal-header">
-          <div>
-            <h2 class="modal-title-text">Add Learner Record</h2>
-            <p class="modal-sub-text">
-              Record module assessment and learning activities for {{ newRecord.learnerName || selectedLearner?.name || 'learner' }}.
-            </p>
-          </div>
-          <button type="button" class="modal-close-btn" @click="isAddingRecord = false">&times;</button>
-        </div>
-
-        <form @submit.prevent="saveNewRecord" class="record-edit-form">
-          <!-- 1. Learner Name (Pre-identified from selected learner) -->
-          <div class="form-group">
-            <label class="form-label">Learner Name <span class="req">*</span></label>
-            <select
-              v-model="newRecord.learnerId"
-              class="form-select custom-select-arrow"
-              :disabled="Boolean(selectedLearner)"
-              required
-              @change="onLearnerSelect(newRecord.learnerId)"
-            >
-              <option value="" disabled>Select a learner</option>
-              <option v-for="l in assignedLearners" :key="l.id" :value="l.id">
-                {{ l.name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- 2. Module Title (Text Input) -->
-          <div class="form-group">
-            <label class="form-label">Module Title <span class="req">*</span></label>
-            <input
-              v-model="newRecord.moduleTitle"
-              type="text"
-              class="form-input"
-              placeholder="e.g., Communication Skills Module 1"
-              required
-            />
-          </div>
-
-          <!-- 2b. Learning Strand -->
-          <div class="form-group">
-            <label class="form-label">Learning Strand</label>
-            <select v-model="newRecord.strandName" class="form-select custom-select-arrow">
-              <option value="">Select Learning Strand</option>
-              <option value="LS1 Communication Skills (English)">LS1 Communication Skills (English)</option>
-              <option value="LS1 Communication Skills (Filipino)">LS1 Communication Skills (Filipino)</option>
-              <option value="LS2 Scientific Literacy and Critical Thinking">LS2 Scientific Literacy and Critical Thinking</option>
-              <option value="LS3 Mathematical and Problem Solving Skills">LS3 Mathematical and Problem Solving Skills</option>
-              <option value="LS4 Life and Career Skills">LS4 Life and Career Skills</option>
-              <option value="LS5 Digital Literacy">LS5 Digital Literacy</option>
-              <option value="LS6 Understanding the Self and Society">LS6 Understanding the Self and Society</option>
-            </select>
-          </div>
-
-          <!-- 3 & 4. Date Started & Date Finished (2-Column Grid) -->
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Date Started <span class="req">*</span></label>
-              <input
-                v-model="newRecord.dateStarted"
-                type="date"
-                class="form-input date-input"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Date Finished <span class="req">*</span></label>
-              <input
-                v-model="newRecord.dateFinished"
-                type="date"
-                class="form-input date-input"
-                required
-              />
-            </div>
-          </div>
-
-          <!-- 5 & 6. Pre-Test and Post-Test Score (Score / Total Items) -->
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Pre-Test Score</label>
-              <div class="score-input-split">
-                <input
-                  v-model.number="newRecord.preTestScore"
-                  type="number"
-                  min="0"
-                  :max="newRecord.preTestTotal || undefined"
-                  class="form-input score-num-in"
-                  placeholder="Score"
-                />
-                <span class="slash-div">/</span>
-                <input
-                  v-model.number="newRecord.preTestTotal"
-                  type="number"
-                  min="1"
-                  class="form-input score-num-in"
-                  placeholder=""
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Post-Test Score</label>
-              <div class="score-input-split">
-                <input
-                  v-model.number="newRecord.postTestScore"
-                  type="number"
-                  min="0"
-                  :max="newRecord.postTestTotal || undefined"
-                  class="form-input score-num-in"
-                  placeholder="Score"
-                />
-                <span class="slash-div">/</span>
-                <input
-                  v-model.number="newRecord.postTestTotal"
-                  type="number"
-                  min="1"
-                  class="form-input score-num-in"
-                  placeholder=""
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 7. Other Related Activities Accomplished -->
-          <div class="form-group">
-            <label class="form-label">Other Related Activities Accomplished</label>
-            <textarea
-              v-model="newRecord.otherActivities"
-              rows="3"
-              class="form-textarea"
-              placeholder="e.g., worksheets, performance tasks, projects, reading activities, etc."
-            ></textarea>
-          </div>
-
-          <!-- 8. ALS Teacher's Assessment -->
-          <div class="form-group">
-            <label class="form-label">ALS Teacher's Assessment <span class="req">*</span></label>
-            <div class="assessment-cards-grid">
-              <!-- Mastered Card -->
-              <div
-                class="assessment-card card-mastered"
-                :class="{ 'is-selected': newRecord.assessment === 'Mastered' }"
-                role="button"
-                tabindex="0"
-                @click="newRecord.assessment = 'Mastered'"
-                @keydown.space.prevent="newRecord.assessment = 'Mastered'"
-                @keydown.enter.prevent="newRecord.assessment = 'Mastered'"
-              >
-                <div class="assessment-radio-circle">
-                  <span v-if="newRecord.assessment === 'Mastered'" class="radio-dot"></span>
-                </div>
-                <div class="assessment-card-info">
-                  <span class="assessment-card-title">Mastered</span>
-                  <span class="assessment-card-desc">Learner has met the required competencies.</span>
-                </div>
-              </div>
-
-              <!-- Not Mastered Card -->
-              <div
-                class="assessment-card card-not-mastered"
-                :class="{ 'is-selected': newRecord.assessment === 'Not Mastered' }"
-                role="button"
-                tabindex="0"
-                @click="newRecord.assessment = 'Not Mastered'"
-                @keydown.space.prevent="newRecord.assessment = 'Not Mastered'"
-                @keydown.enter.prevent="newRecord.assessment = 'Not Mastered'"
-              >
-                <div class="assessment-radio-circle">
-                  <span v-if="newRecord.assessment === 'Not Mastered'" class="radio-dot"></span>
-                </div>
-                <div class="assessment-card-info">
-                  <span class="assessment-card-title">Not Mastered</span>
-                  <span class="assessment-card-desc">Learner still needs to develop competencies.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 9. Teacher Remarks -->
-          <div class="form-group">
-            <label class="form-label">Teacher Remarks</label>
-            <textarea
-              v-model="newRecord.remarks"
-              rows="3"
-              class="form-textarea"
-              placeholder="Enter remarks, observations, or recommendations..."
-            ></textarea>
-          </div>
-
-          <!-- Modal Action Buttons -->
-          <div class="modal-actions-footer">
-            <button type="button" class="btn btn-secondary" @click="isAddingRecord = false">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
-              Save Record
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AddLearnerRecordModal
+      v-model="isAddingRecord"
+      :mode="addRecordMode"
+      :record="newRecord"
+      :fallback-learner-name="selectedLearner?.name || ''"
+      :saving="savingRecord"
+      :error-message="addFormError"
+      @close="closeAddRecordModal"
+      @save="saveNewRecord"
+      @clear-error="addFormError = ''"
+    />
   </div>
 </template>
 
@@ -944,8 +810,11 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useClcData } from '../composables/useClcData.js';
+import PageHeader from '../components/PageHeader.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
+import AddLearnerRecordModal from '../components/AddLearnerRecordModal.vue';
 import { getAssignedLearners } from '../api/learners.js';
-import { getRecords, createRecord, updateRecord, deleteRecord } from '../api/records.js';
+import { getRecords, getRecordContext, createRecord, updateRecord, deleteRecord } from '../api/records.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -1193,16 +1062,50 @@ function moduleStatusClass(status) {
 // View & Edit Modals
 const viewingRecord = ref(null);
 const editingRecord = ref(null);
+const savingRecord = ref(false);
+const addFormError = ref('');
+const editFormError = ref('');
+const recordsSuccessMessage = ref('');
+let successBannerTimer = null;
+
+function showRecordsSuccessBanner(msg) {
+  recordsSuccessMessage.value = msg;
+  if (successBannerTimer) clearTimeout(successBannerTimer);
+  successBannerTimer = setTimeout(() => {
+    recordsSuccessMessage.value = '';
+  }, 5500);
+}
+
+function formatScoreDisplay(score, total) {
+  if (score === null || score === undefined || score === '') {
+    return 'Not Taken';
+  }
+  if (total !== null && total !== undefined && total !== '') {
+    return `${score}/${total}`;
+  }
+  return `${score}`;
+}
 
 function openViewRecordModal(record) {
   viewingRecord.value = { ...record };
 }
 
 function openEditRecordModal(record) {
+  editFormError.value = '';
+  const initialAssessment =
+    record.assessment === 'Mastered' || record.assessment === 'Not Mastered'
+      ? record.assessment
+      : record.moduleStatus === 'Mastered' || record.moduleStatus === 'Not Mastered'
+        ? record.moduleStatus
+        : '';
+
   editingRecord.value = {
     ...record,
+    learnerName: record.learnerName || selectedLearner.value?.name || '',
+    moduleId: record.moduleId || null,
+    moduleTitle: record.moduleTitle || '',
     strandName: record.strandName || '',
-    selfAssessment: record.selfAssessment || '',
+    selfAssessment: '',
     preTestScore: record.preTestScore != null ? record.preTestScore : null,
     preTestTotal: record.preTestTotal != null ? record.preTestTotal : null,
     postTestScore: record.postTestScore != null ? record.postTestScore : null,
@@ -1210,14 +1113,29 @@ function openEditRecordModal(record) {
     dateStarted: record.dateStarted || '',
     dateFinished: record.dateFinished || record.dateCompleted || '',
     otherActivities: record.otherActivities || '',
-    assessment: record.assessment || record.moduleStatus || 'Mastered',
+    assessment: initialAssessment,
+    moduleStatus: initialAssessment,
+    remarks: record.remarks || '',
   };
 }
 
 async function saveEditedRecord() {
   if (!editingRecord.value) return;
 
+  const chosenAssessment = (editingRecord.value.assessment || '').trim();
+  if (chosenAssessment !== 'Mastered' && chosenAssessment !== 'Not Mastered') {
+    editFormError.value = "Please select the ALS Teacher's Assessment (Mastered or Not Mastered).";
+    return;
+  }
+
+  savingRecord.value = true;
+  editFormError.value = '';
+
   const updatePayload = {
+    learnerId: Number(editingRecord.value.learnerId || selectedLearnerId.value),
+    learnerName: editingRecord.value.learnerName || selectedLearner.value?.name || '',
+    moduleId: editingRecord.value.moduleId || null,
+    moduleTitle: editingRecord.value.moduleTitle || '',
     strandName: editingRecord.value.strandName || '',
     selfAssessment: '',
     preTestScore:
@@ -1240,8 +1158,8 @@ async function saveEditedRecord() {
     dateFinished: editingRecord.value.dateFinished || '',
     dateCompleted: editingRecord.value.dateFinished || editingRecord.value.dateCompleted || '',
     otherActivities: editingRecord.value.otherActivities ? editingRecord.value.otherActivities.trim() : '',
-    assessment: editingRecord.value.assessment || editingRecord.value.moduleStatus,
-    moduleStatus: editingRecord.value.assessment || editingRecord.value.moduleStatus,
+    assessment: chosenAssessment,
+    moduleStatus: chosenAssessment,
     remarks: editingRecord.value.remarks ? editingRecord.value.remarks.trim() : '',
   };
 
@@ -1249,6 +1167,8 @@ async function saveEditedRecord() {
     await updateRecord(editingRecord.value.id, updatePayload);
   } catch (err) {
     console.warn('API update failed, updating local clcData:', err);
+  } finally {
+    savingRecord.value = false;
   }
 
   // Also sync local clcData
@@ -1259,7 +1179,7 @@ async function saveEditedRecord() {
 
   editingRecord.value = null;
   await fetchRecordsForSelectedLearner();
-  alert('Record updated successfully!');
+  showRecordsSuccessBanner('Learner record saved successfully.');
 }
 
 async function confirmDeleteRecord(record) {
@@ -1312,13 +1232,31 @@ async function loadTeacherLearners() {
   }
 }
 
+async function handleRouteContextAndOpenModal() {
+  const lid = route.params.learnerId ? Number(route.params.learnerId) : null;
+  if (!lid || isNaN(lid)) return;
+
+  const qModId = route.query.moduleId ? Number(route.query.moduleId) : null;
+  const qSubId = route.query.submissionId ? Number(route.query.submissionId) : null;
+  const fromReview = route.query.fromReview === '1' || Boolean(qModId || qSubId);
+
+  if (fromReview) {
+    await populateAndOpenAddRecordModal({
+      learnerId: lid,
+      moduleId: qModId || undefined,
+      submissionId: qSubId || undefined,
+    });
+  }
+}
+
 onMounted(async () => {
   await loadTeacherLearners();
   if (route.params.learnerId) {
     const lid = Number(route.params.learnerId);
-    if (!isNaN(lid) && assignedLearnersList.value.some((l) => Number(l.id) === lid)) {
+    if (!isNaN(lid)) {
       selectedLearnerId.value = lid;
       await fetchRecordsForSelectedLearner();
+      await handleRouteContextAndOpenModal();
     }
   }
 });
@@ -1333,8 +1271,8 @@ watch(
 );
 
 watch(
-  () => route.params.learnerId,
-  async (newLearnerId) => {
+  () => [route.params.learnerId, route.query.moduleId, route.query.submissionId, route.query.fromReview],
+  async ([newLearnerId, newModId, newSubId, newFromReview], [oldLearnerId, oldModId, oldSubId, oldFromReview]) => {
     if (!newLearnerId) {
       selectedLearnerId.value = null;
       recordsSearchQuery.value = '';
@@ -1344,54 +1282,83 @@ watch(
         selectedLearnerId.value = lid;
         await fetchRecordsForSelectedLearner();
       }
+      if (
+        (newModId && newModId !== oldModId) ||
+        (newSubId && newSubId !== oldSubId) ||
+        (newFromReview && newFromReview !== oldFromReview)
+      ) {
+        await handleRouteContextAndOpenModal();
+      }
     }
   }
 );
 
-function onLearnerSelect(learnerId) {
-  const learner = assignedLearners.value.find((l) => String(l.id) === String(learnerId));
-  if (learner) {
-    newRecord.learnerName = learner.name;
-    newRecord.lrn = learner.lrn;
-    newRecord.level = formatAlsLevel(learner.level);
-    newRecord.learningCenter = learner.learningCenter || '';
-  } else {
-    newRecord.learnerName = '';
-    newRecord.lrn = '';
-    newRecord.level = '';
-    newRecord.learningCenter = '';
-  }
-}
-
-// Add Record Modal
+// Add Record Modal (Separate 'manual' and 'submission' modes)
 const isAddingRecord = ref(false);
+const addRecordMode = ref('manual'); // 'manual' | 'submission'
+
+const manualLearningStrandOptions = [
+  'Communication Skills (English)',
+  'Communication Skills (Filipino)',
+  'Scientific & Critical Thinking Skills',
+  'Mathematical & Problem Solving Skills',
+  'Life and Career Skills',
+  'Understanding Self & Society',
+  'Digital Citizenship',
+];
+
 const newRecord = reactive({
+  existingRecordId: null,
+  submissionId: null,
   learnerId: '',
   learnerName: '',
   lrn: '',
   level: '',
   learningCenter: '',
+  learningCenterId: null,
+  moduleId: null,
   moduleTitle: '',
   strandName: '',
   dateStarted: '',
   dateFinished: '',
-  preTestScore: null,
-  preTestTotal: null,
-  postTestScore: null,
-  postTestTotal: null,
+  preTestScore: '',
+  preTestTotal: '',
+  postTestScore: '',
+  postTestTotal: '',
   otherActivities: '',
   selfAssessment: '',
   assessment: '',
   remarks: '',
 });
 
-function openAddRecordModal(preselectedLearner = null) {
-  const targetLearner = preselectedLearner || selectedLearner.value;
-  newRecord.learnerId = targetLearner ? targetLearner.id : '';
-  newRecord.learnerName = targetLearner ? targetLearner.name : '';
-  newRecord.lrn = targetLearner ? targetLearner.lrn : '';
+function clearReviewQueryParams() {
+  if (route.query.moduleId || route.query.submissionId || route.query.fromReview) {
+    router.replace({ path: route.path, query: {} }).catch(() => {});
+  }
+}
+
+function closeAddRecordModal() {
+  isAddingRecord.value = false;
+  addFormError.value = '';
+  clearReviewQueryParams();
+}
+
+async function populateAndOpenAddRecordModal({ learnerId, moduleId, submissionId }) {
+  addFormError.value = '';
+  addRecordMode.value = 'submission';
+  const targetLearner =
+    assignedLearnersList.value.find((l) => Number(l.id) === Number(learnerId)) || selectedLearner.value;
+
+  // Set initial learner fields while loading context
+  newRecord.existingRecordId = null;
+  newRecord.submissionId = submissionId || null;
+  newRecord.learnerId = learnerId || targetLearner?.id || '';
+  newRecord.learnerName = targetLearner?.name || '';
+  newRecord.lrn = targetLearner?.lrn || '';
   newRecord.level = targetLearner ? formatAlsLevel(targetLearner.level) : '';
-  newRecord.learningCenter = targetLearner ? targetLearner.learningCenter || '' : '';
+  newRecord.learningCenter = targetLearner?.learningCenter || '';
+  newRecord.learningCenterId = targetLearner?.learningCenterId || null;
+  newRecord.moduleId = moduleId || null;
   newRecord.moduleTitle = '';
   newRecord.strandName = '';
   newRecord.dateStarted = '';
@@ -1406,42 +1373,190 @@ function openAddRecordModal(preselectedLearner = null) {
   newRecord.remarks = '';
 
   isAddingRecord.value = true;
+
+  try {
+    const { data: ctx } = await getRecordContext({
+      learnerId,
+      moduleId,
+      submissionId,
+    });
+    if (ctx) {
+      newRecord.existingRecordId = ctx.existingRecordId || null;
+      newRecord.learnerId = ctx.learnerId || newRecord.learnerId;
+      newRecord.learnerName = ctx.learnerName || newRecord.learnerName;
+      newRecord.lrn = ctx.lrn || newRecord.lrn;
+      newRecord.level = ctx.level || newRecord.level;
+      newRecord.learningCenter = ctx.learningCenter || newRecord.learningCenter;
+      newRecord.learningCenterId = ctx.learningCenterId || newRecord.learningCenterId;
+      newRecord.moduleId = ctx.moduleId || newRecord.moduleId;
+      newRecord.moduleTitle = ctx.moduleTitle || '';
+      newRecord.strandName = ctx.strandName || '';
+      newRecord.dateStarted = ctx.dateStarted || '';
+      newRecord.dateFinished = ctx.dateFinished || '';
+      newRecord.preTestScore = ctx.preTestScore != null ? ctx.preTestScore : null;
+      newRecord.preTestTotal = ctx.preTestTotal != null ? ctx.preTestTotal : null;
+      newRecord.postTestScore = ctx.postTestScore != null ? ctx.postTestScore : null;
+      newRecord.postTestTotal = ctx.postTestTotal != null ? ctx.postTestTotal : null;
+      newRecord.otherActivities = ctx.otherActivities || '';
+      newRecord.assessment =
+        ctx.assessment === 'Mastered' || ctx.assessment === 'Not Mastered' ? ctx.assessment : '';
+      newRecord.remarks = ctx.remarks || '';
+    }
+  } catch (err) {
+    console.warn('Could not load record context from API, falling back to existing records list:', err);
+    const fallbackRec = records.value.find(
+      (r) =>
+        Number(r.learnerId) === Number(learnerId) &&
+        (!moduleId || Number(r.moduleId) === Number(moduleId))
+    );
+    if (fallbackRec) {
+      newRecord.existingRecordId = fallbackRec.id || null;
+      newRecord.moduleId = fallbackRec.moduleId || moduleId || null;
+      newRecord.moduleTitle = fallbackRec.moduleTitle || '';
+      newRecord.strandName = fallbackRec.strandName || '';
+      newRecord.dateStarted = fallbackRec.dateStarted || '';
+      newRecord.dateFinished = fallbackRec.dateFinished || fallbackRec.dateCompleted || '';
+      newRecord.preTestScore = fallbackRec.preTestScore != null ? fallbackRec.preTestScore : null;
+      newRecord.preTestTotal = fallbackRec.preTestTotal != null ? fallbackRec.preTestTotal : null;
+      newRecord.postTestScore = fallbackRec.postTestScore != null ? fallbackRec.postTestScore : null;
+      newRecord.postTestTotal = fallbackRec.postTestTotal != null ? fallbackRec.postTestTotal : null;
+      newRecord.otherActivities = fallbackRec.otherActivities || '';
+      newRecord.assessment =
+        fallbackRec.assessment === 'Mastered' || fallbackRec.assessment === 'Not Mastered'
+          ? fallbackRec.assessment
+          : '';
+      newRecord.remarks = fallbackRec.remarks || '';
+    }
+  }
+}
+
+function openAddRecordModal(preselectedLearner = null) {
+  addFormError.value = '';
+  addRecordMode.value = 'manual';
+  clearReviewQueryParams();
+
+  const targetLearner =
+    preselectedLearner ||
+    selectedLearner.value ||
+    assignedLearnersList.value.find((l) => Number(l.id) === Number(selectedLearnerId.value));
+
+  newRecord.existingRecordId = null;
+  newRecord.submissionId = null;
+  newRecord.learnerId = targetLearner ? targetLearner.id : selectedLearnerId.value || '';
+  newRecord.learnerName = targetLearner ? targetLearner.name : '';
+  newRecord.lrn = targetLearner?.lrn || '';
+  newRecord.level = targetLearner ? formatAlsLevel(targetLearner.level) : '';
+  newRecord.learningCenter = targetLearner?.learningCenter || '';
+  newRecord.learningCenterId = targetLearner?.learningCenterId || null;
+  newRecord.moduleId = null;
+  newRecord.moduleTitle = '';
+  newRecord.strandName = '';
+  newRecord.dateStarted = '';
+  newRecord.dateFinished = '';
+  newRecord.preTestScore = '';
+  newRecord.preTestTotal = '';
+  newRecord.postTestScore = '';
+  newRecord.postTestTotal = '';
+  newRecord.otherActivities = '';
+  newRecord.selfAssessment = '';
+  newRecord.assessment = '';
+  newRecord.remarks = '';
+
+  isAddingRecord.value = true;
 }
 
 async function saveNewRecord() {
   if (!newRecord.learnerId || !newRecord.learnerName) {
-    alert('Please select a learner.');
-    return;
-  }
-  if (!newRecord.moduleTitle.trim()) {
-    alert('Please enter a module title.');
-    return;
-  }
-  if (!newRecord.dateStarted) {
-    alert('Please select the Date Started.');
-    return;
-  }
-  if (!newRecord.dateFinished) {
-    alert('Please select the Date Finished.');
-    return;
-  }
-  if (!newRecord.assessment) {
-    alert("Please select the ALS Teacher's Assessment (Mastered or Not Mastered).");
+    addFormError.value = 'Learner information is missing.';
     return;
   }
 
+  if (addRecordMode.value === 'manual') {
+    if (!newRecord.moduleTitle || !String(newRecord.moduleTitle).trim()) {
+      addFormError.value = 'Please enter the Module Title.';
+      return;
+    }
+    if (!newRecord.strandName || !String(newRecord.strandName).trim()) {
+      addFormError.value = 'Please select a Learning Strand.';
+      return;
+    }
+    if (!newRecord.dateStarted) {
+      addFormError.value = 'Please select the Date Started.';
+      return;
+    }
+    if (!newRecord.dateFinished) {
+      addFormError.value = 'Please select the Date Finished.';
+      return;
+    }
+    if (new Date(newRecord.dateFinished) < new Date(newRecord.dateStarted)) {
+      addFormError.value = 'Date Finished cannot be earlier than Date Started.';
+      return;
+    }
+
+    const hasPreScore = newRecord.preTestScore !== '' && newRecord.preTestScore !== null && newRecord.preTestScore !== undefined;
+    const hasPreTotal = newRecord.preTestTotal !== '' && newRecord.preTestTotal !== null && newRecord.preTestTotal !== undefined;
+    if (hasPreScore || hasPreTotal) {
+      if (!hasPreScore || isNaN(Number(newRecord.preTestScore)) || Number(newRecord.preTestScore) < 0) {
+        addFormError.value = 'Please enter a valid Pre-Test Score (0 or higher).';
+        return;
+      }
+      if (!hasPreTotal || isNaN(Number(newRecord.preTestTotal)) || Number(newRecord.preTestTotal) < 1) {
+        addFormError.value = 'Please enter a valid Pre-Test Total (1 or higher).';
+        return;
+      }
+      if (Number(newRecord.preTestScore) > Number(newRecord.preTestTotal)) {
+        addFormError.value = 'Pre-Test Score cannot exceed the Pre-Test Total.';
+        return;
+      }
+    }
+
+    const hasPostScore = newRecord.postTestScore !== '' && newRecord.postTestScore !== null && newRecord.postTestScore !== undefined;
+    const hasPostTotal = newRecord.postTestTotal !== '' && newRecord.postTestTotal !== null && newRecord.postTestTotal !== undefined;
+    if (hasPostScore || hasPostTotal) {
+      if (!hasPostScore || isNaN(Number(newRecord.postTestScore)) || Number(newRecord.postTestScore) < 0) {
+        addFormError.value = 'Please enter a valid Post-Test Score (0 or higher).';
+        return;
+      }
+      if (!hasPostTotal || isNaN(Number(newRecord.postTestTotal)) || Number(newRecord.postTestTotal) < 1) {
+        addFormError.value = 'Please enter a valid Post-Test Total (1 or higher).';
+        return;
+      }
+      if (Number(newRecord.postTestScore) > Number(newRecord.postTestTotal)) {
+        addFormError.value = 'Post-Test Score cannot exceed the Post-Test Total.';
+        return;
+      }
+    }
+  } else {
+    if (!newRecord.moduleTitle || !String(newRecord.moduleTitle).trim()) {
+      addFormError.value = 'No assigned module found for this learner.';
+      return;
+    }
+  }
+
+  if (newRecord.assessment !== 'Mastered' && newRecord.assessment !== 'Not Mastered') {
+    addFormError.value = "Please select the ALS Teacher's Assessment (Mastered or Not Mastered).";
+    return;
+  }
+
+  savingRecord.value = true;
+  addFormError.value = '';
+
   const tid = teacherId.value;
   const recordPayload = {
+    mode: addRecordMode.value,
+    submissionId: newRecord.submissionId || null,
     teacherId: tid,
     learnerId: Number(newRecord.learnerId),
     learnerName: newRecord.learnerName.trim(),
     lrn: newRecord.lrn,
     level: formatAlsLevel(newRecord.level),
     learningCenter: newRecord.learningCenter || assignedCenters.value?.[0]?.name || '',
-    moduleTitle: newRecord.moduleTitle.trim(),
+    learningCenterId: newRecord.learningCenterId || null,
+    moduleId: newRecord.moduleId || null,
+    moduleTitle: String(newRecord.moduleTitle).trim(),
     strandName: newRecord.strandName || '',
-    dateStarted: newRecord.dateStarted,
-    dateFinished: newRecord.dateFinished,
+    dateStarted: newRecord.dateStarted || '',
+    dateFinished: newRecord.dateFinished || '',
     preTestScore:
       newRecord.preTestScore != null && newRecord.preTestScore !== ''
         ? Number(newRecord.preTestScore)
@@ -1458,28 +1573,45 @@ async function saveNewRecord() {
       newRecord.postTestTotal != null && newRecord.postTestTotal !== ''
         ? Number(newRecord.postTestTotal)
         : null,
-    otherActivities: newRecord.otherActivities.trim(),
+    otherActivities: newRecord.otherActivities ? newRecord.otherActivities.trim() : '',
     selfAssessment: '',
     assessment: newRecord.assessment,
     moduleStatus: newRecord.assessment,
-    dateCompleted: newRecord.dateFinished,
-    remarks: newRecord.remarks.trim(),
+    dateCompleted: newRecord.dateFinished || '',
+    remarks: newRecord.remarks ? newRecord.remarks.trim() : '',
   };
 
+  let savedRes = null;
   try {
-    await createRecord(recordPayload);
+    savedRes = await createRecord(recordPayload);
   } catch (err) {
-    console.warn('API create failed, adding to local clcData:', err);
+    console.warn('API create/upsert failed:', err);
+    addFormError.value =
+      err?.response?.data?.error ||
+      err?.message ||
+      'Failed to save learner record. Please try again.';
+    savingRecord.value = false;
+    return;
   }
 
-  // Also sync to local clcData
+  savingRecord.value = false;
+  if (savedRes?.data?.id) {
+    newRecord.existingRecordId = savedRes.data.id;
+  }
+
+  // Also sync to local clcData without creating duplicate local entries
   const defaultSlug = assignedCenters.value?.[0]?.slug || '_standalone-modules';
   const clcData = useClcData(defaultSlug);
-  clcData.addRecord(recordPayload);
+  if (newRecord.existingRecordId) {
+    clcData.updateRecord(newRecord.existingRecordId, recordPayload);
+  } else {
+    clcData.addRecord(recordPayload);
+  }
 
   isAddingRecord.value = false;
+  clearReviewQueryParams();
   await fetchRecordsForSelectedLearner();
-  alert('Learner record added successfully!');
+  showRecordsSuccessBanner('Learner record saved successfully.');
 }
 </script>
 
@@ -1857,19 +1989,6 @@ async function saveNewRecord() {
   color: #0f172a;
 }
 
-.als-level-subtle-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #334155;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-
 .col-center-text {
   color: #475569;
 }
@@ -2038,22 +2157,22 @@ async function saveNewRecord() {
 }
 
 .meta-item-value {
-  font-size: 0.9rem;
+  font-family: inherit;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #1e293b;
+  color: #0f172a;
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .meta-item-value.strong {
-  font-weight: 700;
+  font-weight: 600;
   color: #0f172a;
-}
-
-.meta-item-value.mono {
-  font-family: monospace;
-  color: #475569;
 }
 
 /* Shared Table Cells */
@@ -2486,6 +2605,61 @@ async function saveNewRecord() {
   background: #f8fafc;
   color: #334155;
   cursor: default;
+}
+
+.form-input.is-readonly-field {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  font-weight: 500;
+  cursor: default;
+}
+
+.form-input.is-readonly-field:focus {
+  border-color: #cbd5e1;
+  box-shadow: none;
+}
+
+.form-input.score-readonly-input {
+  font-weight: 600;
+}
+
+.modal-validation-error {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #dc2626;
+}
+
+.records-success-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 0.85rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.records-success-content {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.btn-dismiss-banner {
+  background: transparent;
+  border: none;
+  color: #166534;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
 }
 
 .custom-select-arrow {

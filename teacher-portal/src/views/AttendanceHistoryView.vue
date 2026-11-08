@@ -4,23 +4,17 @@
     <!-- VIEW 1: ATTENDANCE HISTORY — LEARNER LIST                    -->
     <!-- ============================================================ -->
     <template v-if="!selectedLearner">
-      <!-- Breadcrumb -->
-      <nav class="breadcrumb-nav" aria-label="Breadcrumb">
-        <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-        <span class="breadcrumb-separator">/</span>
-        <span class="breadcrumb-link-muted">Attendance</span>
-        <span class="breadcrumb-separator">/</span>
-        <span class="breadcrumb-current">Attendance History</span>
-      </nav>
-
-      <!-- Page Header -->
-      <div class="page-header-row">
-        <div class="page-title-group">
-          <h1 class="page-title">Attendance History</h1>
-          <p class="page-subtitle">View and monitor learner attendance records.</p>
-        </div>
-
-        <div class="header-actions">
+      <!-- Standardized Page Header -->
+      <PageHeader
+        title="Attendance History"
+        description="View and monitor learner attendance records."
+        :breadcrumbs="[
+          { label: 'Dashboard', to: '/dashboard' },
+          { label: 'Attendance', to: '/dashboard/attendance' },
+          { label: 'Attendance History' },
+        ]"
+      >
+        <template #actions>
           <router-link to="/dashboard/attendance" class="btn-take-attendance">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -29,8 +23,8 @@
             </svg>
             <span>Take Attendance</span>
           </router-link>
-        </div>
-      </div>
+        </template>
+      </PageHeader>
 
       <!-- Filter Section Card -->
       <div class="filter-card">
@@ -527,6 +521,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/attendance.js';

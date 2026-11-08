@@ -139,30 +139,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     }
     const assignedMap = new Map(assignedLearners.map((l) => [l.id, l]));
 
-    // 3. Fetch actual LearnerProgress records for these assigned learners from the database
-    const progressList = await prisma.learnerProgress.findMany({
-      where: {
-        learnerId: targetLearnerId && !isNaN(targetLearnerId) ? targetLearnerId : { in: assignedLearnerIds },
-      },
-      include: {
-        learner: {
-          include: { learningCenter: true },
-        },
-        module: {
-          include: {
-            learningArea: true,
-            assessments: {
-              include: {
-                _count: { select: { questions: true } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    // 4. Fetch any manually recorded AF2 entries for these assigned learners
+    // 3. Fetch any manually or submission-saved AF2 performance records for these assigned learners
     const af2Stored = readAf2Records();
     const af2List = af2Stored.filter((r) => {
       const lid = Number(r.learnerId);
@@ -170,147 +147,95 @@ router.get('/', optionalAuth, async (req, res, next) => {
       return assignedLearnerIds.includes(lid) || (tid && tid === teacherId);
     });
 
-    // 5. Combine records without duplicates
-    const records = [];
-    const seenModuleLearnerKeys = new Set();
-
-    // 5a. Process database LearnerProgress records
-    for (const p of progressList) {
-      const learner = p.learner || assignedMap.get(p.learnerId);
-      const mod = p.module;
-      if (!learner || !mod) continue;
-
-      const modKeyId = `${p.learnerId}_${p.moduleId}`;
-      const modKeyTitle = `${p.learnerId}_${(mod.title || '').trim().toLowerCase()}`;
-      seenModuleLearnerKeys.add(modKeyId);
-      seenModuleLearnerKeys.add(modKeyTitle);
-
-      let preTotal = 10;
-      let postTotal = 10;
-      if (Array.isArray(mod.assessments)) {
-        const preAss = mod.assessments.find((a) => a.type === 'PRE_TEST');
-        const postAss = mod.assessments.find((a) => a.type === 'POST_TEST');
-        if (preAss?._count?.questions) preTotal = preAss._count.questions;
-        if (postAss?._count?.questions) postTotal = postAss._count.questions;
+    // 4. Preload module info for any saved records with a moduleId
+    const savedModuleIds = [...new Set(af2List.map((r) => Number(r.moduleId)).filter((id) => id && !isNaN(id)))];
+    let loadedModulesMap = new Map();
+    if (savedModuleIds.length > 0) {
+      try {
+        const loadedModules = await prisma.module.findMany({
+          where: { id: { in: savedModuleIds } },
+          include: { learningArea: true },
+        });
+        loadedModulesMap = new Map(loadedModules.map((m) => [m.id, m]));
+      } catch (modErr) {
+        console.warn('Could not preload modules for saved records:', modErr);
       }
-
-      let status = 'In Progress';
-      if (p.masteryStatus === 'MASTERED' || p.status === 'COMPLETED') {
-        status = 'Mastered';
-      } else if (p.masteryStatus === 'NOT_MASTERED') {
-        status = 'Not Mastered';
-      }
-
-      let displayLevel = 'A&E Elementary';
-      if (learner.level === 'JUNIOR' || learner.level === 'A&E Junior High') {
-        displayLevel = 'A&E Junior High';
-      } else if (learner.level === 'ELEMENTARY' || learner.level === 'A&E Elementary') {
-        displayLevel = 'A&E Elementary';
-      }
-
-      // Check if there is a matching manual AF2 record to merge teacher's remarks or details
-      const matchedAf = af2List.find(
-        (af) =>
-          Number(af.learnerId) === learner.id &&
-          (Number(af.moduleId) === mod.id ||
-            (af.moduleTitle &&
-              af.moduleTitle.trim().toLowerCase() === mod.title.trim().toLowerCase()))
-      );
-
-      let finalRemarks = matchedAf?.remarks ? matchedAf.remarks.trim() : '';
-      let finalOtherActivities = matchedAf?.otherActivities
-        ? matchedAf.otherActivities.trim()
-        : (mod.activitiesRelated ? mod.activitiesRelated.replace(/\\n/g, '\n').trim() : '');
-      let finalSelfAssessment = matchedAf?.selfAssessment ? matchedAf.selfAssessment.trim() : '';
-      let finalStatus = status;
-      if (matchedAf?.assessment && (matchedAf.assessment === 'Mastered' || matchedAf.assessment === 'Not Mastered')) {
-        finalStatus = matchedAf.assessment;
-      } else if (matchedAf?.moduleStatus) {
-        finalStatus = matchedAf.moduleStatus;
-      }
-
-      const recDateStarted = matchedAf?.dateStarted || (p.createdAt ? p.createdAt.toISOString().split('T')[0] : (mod.dateStarted ? mod.dateStarted.toISOString().split('T')[0] : ''));
-      const recDateCompleted = matchedAf?.dateFinished || matchedAf?.dateCompleted || (p.completedAt ? p.completedAt.toISOString().split('T')[0] : (p.updatedAt ? p.updatedAt.toISOString().split('T')[0] : ''));
-
-      records.push({
-        id: `prog_${p.id}`,
-        source: 'database',
-        progressId: p.id,
-        learnerId: learner.id,
-        learnerName: formatLearnerName(learner),
-        lrn: learner.lrn || '',
-        level: displayLevel,
-        learningCenterId: learner.learningCenterId,
-        learningCenter: learner.learningCenter?.name || '',
-        centerName: learner.learningCenter?.name || '',
-        moduleId: mod.id,
-        moduleTitle: mod.title,
-        strandName: mod.learningArea?.name || matchedAf?.strandName || '',
-        preTestScore: p.preTestScore != null ? Number(p.preTestScore) : (matchedAf?.preTestScore != null ? Number(matchedAf.preTestScore) : null),
-        preTestTotal: matchedAf?.preTestTotal != null && matchedAf?.preTestTotal !== '' ? Number(matchedAf.preTestTotal) : preTotal,
-        postTestScore: p.postTestScore != null ? Number(p.postTestScore) : (matchedAf?.postTestScore != null ? Number(matchedAf.postTestScore) : null),
-        postTestTotal: matchedAf?.postTestTotal != null && matchedAf?.postTestTotal !== '' ? Number(matchedAf.postTestTotal) : postTotal,
-        assessment: finalStatus,
-        moduleStatus: finalStatus,
-        dateStarted: recDateStarted,
-        dateFinished: recDateCompleted,
-        dateCompleted: recDateCompleted,
-        otherActivities: finalOtherActivities,
-        uploadedOutputs: matchedAf?.uploadedOutputs || '',
-        selfAssessment: finalSelfAssessment,
-        remarks: finalRemarks,
-      });
     }
 
-    // 5b. Process any AF2 recorded entries not already covered
+    // 5. Build records list STRICTLY from authoritative saved performance records
+    // Do not synthesize or auto-generate records from unrecorded progress or enrollment
+    const records = [];
+    const seenRecordKeys = new Set();
+
     for (const af of af2List) {
       const lid = Number(af.learnerId);
+      const recId = String(af.id || '');
       const modKeyId = af.moduleId ? `${lid}_${af.moduleId}` : null;
-      const modKeyTitle = af.moduleTitle ? `${lid}_${af.moduleTitle.trim().toLowerCase()}` : null;
-      if ((!modKeyId || !seenModuleLearnerKeys.has(modKeyId)) && (!modKeyTitle || !seenModuleLearnerKeys.has(modKeyTitle))) {
-        if (modKeyId) seenModuleLearnerKeys.add(modKeyId);
-        if (modKeyTitle) seenModuleLearnerKeys.add(modKeyTitle);
-        const learner = assignedMap.get(lid);
-        if (!learner && !assignedLearnerIds.includes(lid)) continue;
+      const modKeyTitle = af.moduleTitle ? `${lid}_${String(af.moduleTitle).trim().toLowerCase()}` : null;
+      const uniqueDedupeKey = recId || modKeyId || modKeyTitle;
 
-        let displayLevel = af.level;
-        if (!displayLevel && learner) {
-          displayLevel = learner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
-        }
-        if (displayLevel === 'JUNIOR') displayLevel = 'A&E Junior High';
-        else if (displayLevel === 'ELEMENTARY') displayLevel = 'A&E Elementary';
-
-        const centerName = af.learningCenter || af.centerName || learner?.learningCenter?.name || '';
-        const cid = af.learningCenterId || learner?.learningCenterId || null;
-
-        records.push({
-          id: af.id || `af2_${Date.now()}`,
-          source: 'af2',
-          learnerId: lid || learner?.id,
-          learnerName: af.learnerName || (learner ? formatLearnerName(learner) : ''),
-          lrn: af.lrn || learner?.lrn || '',
-          level: displayLevel || 'A&E Elementary',
-          learningCenterId: cid,
-          learningCenter: centerName,
-          centerName: centerName,
-          moduleId: af.moduleId || null,
-          moduleTitle: af.moduleTitle || 'Learning Module',
-          strandName: af.strandName || '',
-          preTestScore: af.preTestScore != null && af.preTestScore !== '' ? Number(af.preTestScore) : null,
-          preTestTotal: af.preTestTotal != null && af.preTestTotal !== '' ? Number(af.preTestTotal) : 10,
-          postTestScore: af.postTestScore != null && af.postTestScore !== '' ? Number(af.postTestScore) : null,
-          postTestTotal: af.postTestTotal != null && af.postTestTotal !== '' ? Number(af.postTestTotal) : 10,
-          assessment: af.assessment || af.moduleStatus || 'Mastered',
-          moduleStatus: af.assessment || af.moduleStatus || 'Mastered',
-          dateStarted: af.dateStarted || '',
-          dateFinished: af.dateFinished || af.dateCompleted || '',
-          dateCompleted: af.dateFinished || af.dateCompleted || '',
-          otherActivities: af.otherActivities || '',
-          uploadedOutputs: af.uploadedOutputs || '',
-          selfAssessment: af.selfAssessment || '',
-          remarks: af.remarks || '',
-        });
+      if (uniqueDedupeKey && seenRecordKeys.has(uniqueDedupeKey)) {
+        continue;
       }
+      if (uniqueDedupeKey) {
+        seenRecordKeys.add(uniqueDedupeKey);
+      }
+
+      const learner = assignedMap.get(lid);
+      if (!learner && !assignedLearnerIds.includes(lid)) continue;
+
+      let displayLevel = af.level;
+      if (!displayLevel && learner) {
+        displayLevel = learner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
+      }
+      if (displayLevel === 'JUNIOR') displayLevel = 'A&E Junior High';
+      else if (displayLevel === 'ELEMENTARY') displayLevel = 'A&E Elementary';
+
+      const centerName = af.learningCenter || af.centerName || learner?.learningCenter?.name || '';
+      const cid = af.learningCenterId || learner?.learningCenterId || null;
+
+      const matchedMod = af.moduleId ? loadedModulesMap.get(Number(af.moduleId)) : null;
+      const finalTitle = af.moduleTitle || matchedMod?.title || 'Learning Module';
+      const finalStrand = af.strandName || matchedMod?.learningArea?.name || '';
+
+      const finalStatus =
+        af.assessment === 'Mastered' || af.assessment === 'Not Mastered'
+          ? af.assessment
+          : af.moduleStatus === 'Mastered' || af.moduleStatus === 'Not Mastered'
+            ? af.moduleStatus
+            : 'Mastered';
+
+      records.push({
+        id: af.id || `rec_${Date.now()}`,
+        source: 'af2',
+        teacherId: af.teacherId || learner?.assignedTeacherId || teacherId,
+        teacherName: learner?.assignedTeacher?.fullName || 'ALS Teacher',
+        learnerId: lid || learner?.id,
+        learnerName: af.learnerName || (learner ? formatLearnerName(learner) : ''),
+        lrn: af.lrn || learner?.lrn || '',
+        level: displayLevel || 'A&E Elementary',
+        learningCenterId: cid,
+        learningCenter: centerName,
+        centerName: centerName,
+        moduleId: af.moduleId || null,
+        moduleTitle: finalTitle,
+        strandName: finalStrand,
+        preTestScore: af.preTestScore != null && af.preTestScore !== '' ? Number(af.preTestScore) : null,
+        preTestTotal: af.preTestTotal != null && af.preTestTotal !== '' ? Number(af.preTestTotal) : null,
+        postTestScore: af.postTestScore != null && af.postTestScore !== '' ? Number(af.postTestScore) : null,
+        postTestTotal: af.postTestTotal != null && af.postTestTotal !== '' ? Number(af.postTestTotal) : null,
+        assessment: finalStatus,
+        moduleStatus: finalStatus,
+        dateStarted: af.dateStarted || '',
+        dateFinished: af.dateFinished || af.dateCompleted || '',
+        dateCompleted: af.dateFinished || af.dateCompleted || '',
+        otherActivities: af.otherActivities ? String(af.otherActivities).trim() : '',
+        uploadedOutputs: af.uploadedOutputs || '',
+        selfAssessment: af.selfAssessment ? String(af.selfAssessment).trim() : '',
+        remarks: af.remarks ? String(af.remarks).trim() : '',
+        createdAt: af.createdAt || '',
+        updatedAt: af.updatedAt || '',
+      });
     }
 
     // 6. Apply Filter Combinations (AND logic)
@@ -398,13 +323,268 @@ router.get('/', optionalAuth, async (req, res, next) => {
 });
 
 /**
+ * GET /api/records/context
+ * Retrieve authoritative learner, module, submission, date, and assessment score context
+ * for pre-populating the Add/Edit Learner Record modal.
+ */
+router.get('/context', optionalAuth, async (req, res, next) => {
+  try {
+    const teacherId = req.user?.role === 'TEACHER' ? req.user.profileId : null;
+    const learnerId = req.query.learnerId ? parseInt(String(req.query.learnerId), 10) : null;
+    let moduleId = req.query.moduleId ? parseInt(String(req.query.moduleId), 10) : null;
+    const submissionId = req.query.submissionId ? parseInt(String(req.query.submissionId), 10) : null;
+
+    if (!learnerId || isNaN(learnerId)) {
+      return res.status(400).json({ error: 'learnerId is required' });
+    }
+
+    const learner = await prisma.learner.findUnique({
+      where: { id: learnerId },
+      include: { learningCenter: true },
+    });
+
+    if (!learner) {
+      return res.status(404).json({ error: 'Learner not found' });
+    }
+
+    if (teacherId && learner.assignedTeacherId !== teacherId) {
+      return res.status(403).json({ error: 'Learner is not assigned to you' });
+    }
+
+    if ((!moduleId || isNaN(moduleId)) && submissionId && !isNaN(submissionId)) {
+      const sub = await prisma.submission.findUnique({
+        where: { id: submissionId },
+        select: { moduleId: true },
+      });
+      if (sub?.moduleId) moduleId = sub.moduleId;
+    }
+
+    // If moduleId is still not specified, pick the learner's latest submission or progress or assigned module
+    if (!moduleId || isNaN(moduleId)) {
+      const latestSub = await prisma.submission.findFirst({
+        where: { learnerId },
+        orderBy: { submittedAt: 'desc' },
+        select: { moduleId: true },
+      });
+      if (latestSub?.moduleId) {
+        moduleId = latestSub.moduleId;
+      } else {
+        const latestProg = await prisma.learnerProgress.findFirst({
+          where: { learnerId },
+          orderBy: { createdAt: 'desc' },
+          select: { moduleId: true },
+        });
+        if (latestProg?.moduleId) {
+          moduleId = latestProg.moduleId;
+        } else {
+          const latestAssign = await prisma.moduleAssignment.findFirst({
+            where: { learnerId },
+            orderBy: { assignedAt: 'desc' },
+            select: { moduleId: true },
+          });
+          if (latestAssign?.moduleId) {
+            moduleId = latestAssign.moduleId;
+          }
+        }
+      }
+    }
+
+    const formattedName = formatLearnerName(learner);
+    const levelDisplay = learner.level === 'JUNIOR' ? 'A&E Junior High' : 'A&E Elementary';
+    const centerName = learner.learningCenter?.name || '';
+
+    if (!moduleId || isNaN(moduleId)) {
+      return res.json({
+        existingRecordId: null,
+        isEvaluated: false,
+        learnerId: learner.id,
+        learnerName: formattedName,
+        lrn: learner.lrn || '',
+        level: levelDisplay,
+        learningCenterId: learner.learningCenterId || null,
+        learningCenter: centerName,
+        moduleId: null,
+        moduleTitle: '',
+        strandName: '',
+        dateStarted: '',
+        dateFinished: '',
+        preTestScore: null,
+        preTestTotal: null,
+        postTestScore: null,
+        postTestTotal: null,
+        uploadedOutputs: '',
+        otherActivities: '',
+        assessment: '',
+        remarks: '',
+      });
+    }
+
+    const mod = await prisma.module.findUnique({
+      where: { id: moduleId },
+      include: {
+        learningArea: true,
+        assessments: {
+          include: {
+            _count: { select: { questions: true } },
+            attempts: {
+              where: { learnerId, status: 'SUBMITTED' },
+              orderBy: { completedAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+        submissions: {
+          where: { learnerId },
+          orderBy: { submittedAt: 'desc' },
+        },
+        learnerProgress: {
+          where: { learnerId },
+          take: 1,
+        },
+      },
+    });
+
+    if (!mod) {
+      return res.status(404).json({ error: 'Module not found' });
+    }
+
+    const prog = mod.learnerProgress?.[0] || null;
+    const learnerSubs = mod.submissions || [];
+    const latestSub = learnerSubs[0] || null;
+
+    const af2Records = readAf2Records();
+    const matchedAf = af2Records.find(
+      (r) =>
+        Number(r.learnerId) === learner.id &&
+        ((submissionId && Number(r.submissionId) === submissionId) ||
+          Number(r.moduleId) === mod.id ||
+          (r.moduleTitle && mod.title && r.moduleTitle.trim().toLowerCase() === mod.title.trim().toLowerCase()))
+    );
+
+    // Also check database submission record status in Prisma
+    const dbRecordedSub = await prisma.submission.findFirst({
+      where: {
+        learnerId: learner.id,
+        ...(submissionId ? { id: submissionId } : { moduleId: mod.id }),
+        status: 'Recorded',
+      },
+      select: { id: true, status: true, feedback: true },
+    });
+
+    const isAlreadyRecorded = Boolean(matchedAf) || Boolean(dbRecordedSub);
+
+    const preAss = (mod.assessments || []).find((a) => a.type === 'PRE_TEST');
+    const postAss = (mod.assessments || []).find((a) => a.type === 'POST_TEST');
+    const preAttempt = preAss?.attempts?.[0] || null;
+    const postAttempt = postAss?.attempts?.[0] || null;
+
+    const preTotal = preAss?._count?.questions || preAttempt?.maxScore || matchedAf?.preTestTotal || null;
+    const postTotal = postAss?._count?.questions || postAttempt?.maxScore || matchedAf?.postTestTotal || null;
+
+    const preScoreVal =
+      preAttempt?.score != null
+        ? preAttempt.score
+        : prog?.preTestScore != null
+          ? prog.preTestScore
+          : matchedAf?.preTestScore != null
+            ? matchedAf.preTestScore
+            : null;
+
+    const postScoreVal =
+      postAttempt?.score != null
+        ? postAttempt.score
+        : prog?.postTestScore != null
+          ? prog.postTestScore
+          : matchedAf?.postTestScore != null
+            ? matchedAf.postTestScore
+            : null;
+
+    const storedDateStarted =
+      matchedAf?.dateStarted ||
+      (mod.dateStarted
+        ? mod.dateStarted.toISOString().split('T')[0]
+        : prog?.createdAt
+          ? prog.createdAt.toISOString().split('T')[0]
+          : '');
+
+    const storedDateFinished =
+      matchedAf?.dateFinished ||
+      matchedAf?.dateCompleted ||
+      (mod.dateEnded
+        ? mod.dateEnded.toISOString().split('T')[0]
+        : latestSub?.submittedAt
+          ? latestSub.submittedAt.toISOString().split('T')[0]
+          : prog?.completedAt
+            ? prog.completedAt.toISOString().split('T')[0]
+            : '');
+
+    const uploadedFileNames = learnerSubs
+      .map((s) => s.fileName || s.fileUrl)
+      .filter(Boolean)
+      .join(', ');
+
+    const storedOtherActivities =
+      matchedAf?.otherActivities !== undefined && matchedAf?.otherActivities !== ''
+        ? String(matchedAf.otherActivities).trim()
+        : mod.activitiesRelated
+          ? String(mod.activitiesRelated).replace(/\\n/g, '\n').trim()
+          : '';
+
+    const afEvaluated =
+      matchedAf?.assessment === 'Mastered' ||
+      matchedAf?.assessment === 'Not Mastered' ||
+      matchedAf?.moduleStatus === 'Mastered' ||
+      matchedAf?.moduleStatus === 'Not Mastered';
+
+    const storedAssessment = afEvaluated
+      ? matchedAf.assessment === 'Mastered' || matchedAf.moduleStatus === 'Mastered'
+        ? 'Mastered'
+        : 'Not Mastered'
+      : '';
+
+    const storedRemarks = matchedAf?.remarks
+      ? String(matchedAf.remarks).trim()
+      : '';
+
+    res.json({
+      existingRecordId: matchedAf?.id || (prog ? `prog_${prog.id}` : null),
+      isRecorded: isAlreadyRecorded,
+      isEvaluated: Boolean(afEvaluated || isAlreadyRecorded),
+      learnerId: learner.id,
+      learnerName: formattedName,
+      lrn: learner.lrn || '',
+      level: levelDisplay,
+      learningCenterId: learner.learningCenterId || null,
+      learningCenter: centerName,
+      moduleId: mod.id,
+      moduleTitle: mod.title,
+      strandName: mod.learningArea?.name || matchedAf?.strandName || '',
+      dateStarted: storedDateStarted,
+      dateFinished: storedDateFinished,
+      preTestScore: preScoreVal,
+      preTestTotal: preTotal,
+      postTestScore: postScoreVal,
+      postTestTotal: postTotal,
+      uploadedOutputs: uploadedFileNames || matchedAf?.uploadedOutputs || '',
+      otherActivities: storedOtherActivities,
+      assessment: storedAssessment,
+      remarks: storedRemarks,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /api/records
- * Create a new learner performance record for the authenticated teacher
+ * Create or update a learner performance record for the authenticated teacher
  */
 router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, res, next) => {
   try {
     const teacherId = req.user.role === 'TEACHER' ? req.user.profileId : parseInt(req.body.teacherId || '0', 10);
     const {
+      mode,
+      submissionId,
       learnerId,
       learnerName,
       lrn,
@@ -412,6 +592,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       centerName,
       learningCenter,
       learningCenterId,
+      moduleId,
       moduleTitle,
       strandName,
       dateStarted,
@@ -426,11 +607,15 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       remarks,
     } = req.body;
 
+    const isSubmissionMode = mode === 'submission' || Boolean(submissionId);
+
     if (!learnerId) {
       return res.status(400).json({ error: 'learnerId is required' });
     }
-    if (!moduleTitle || !moduleTitle.trim()) {
-      return res.status(400).json({ error: 'moduleTitle is required' });
+
+    const rawAssessment = (assessment || moduleStatus || '').trim();
+    if (rawAssessment !== 'Mastered' && rawAssessment !== 'Not Mastered') {
+      return res.status(400).json({ error: "ALS Teacher's Assessment (Mastered or Not Mastered) is required" });
     }
 
     // Verify learner is assigned to this teacher
@@ -448,94 +633,387 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       return res.status(403).json({ error: 'Learner is not assigned to you' });
     }
 
-    const cName = centerName || learningCenter || learner.learningCenter?.name || '';
-    const cid = learningCenterId || learner.learningCenterId || null;
-    const finalAssessment = assessment || moduleStatus || 'Mastered';
+    const authoritativeLearnerName = formatLearnerName(learner);
+    const authoritativeLrn = learner.lrn || '';
+    const authoritativeLevel = learner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High';
+    const authoritativeCenterName = learner.learningCenter?.name || centerName || learningCenter || '';
+    const authoritativeCenterId = learner.learningCenterId || learningCenterId || null;
 
-    // 1. Save to AF2 records JSON
-    const af2Records = readAf2Records();
-    const newRecordId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const newAf2 = {
-      id: newRecordId,
-      teacherId,
-      learnerId: parsedLearnerId,
-      learnerName: learnerName || learner.fullName,
-      lrn: lrn || learner.lrn || '',
-      level: level || (learner.level === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High'),
-      learningCenterId: cid,
-      learningCenter: cName,
-      centerName: cName,
-      moduleTitle: moduleTitle.trim(),
-      strandName: strandName || '',
-      dateStarted: dateStarted || '',
-      dateFinished: dateFinished || '',
-      dateCompleted: dateFinished || '',
-      preTestScore: preTestScore != null && preTestScore !== '' ? Number(preTestScore) : null,
-      preTestTotal: preTestTotal != null && preTestTotal !== '' ? Number(preTestTotal) : 10,
-      postTestScore: postTestScore != null && postTestScore !== '' ? Number(postTestScore) : null,
-      postTestTotal: postTestTotal != null && postTestTotal !== '' ? Number(postTestTotal) : 10,
-      otherActivities: otherActivities ? otherActivities.trim() : '',
-      selfAssessment: '',
-      assessment: finalAssessment,
-      moduleStatus: finalAssessment,
-      remarks: remarks ? remarks.trim() : '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    let parsedModuleId = moduleId != null && moduleId !== '' ? parseInt(String(moduleId), 10) : null;
+    const parsedSubmissionId = submissionId != null && submissionId !== '' ? parseInt(String(submissionId), 10) : null;
 
-    af2Records.unshift(newAf2);
-    writeAf2Records(af2Records);
+    if ((!parsedModuleId || isNaN(parsedModuleId)) && parsedSubmissionId && !isNaN(parsedSubmissionId)) {
+      const subRecord = await prisma.submission.findUnique({
+        where: { id: parsedSubmissionId },
+        select: { moduleId: true },
+      });
+      if (subRecord?.moduleId) {
+        parsedModuleId = subRecord.moduleId;
+      }
+    }
 
-    // 2. Also sync to database LearnerProgress if matching module exists
-    try {
-      const matchedModule = await prisma.module.findFirst({
-        where: {
-          teacherId,
-          title: { contains: moduleTitle.trim() },
+    let matchedModule = null;
+    if (parsedModuleId && !isNaN(parsedModuleId)) {
+      matchedModule = await prisma.module.findUnique({
+        where: { id: parsedModuleId },
+        include: {
+          learningArea: true,
+          assessments: {
+            include: {
+              _count: { select: { questions: true } },
+              attempts: {
+                where: { learnerId: parsedLearnerId, status: 'SUBMITTED' },
+                orderBy: { completedAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
+          submissions: {
+            where: { learnerId: parsedLearnerId },
+            orderBy: { submittedAt: 'desc' },
+          },
+          learnerProgress: {
+            where: { learnerId: parsedLearnerId },
+            take: 1,
+          },
         },
       });
+    } else if (moduleTitle && moduleTitle.trim()) {
+      const candidateModules = await prisma.module.findMany({
+        where: {
+          ...(teacherId ? { teacherId } : {}),
+        },
+        include: {
+          learningArea: true,
+          assessments: {
+            include: {
+              _count: { select: { questions: true } },
+              attempts: {
+                where: { learnerId: parsedLearnerId, status: 'SUBMITTED' },
+                orderBy: { completedAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
+          submissions: {
+            where: { learnerId: parsedLearnerId },
+            orderBy: { submittedAt: 'desc' },
+          },
+          learnerProgress: {
+            where: { learnerId: parsedLearnerId },
+            take: 1,
+          },
+        },
+      });
+      matchedModule =
+        candidateModules.find(
+          (m) => m.title && m.title.trim().toLowerCase() === moduleTitle.trim().toLowerCase()
+        ) || null;
+    }
 
-      if (matchedModule) {
+    const resolvedModuleId = matchedModule ? matchedModule.id : parsedModuleId;
+    const af2Records = readAf2Records();
+
+    let finalModuleTitle = moduleTitle ? String(moduleTitle).trim() : '';
+    let finalStrandName = strandName ? String(strandName).trim() : '';
+    let finalDateStarted = dateStarted || '';
+    let finalDateFinished = dateFinished || '';
+    let finalPreScore = preTestScore != null && preTestScore !== '' ? Number(preTestScore) : null;
+    let finalPreTotal = preTestTotal != null && preTestTotal !== '' ? Number(preTestTotal) : null;
+    let finalPostScore = postTestScore != null && postTestScore !== '' ? Number(postTestScore) : null;
+    let finalPostTotal = postTestTotal != null && postTestTotal !== '' ? Number(postTestTotal) : null;
+
+    if (isSubmissionMode) {
+      if (!matchedModule) {
+        return res.status(400).json({ error: 'Valid module submission context is required for submission mode' });
+      }
+      const prog = matchedModule.learnerProgress?.[0] || null;
+      const latestSub = matchedModule.submissions?.[0] || null;
+      const existingAf = af2Records.find(
+        (r) =>
+          Number(r.learnerId) === parsedLearnerId &&
+          (Number(r.moduleId) === matchedModule.id ||
+            (r.moduleTitle &&
+              matchedModule.title &&
+              r.moduleTitle.trim().toLowerCase() === matchedModule.title.trim().toLowerCase()))
+      );
+
+      const preAss = (matchedModule.assessments || []).find((a) => a.type === 'PRE_TEST');
+      const postAss = (matchedModule.assessments || []).find((a) => a.type === 'POST_TEST');
+      const preAttempt = preAss?.attempts?.[0] || null;
+      const postAttempt = postAss?.attempts?.[0] || null;
+
+      // Enforce authoritative submission-derived fields from the database
+      finalModuleTitle = matchedModule.title;
+      finalStrandName = matchedModule.learningArea?.name || existingAf?.strandName || '';
+      finalDateStarted =
+        existingAf?.dateStarted ||
+        (matchedModule.dateStarted
+          ? matchedModule.dateStarted.toISOString().split('T')[0]
+          : prog?.createdAt
+            ? prog.createdAt.toISOString().split('T')[0]
+            : '');
+      finalDateFinished =
+        existingAf?.dateFinished ||
+        existingAf?.dateCompleted ||
+        (matchedModule.dateEnded
+          ? matchedModule.dateEnded.toISOString().split('T')[0]
+          : latestSub?.submittedAt
+            ? latestSub.submittedAt.toISOString().split('T')[0]
+            : prog?.completedAt
+              ? prog.completedAt.toISOString().split('T')[0]
+              : '');
+
+      finalPreTotal = preAss?._count?.questions || preAttempt?.maxScore || existingAf?.preTestTotal || null;
+      finalPostTotal = postAss?._count?.questions || postAttempt?.maxScore || existingAf?.postTestTotal || null;
+      finalPreScore =
+        preAttempt?.score != null
+          ? preAttempt.score
+          : prog?.preTestScore != null
+            ? prog.preTestScore
+            : existingAf?.preTestScore != null
+              ? Number(existingAf.preTestScore)
+              : null;
+      finalPostScore =
+        postAttempt?.score != null
+          ? postAttempt.score
+          : prog?.postTestScore != null
+            ? prog.postTestScore
+            : existingAf?.postTestScore != null
+              ? Number(existingAf.postTestScore)
+              : null;
+    } else {
+      // Manual mode validation
+      if (!finalModuleTitle) {
+        return res.status(400).json({ error: 'moduleTitle is required' });
+      }
+      if (!finalStrandName) {
+        finalStrandName = matchedModule?.learningArea?.name || '';
+      }
+      if (!finalStrandName) {
+        return res.status(400).json({ error: 'Learning Strand is required' });
+      }
+      if (!finalDateStarted) {
+        return res.status(400).json({ error: 'Date Started is required' });
+      }
+      if (!finalDateFinished) {
+        return res.status(400).json({ error: 'Date Finished is required' });
+      }
+      if (new Date(finalDateFinished) < new Date(finalDateStarted)) {
+        return res.status(400).json({ error: 'Date Finished cannot be earlier than Date Started' });
+      }
+
+      if (finalPreScore !== null || finalPreTotal !== null) {
+        if (
+          finalPreScore === null ||
+          finalPreTotal === null ||
+          isNaN(finalPreScore) ||
+          isNaN(finalPreTotal) ||
+          finalPreScore < 0 ||
+          finalPreTotal < 1 ||
+          finalPreScore > finalPreTotal
+        ) {
+          return res.status(400).json({ error: 'Invalid Pre-Test score or total items' });
+        }
+      }
+      if (finalPostScore !== null || finalPostTotal !== null) {
+        if (
+          finalPostScore === null ||
+          finalPostTotal === null ||
+          isNaN(finalPostScore) ||
+          isNaN(finalPostTotal) ||
+          finalPostScore < 0 ||
+          finalPostTotal < 1 ||
+          finalPostScore > finalPostTotal
+        ) {
+          return res.status(400).json({ error: 'Invalid Post-Test score or total items' });
+        }
+      }
+    }
+
+    const finalAssessment = rawAssessment;
+    const trimmedRemarks = remarks ? String(remarks).trim() : '';
+    const trimmedActivities = otherActivities ? String(otherActivities).trim() : '';
+
+    // 1. Upsert in AF2 records JSON (prevent duplicate records for the same learner and module/submission)
+    const existingAfIdx = af2Records.findIndex(
+      (r) =>
+        Number(r.learnerId) === parsedLearnerId &&
+        ((parsedSubmissionId && Number(r.submissionId) === parsedSubmissionId) ||
+          (resolvedModuleId && Number(r.moduleId) === resolvedModuleId) ||
+          (r.moduleTitle && r.moduleTitle.trim().toLowerCase() === finalModuleTitle.toLowerCase()))
+    );
+
+    // 1. Duplicate prevention for submission recording:
+    // If this submission has already been added to Records, prevent creating duplicate records or overwriting
+    if (isSubmissionMode) {
+      let isAlreadyRecorded = false;
+      let existingRecord = null;
+
+      if (existingAfIdx !== -1) {
+        isAlreadyRecorded = true;
+        existingRecord = af2Records[existingAfIdx];
+      }
+
+      if (!isAlreadyRecorded) {
+        if (parsedSubmissionId) {
+          const dbSub = await prisma.submission.findUnique({
+            where: { id: parsedSubmissionId },
+            select: { id: true, status: true },
+          });
+          if (dbSub?.status === 'Recorded') {
+            isAlreadyRecorded = true;
+          }
+        }
+
+        if (!isAlreadyRecorded && resolvedModuleId && parsedLearnerId) {
+          const dbSub = await prisma.submission.findFirst({
+            where: {
+              learnerId: parsedLearnerId,
+              moduleId: resolvedModuleId,
+              status: 'Recorded',
+            },
+            select: { id: true, status: true },
+          });
+          if (dbSub) {
+            isAlreadyRecorded = true;
+          }
+        }
+      }
+
+      if (isAlreadyRecorded) {
+        return res.status(409).json({
+          error: "This learner's activity has already been added to Records.",
+          alreadyRecorded: true,
+          record: existingRecord || null,
+        });
+      }
+    }
+
+    let savedAf2 = null;
+    if (existingAfIdx !== -1) {
+      const existing = af2Records[existingAfIdx];
+      savedAf2 = {
+        ...existing,
+        mode: isSubmissionMode ? 'submission' : 'manual',
+        submissionId: parsedSubmissionId || existing.submissionId || null,
+        teacherId: teacherId || existing.teacherId,
+        learnerId: parsedLearnerId,
+        learnerName: authoritativeLearnerName,
+        lrn: authoritativeLrn,
+        level: authoritativeLevel,
+        learningCenterId: authoritativeCenterId,
+        learningCenter: authoritativeCenterName,
+        centerName: authoritativeCenterName,
+        moduleId: resolvedModuleId || existing.moduleId || null,
+        moduleTitle: finalModuleTitle,
+        strandName: finalStrandName || existing.strandName || '',
+        dateStarted: finalDateStarted !== '' ? finalDateStarted : existing.dateStarted || '',
+        dateFinished: finalDateFinished !== '' ? finalDateFinished : existing.dateFinished || '',
+        dateCompleted: finalDateFinished !== '' ? finalDateFinished : existing.dateCompleted || '',
+        preTestScore: finalPreScore !== null ? finalPreScore : existing.preTestScore ?? null,
+        preTestTotal: finalPreTotal !== null ? finalPreTotal : existing.preTestTotal ?? null,
+        postTestScore: finalPostScore !== null ? finalPostScore : existing.postTestScore ?? null,
+        postTestTotal: finalPostTotal !== null ? finalPostTotal : existing.postTestTotal ?? null,
+        otherActivities: trimmedActivities,
+        selfAssessment: '',
+        assessment: finalAssessment,
+        moduleStatus: finalAssessment,
+        remarks: trimmedRemarks,
+        updatedAt: new Date().toISOString(),
+      };
+      af2Records[existingAfIdx] = savedAf2;
+    } else {
+      const newRecordId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      savedAf2 = {
+        id: newRecordId,
+        mode: isSubmissionMode ? 'submission' : 'manual',
+        submissionId: parsedSubmissionId || null,
+        teacherId,
+        learnerId: parsedLearnerId,
+        learnerName: authoritativeLearnerName,
+        lrn: authoritativeLrn,
+        level: authoritativeLevel,
+        learningCenterId: authoritativeCenterId,
+        learningCenter: authoritativeCenterName,
+        centerName: authoritativeCenterName,
+        moduleId: resolvedModuleId || null,
+        moduleTitle: finalModuleTitle,
+        strandName: finalStrandName,
+        dateStarted: finalDateStarted,
+        dateFinished: finalDateFinished,
+        dateCompleted: finalDateFinished,
+        preTestScore: finalPreScore,
+        preTestTotal: finalPreTotal,
+        postTestScore: finalPostScore,
+        postTestTotal: finalPostTotal,
+        otherActivities: trimmedActivities,
+        selfAssessment: '',
+        assessment: finalAssessment,
+        moduleStatus: finalAssessment,
+        remarks: trimmedRemarks,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      af2Records.unshift(savedAf2);
+    }
+
+    writeAf2Records(af2Records);
+
+    // 2. Sync to database LearnerProgress and Submission if matching module exists
+    if (resolvedModuleId) {
+      try {
         await prisma.learnerProgress.upsert({
           where: {
             learnerId_moduleId: {
               learnerId: parsedLearnerId,
-              moduleId: matchedModule.id,
+              moduleId: resolvedModuleId,
             },
           },
           create: {
             learnerId: parsedLearnerId,
-            moduleId: matchedModule.id,
-            preTestScore: preTestScore != null ? Number(preTestScore) : null,
-            postTestScore: postTestScore != null ? Number(postTestScore) : null,
+            moduleId: resolvedModuleId,
+            preTestScore: finalPreScore,
+            postTestScore: finalPostScore,
             status: finalAssessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
             masteryStatus: finalAssessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
-            completedAt: dateFinished ? new Date(dateFinished) : null,
+            completedAt: finalDateFinished ? new Date(finalDateFinished) : null,
           },
           update: {
-            preTestScore: preTestScore != null ? Number(preTestScore) : null,
-            postTestScore: postTestScore != null ? Number(postTestScore) : null,
+            ...(finalPreScore !== null ? { preTestScore: finalPreScore } : {}),
+            ...(finalPostScore !== null ? { postTestScore: finalPostScore } : {}),
             status: finalAssessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
             masteryStatus: finalAssessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
-            completedAt: dateFinished ? new Date(dateFinished) : null,
+            ...(finalDateFinished ? { completedAt: new Date(finalDateFinished) } : {}),
           },
         });
+
+        await prisma.submission.updateMany({
+          where: {
+            learnerId: parsedLearnerId,
+            moduleId: resolvedModuleId,
+          },
+          data: {
+            status: 'Recorded',
+            feedback: trimmedRemarks,
+          },
+        });
+      } catch (dbErr) {
+        console.warn('Could not sync progress/submissions to database table:', dbErr);
       }
-    } catch (dbErr) {
-      console.warn('Could not sync progress to database table:', dbErr);
     }
 
-    // 3. Notify Admin that Teacher added a learner record
+    // 3. Notify Admin that Teacher added/updated a learner record
     if (req.user?.role === 'TEACHER' || teacherId) {
       notifyLearnerRecordCreated({
         teacherId,
         learnerId: parsedLearnerId,
-        moduleTitle: moduleTitle.trim(),
-        recordId: newRecordId,
+        moduleTitle: finalModuleTitle,
+        recordId: savedAf2.id,
       }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
     }
 
-    res.status(201).json(newAf2);
+    res.status(201).json(savedAf2);
   } catch (err) {
     next(err);
   }
@@ -565,36 +1043,68 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         }
       }
 
+      const finalAssessment = updates.assessment || updates.moduleStatus || records[idx].assessment || 'Mastered';
       records[idx] = {
         ...records[idx],
         ...updates,
+        assessment: finalAssessment,
+        moduleStatus: finalAssessment,
         selfAssessment: '',
         updatedAt: new Date().toISOString(),
       };
       writeAf2Records(records);
 
-      // Also sync to LearnerProgress if moduleId is present
+      // Also sync to LearnerProgress and Submission if moduleId is present
       const rec = records[idx];
       if (rec.learnerId && rec.moduleId) {
         try {
-          await prisma.learnerProgress.update({
+          await prisma.learnerProgress.upsert({
             where: {
               learnerId_moduleId: {
                 learnerId: Number(rec.learnerId),
                 moduleId: Number(rec.moduleId),
               },
             },
-            data: {
+            create: {
+              learnerId: Number(rec.learnerId),
+              moduleId: Number(rec.moduleId),
               preTestScore: rec.preTestScore != null && rec.preTestScore !== '' ? Number(rec.preTestScore) : null,
               postTestScore: rec.postTestScore != null && rec.postTestScore !== '' ? Number(rec.postTestScore) : null,
-              masteryStatus: rec.assessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
-              status: rec.assessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
-              completedAt: rec.dateFinished ? new Date(rec.dateFinished) : undefined,
+              masteryStatus: finalAssessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
+              status: finalAssessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
+              completedAt: rec.dateFinished ? new Date(rec.dateFinished) : null,
+            },
+            update: {
+              ...(rec.preTestScore != null && rec.preTestScore !== '' ? { preTestScore: Number(rec.preTestScore) } : {}),
+              ...(rec.postTestScore != null && rec.postTestScore !== '' ? { postTestScore: Number(rec.postTestScore) } : {}),
+              masteryStatus: finalAssessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED',
+              status: finalAssessment === 'Mastered' ? 'COMPLETED' : 'IN_PROGRESS',
+              ...(rec.dateFinished ? { completedAt: new Date(rec.dateFinished) } : {}),
+            },
+          });
+
+          await prisma.submission.updateMany({
+            where: {
+              learnerId: Number(rec.learnerId),
+              moduleId: Number(rec.moduleId),
+            },
+            data: {
+              status: finalAssessment,
+              feedback: rec.remarks ? String(rec.remarks).trim() : '',
             },
           });
         } catch {
           // Ignore if no matching progress row
         }
+      }
+
+      if (req.user?.role === 'TEACHER' || teacherId) {
+        notifyLearnerRecordCreated({
+          teacherId,
+          learnerId: records[idx].learnerId,
+          moduleTitle: records[idx].moduleTitle,
+          recordId: records[idx].id,
+        }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
       }
 
       return res.json(records[idx]);
@@ -621,11 +1131,11 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         }
 
         const updateData = {};
-        if (updates.preTestScore !== undefined) {
-          updateData.preTestScore = updates.preTestScore != null && updates.preTestScore !== '' ? Number(updates.preTestScore) : null;
+        if (updates.preTestScore !== undefined && updates.preTestScore !== null && updates.preTestScore !== '') {
+          updateData.preTestScore = Number(updates.preTestScore);
         }
-        if (updates.postTestScore !== undefined) {
-          updateData.postTestScore = updates.postTestScore != null && updates.postTestScore !== '' ? Number(updates.postTestScore) : null;
+        if (updates.postTestScore !== undefined && updates.postTestScore !== null && updates.postTestScore !== '') {
+          updateData.postTestScore = Number(updates.postTestScore);
         }
         if (updates.assessment) {
           updateData.masteryStatus = updates.assessment === 'Mastered' ? 'MASTERED' : 'NOT_MASTERED';
@@ -640,6 +1150,27 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           data: updateData,
         });
 
+        const finalAssessment =
+          updates.assessment ||
+          updates.moduleStatus ||
+          (updatedProgress.masteryStatus === 'MASTERED' ? 'Mastered' : 'Not Mastered');
+
+        // Also sync submission status & feedback for this learner and module
+        try {
+          await prisma.submission.updateMany({
+            where: {
+              learnerId: existingProgress.learnerId,
+              moduleId: existingProgress.moduleId,
+            },
+            data: {
+              status: finalAssessment,
+              feedback: updates.remarks !== undefined ? String(updates.remarks || '').trim() : undefined,
+            },
+          });
+        } catch {
+          // Ignore submission update error
+        }
+
         // Also sync/upsert in af2_records.json so remarks, otherActivities, dateStarted, dateFinished, preTestTotal, postTestTotal persist
         const afIdx = records.findIndex(
           (r) =>
@@ -650,15 +1181,11 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
                 r.moduleTitle.trim().toLowerCase() === existingProgress.module.title.trim().toLowerCase()))
         );
 
-        const finalAssessment =
-          updates.assessment ||
-          updates.moduleStatus ||
-          (updatedProgress.masteryStatus === 'MASTERED' ? 'Mastered' : 'Not Mastered');
-
         if (afIdx !== -1) {
           records[afIdx] = {
             ...records[afIdx],
             ...updates,
+            moduleId: existingProgress.moduleId,
             assessment: finalAssessment,
             moduleStatus: finalAssessment,
             selfAssessment: '',
@@ -684,9 +1211,9 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
             dateFinished: updates.dateFinished || '',
             dateCompleted: updates.dateFinished || updates.dateCompleted || '',
             preTestScore: updatedProgress.preTestScore,
-            preTestTotal: updates.preTestTotal != null && updates.preTestTotal !== '' ? Number(updates.preTestTotal) : 10,
+            preTestTotal: updates.preTestTotal != null && updates.preTestTotal !== '' ? Number(updates.preTestTotal) : null,
             postTestScore: updatedProgress.postTestScore,
-            postTestTotal: updates.postTestTotal != null && updates.postTestTotal !== '' ? Number(updates.postTestTotal) : 10,
+            postTestTotal: updates.postTestTotal != null && updates.postTestTotal !== '' ? Number(updates.postTestTotal) : null,
             otherActivities: updates.otherActivities || '',
             selfAssessment: '',
             assessment: finalAssessment,
@@ -697,6 +1224,15 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           });
         }
         writeAf2Records(records);
+
+        if (req.user?.role === 'TEACHER' || teacherId) {
+          notifyLearnerRecordCreated({
+            teacherId,
+            learnerId: existingProgress.learnerId,
+            moduleTitle: existingProgress.module?.title || 'Learning Module',
+            recordId: recordId,
+          }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
+        }
 
         return res.json({ id: recordId, ...updatedProgress, ...updates });
       }
@@ -732,6 +1268,28 @@ router.delete('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (re
       }
       const filtered = records.filter((r) => String(r.id) !== String(recordId));
       writeAf2Records(filtered);
+
+      if (targetAf.learnerId && targetAf.moduleId) {
+        await prisma.submission
+          .updateMany({
+            where: {
+              learnerId: Number(targetAf.learnerId),
+              moduleId: Number(targetAf.moduleId),
+            },
+            data: { status: 'SUBMITTED' },
+          })
+          .catch(() => {});
+        await prisma.learnerProgress
+          .updateMany({
+            where: {
+              learnerId: Number(targetAf.learnerId),
+              moduleId: Number(targetAf.moduleId),
+            },
+            data: { masteryStatus: 'NOT_EVALUATED' },
+          })
+          .catch(() => {});
+      }
+
       return res.status(204).send();
     }
 

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import prisma from '../config/prisma.js';
+import { optionalAuth } from '../middleware/authMiddleware.js';
+import { notifyLearningCenterUpdated } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -117,7 +119,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/learning-centers/:id
 // Update an existing learning center
 // ---------------------
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', optionalAuth, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -143,6 +145,12 @@ router.put('/:id', async (req, res, next) => {
       where: { id },
       data,
     });
+
+    notifyLearningCenterUpdated({
+      centerId: center.id,
+      updaterName: req.user?.adminProfile?.fullName || req.user?.teacherProfile?.fullName || req.user?.username,
+      updaterRole: req.user?.role,
+    }).catch((e) => console.error('[LearningCenters] notifyLearningCenterUpdated error:', e));
 
     res.json(formatCenter(center));
   } catch (err) {

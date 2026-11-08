@@ -1,7 +1,7 @@
 <template>
   <div class="page-container teacher-dashboard">
     <!-- Breadcrumb -->
-    <nav class="dashboard-breadcrumb" aria-label="Breadcrumb">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
       <span class="breadcrumb-current">Dashboard</span>
     </nav>
 
@@ -2089,17 +2089,6 @@ onMounted(fetchDashboardData);
 <style scoped>
 .teacher-dashboard {
   padding-bottom: 3rem;
-}
-
-.dashboard-breadcrumb {
-  font-size: 0.8125rem;
-  color: #64748b;
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb-current {
-  font-weight: 500;
-  color: #475569;
 }
 
 /* Welcome Section & Quick Actions Card */

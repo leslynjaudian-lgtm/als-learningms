@@ -12,6 +12,7 @@ import ReportsAf2SummaryView from '../views/ReportsAf2SummaryView.vue';
 import ReportsAttendanceSummaryView from '../views/ReportsAttendanceSummaryView.vue';
 import ReportsLearningCenterSummaryView from '../views/ReportsLearningCenterSummaryView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
+import NotificationsView from '../views/NotificationsView.vue';
 import ScheduleView from '../views/ScheduleView.vue';
 import SettingsView from '../views/SettingsView.vue';
 import LoginView from '../views/LoginView.vue';
@@ -30,6 +31,10 @@ const routes = [
   {
     path: '/announcements',
     redirect: '/dashboard/announcements',
+  },
+  {
+    path: '/notifications',
+    redirect: '/dashboard/notifications',
   },
   {
     path: '/schedule',
@@ -147,6 +152,12 @@ const routes = [
         name: 'Announcements',
         component: AnnouncementsView,
         meta: { title: 'Announcements', requiresAuth: true },
+      },
+      {
+        path: 'notifications',
+        name: 'Notifications',
+        component: NotificationsView,
+        meta: { title: 'Notifications', requiresAuth: true },
       },
     ],
   },

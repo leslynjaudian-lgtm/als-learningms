@@ -1,22 +1,16 @@
 <template>
   <div class="page-container attendance-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb-nav">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-link-muted">Attendance</span>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Take Attendance</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1 class="page-title">Take Attendance</h1>
-        <p class="page-subtitle">Record attendance for your learners.</p>
-      </div>
-
-      <div class="header-actions">
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Take Attendance"
+      description="Record attendance for your learners."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Attendance', to: '/dashboard/attendance' },
+        { label: 'Take Attendance' },
+      ]"
+    >
+      <template #actions>
         <router-link to="/dashboard/attendance/history" class="btn-link-history">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
@@ -24,8 +18,8 @@
           </svg>
           <span>View Attendance History</span>
         </router-link>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Success Feedback Alert -->
     <div v-if="saveSuccessMessage" class="attendance-alert-success">
@@ -330,6 +324,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { recordAttendanceBatch } from '../api/attendance.js';

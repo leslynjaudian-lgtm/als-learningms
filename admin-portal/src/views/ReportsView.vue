@@ -1,19 +1,14 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Reports</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Reports</h1>
-        <p>ALS Coordinator & Admin district-level monitoring and official reports.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Reports"
+      description="ALS Coordinator & Admin district-level monitoring and official reports."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Reports' },
+      ]"
+    />
 
     <!-- Report Hub Cards -->
     <div class="report-hub-grid">
@@ -75,4 +70,5 @@
 </template>
 
 <script setup>
+import PageHeader from '../components/PageHeader.vue';
 </script>

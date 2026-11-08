@@ -1,19 +1,14 @@
 <template>
   <div class="page-container settings-page">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Settings</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Settings</h1>
-        <p>Manage your profile and account settings.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Settings"
+      description="Manage your profile and account settings."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Settings' },
+      ]"
+    />
 
     <!-- Section Navigation Tabs -->
     <div class="tab-bar-card">
@@ -115,17 +110,23 @@
 
             <div class="form-group">
               <label class="form-label">Role</label>
-              <input v-model="profile.role" type="text" class="form-input" readonly style="background: #f8fafc; color: var(--color-text-secondary);" />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input :value="profile.role" type="text" class="form-input" readonly title="This field cannot be edited." style="background: #f8fafc; color: var(--color-text-secondary);" />
+              </LockedFieldTooltip>
             </div>
 
             <div class="form-group">
               <label class="form-label">Assigned Learning Center(s)</label>
-              <input :value="assignedCenterDisplay" type="text" class="form-input" readonly style="background: #f8fafc; color: var(--color-text-secondary);" />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input :value="assignedCenterDisplay" type="text" class="form-input" readonly title="This field cannot be edited." style="background: #f8fafc; color: var(--color-text-secondary);" />
+              </LockedFieldTooltip>
             </div>
 
             <div class="form-group">
               <label class="form-label">Assigned ALS Level</label>
-              <input :value="assignedProgramLevel" type="text" class="form-input" readonly style="background: #f8fafc; color: var(--color-text-secondary);" />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input :value="assignedProgramLevel" type="text" class="form-input" readonly title="This field cannot be edited." style="background: #f8fafc; color: var(--color-text-secondary);" />
+              </LockedFieldTooltip>
             </div>
 
             <div class="form-group">
@@ -233,8 +234,10 @@
 <script setup>
 import { reactive, ref, computed, watch, onMounted } from 'vue';
 import api from '../api/axios.js';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import PasswordInputField from '../components/PasswordInputField.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 
 const {
   currentTeacher,

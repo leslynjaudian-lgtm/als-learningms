@@ -161,14 +161,16 @@
         <div class="top-bar-left">
           <button
             type="button"
-            class="nav-icon-btn"
-            @click="$emit('back')"
-            aria-label="Back to Module Overview"
-            title="Back to Module Overview"
+            class="pdf-back-btn"
+            @click="handleBack"
+            aria-label="Go Back"
+            title="Go Back"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
+            <span class="pdf-back-label">Go Back</span>
           </button>
           <div class="viewer-title-wrap">
             <div class="title-meta-line">
@@ -342,7 +344,7 @@
             <line x1="12" y1="8" x2="12.01" y2="8"/>
           </svg>
           <span class="instruction-text">
-            Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.
+            {{ displayInstructions }}
           </span>
         </div>
         <button
@@ -494,6 +496,61 @@
         </div>
       </div>
     </div>
+
+    <!-- 7. Floating Text Selection Toolbar (Highlight Text & Explain with Google) -->
+    <transition name="toolbar-pop">
+      <div
+        v-if="isTextToolbarVisible"
+        class="pdf-text-selection-toolbar"
+        :style="{
+          left: `${textToolbarPosition.left}px`,
+          top: `${textToolbarPosition.top}px`
+        }"
+        @pointerdown.stop
+        @mousedown.stop
+        @touchstart.stop
+        @click.stop
+        role="toolbar"
+        aria-label="Text Selection Actions"
+      >
+        <!-- Copy Button -->
+        <button
+          type="button"
+          class="text-toolbar-btn copy-btn"
+          :class="{ 'is-copied': copySuccess }"
+          @click.stop="copySelectedText"
+          :title="copySuccess ? 'Copied to clipboard!' : 'Copy selected text'"
+        >
+          <svg v-if="copySuccess" class="action-icon check-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <svg v-else class="action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span class="btn-text">{{ copySuccess ? 'Copied!' : 'Copy' }}</span>
+        </button>
+
+        <!-- Vertical Divider -->
+        <div class="toolbar-divider" aria-hidden="true"></div>
+
+        <!-- Explain with Google Button -->
+        <button
+          type="button"
+          class="text-toolbar-btn explain-btn"
+          @click.stop="explainWithGoogle"
+          title="Search simple English explanation on Google"
+        >
+          <svg class="action-icon google-color-icon" width="16" height="16" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+          </svg>
+          <span class="btn-text">Explain with Google</span>
+        </button>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -530,6 +587,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  instructions: {
+    type: String,
+    default: ''
+  },
   initialPage: {
     type: Number,
     default: 1
@@ -537,6 +598,10 @@ const props = defineProps({
   initialMode: {
     type: String,
     default: 'long' // 'long' or 'wide'
+  },
+  initialPagesRead: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -564,6 +629,77 @@ const isDownloading = ref(false);
 const downloadError = ref('');
 let downloadErrorTimer = null;
 
+// Page layout & restoration state
+const pageAspectRatio = ref(1.414); // standard document ratio
+const isRestoringPage = ref(false);
+
+watch(() => props.initialPage, (newPage) => {
+  const p = Number(newPage);
+  if (p > 0 && p !== currentPage.value && !isRestoringPage.value) {
+    goToPage(p);
+  }
+});
+
+// Page Reading Tracker: Track pages reached using the highest page reached policy
+const pagesRead = ref(new Set(Array.isArray(props.initialPagesRead) ? props.initialPagesRead.map(Number).filter(n => n > 0) : []));
+
+watch(() => props.initialPagesRead, (newArr) => {
+  if (Array.isArray(newArr) && newArr.length > 0) {
+    const max = Math.max(...newArr.map(Number).filter(n => n > 0));
+    if (max > 0) {
+      for (let i = 1; i <= max; i++) {
+        pagesRead.value.add(i);
+      }
+    }
+  }
+}, { immediate: true });
+
+function getHighestPageReached() {
+  if (pagesRead.value.size === 0) return 0;
+  let max = 0;
+  for (const n of pagesRead.value) {
+    if (n > max) max = n;
+  }
+  return max;
+}
+
+function recordPageReached(pageNum) {
+  const p = Number(pageNum);
+  if (!p || p < 1) return;
+  const boundedP = totalPages.value > 0 ? Math.min(p, totalPages.value) : p;
+
+  const currentHighest = getHighestPageReached();
+  if (boundedP > currentHighest || pagesRead.value.size === 0) {
+    for (let i = 1; i <= boundedP; i++) {
+      pagesRead.value.add(i);
+    }
+  }
+}
+
+function markPageAsRead(pageNum) {
+  recordPageReached(pageNum);
+}
+
+function emitProgressUpdate() {
+  const readList = Array.from(pagesRead.value).sort((a, b) => a - b);
+  emit('update-progress', {
+    page: currentPage.value,
+    currentPage: currentPage.value,
+    mode: viewMode.value,
+    totalPages: totalPages.value,
+    pagesRead: readList,
+    completedPages: readList.length,
+    highestPageReached: getHighestPageReached()
+  });
+}
+
+// Reading Instructions Banner Text
+const DEFAULT_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
+
+const displayInstructions = computed(() => {
+  return props.instructions?.trim() || DEFAULT_INSTRUCTIONS;
+});
+
 // Long Strip Bottom Detection State
 const isLongStripAtBottom = ref(false);
 
@@ -589,6 +725,14 @@ const showInstructionBanner = ref(true);
 const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 768);
 const thumbnailsOpen = ref(!isMobileViewport.value);
 const showConfirmModal = ref(false);
+
+// Floating Text Selection Toolbar State (Highlight Text & Explain with Google)
+const isTextToolbarVisible = ref(false);
+const textToolbarPosition = ref({ left: 0, top: 0 });
+const currentSelectedText = ref('');
+const copySuccess = ref(false);
+let copyTimeout = null;
+let selectionCheckTimer = null;
 
 // Thumbnail Strip State & Pipeline
 const thumbCanvasRefs = new Map();
@@ -904,6 +1048,7 @@ const longTextRefs = new Map();
 const renderedPages = new Set();
 const renderingPages = new Set();
 const activeRenderTasks = new WeakMap();
+const activeTextLayerTasks = new WeakMap();
 let currentLoadingTask = null;
 let intersectionObserver = null;
 let resizeObserver = null;
@@ -943,7 +1088,7 @@ let lastPointerPanY = 0;
 function isInteractiveElement(target) {
   if (!target || !(target instanceof Element)) return false;
   return Boolean(
-    target.closest('button, a, input, select, .wide-nav-arrow, .tap-hint-pill, .immersive-post-test-btn, .immersive-page-pill, .wide-thumbnail-dock, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .reading-instruction-banner, .viewer-top-overlay, .viewer-bottom-overlay')
+    target.closest('button, a, input, select, .wide-nav-arrow, .tap-hint-pill, .immersive-post-test-btn, .immersive-page-pill, .wide-thumbnail-dock, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .reading-instruction-banner, .viewer-top-overlay, .viewer-bottom-overlay, .pdf-text-selection-toolbar')
   );
 }
 
@@ -1075,6 +1220,19 @@ function handlePointerUp(e) {
   const dist = Math.hypot(e.clientX - pointerStartX, e.clientY - pointerStartY);
   const maxTapDist = e.pointerType === 'mouse' ? 8 : 14;
 
+  // If text is currently selected, do not trigger tap toggle or swipe navigation
+  const currentSel = window.getSelection();
+  const hasTextSelected = currentSel && !currentSel.isCollapsed && currentSel.toString().trim().length > 0;
+  if (hasTextSelected) {
+    return;
+  }
+
+  // If text toolbar was visible and user tapped away, dismiss toolbar cleanly without toggling controls
+  if (isTextToolbarVisible.value) {
+    clearTextSelection();
+    return;
+  }
+
   // 1. Clean tap detection: moved within tap threshold and released under 450ms
   if (!pointerMoved && dist < maxTapDist && elapsed < 450) {
     toggleControls();
@@ -1124,6 +1282,171 @@ function zoomOut() {
 function resetZoom() {
   zoomScale.value = 1.0;
   resetPan();
+}
+
+// ============================================================
+// TEXT SELECTION & EXPLAIN WITH GOOGLE TOOLBAR
+// ============================================================
+function buildGoogleSearchQuery(selectedText) {
+  if (!selectedText) return '';
+  const cleaned = selectedText.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+
+  const words = cleaned.split(/\s+/);
+  const isSentence = words.length > 7 || cleaned.length > 55 || /[.?!]$/.test(cleaned);
+
+  let rawQuery = '';
+  if (isSentence) {
+    const truncated = cleaned.length > 200 ? cleaned.slice(0, 197) + '...' : cleaned;
+    rawQuery = `Explain this in simple English with easy examples: ${truncated}`;
+  } else {
+    rawQuery = `${cleaned} explained in simple English for beginners with easy examples`;
+  }
+  return encodeURIComponent(rawQuery);
+}
+
+function explainWithGoogle() {
+  if (!currentSelectedText.value) return;
+  const query = buildGoogleSearchQuery(currentSelectedText.value);
+  if (!query) return;
+  const url = `https://www.google.com/search?q=${query}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function copySelectedText() {
+  if (!currentSelectedText.value) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(currentSelectedText.value);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = currentSelectedText.value;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+    copySuccess.value = true;
+    if (copyTimeout) clearTimeout(copyTimeout);
+    copyTimeout = setTimeout(() => {
+      copySuccess.value = false;
+    }, 1800);
+  } catch (err) {
+    console.error('Failed to copy text to clipboard:', err);
+  }
+}
+
+function updateTextSelectionToolbar() {
+  if (loading.value || !!error.value || !pdfDoc.value) {
+    hideTextToolbar();
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) {
+    hideTextToolbar();
+    return;
+  }
+
+  const selectedText = selection.toString().trim();
+  if (!selectedText) {
+    hideTextToolbar();
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+
+  // Validate that selection is inside a PDF page text layer
+  const container = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer
+    : range.commonAncestorContainer.parentElement;
+
+  if (!container || !container.closest('.textLayer')) {
+    hideTextToolbar();
+    return;
+  }
+
+  const rects = range.getClientRects();
+  if (!rects || rects.length === 0) {
+    hideTextToolbar();
+    return;
+  }
+
+  const primaryRect = rects[0];
+  const lastRect = rects[rects.length - 1];
+  const bounding = range.getBoundingClientRect();
+
+  if (bounding.width === 0 && bounding.height === 0) {
+    hideTextToolbar();
+    return;
+  }
+
+  // If selection is scrolled completely out of the viewport, hide the toolbar
+  if (bounding.bottom < 40 || bounding.top > window.innerHeight - 40) {
+    hideTextToolbar();
+    return;
+  }
+
+  const toolbarEl = document.querySelector('.pdf-text-selection-toolbar');
+  const toolbarWidth = toolbarEl ? toolbarEl.offsetWidth : 245;
+  const toolbarHeight = toolbarEl ? toolbarEl.offsetHeight : 42;
+
+  // Horizontal position: Center relative to the first selected line or selection bounding rect
+  const targetCenterX = (primaryRect.left + primaryRect.right) / 2;
+  let left = targetCenterX - toolbarWidth / 2;
+  left = Math.max(12, Math.min(window.innerWidth - toolbarWidth - 12, left));
+
+  // Vertical placement: default 10px above the first selected line
+  let top = primaryRect.top - toolbarHeight - 10;
+
+  // If too close to viewport top or under top overlay bar (less than 72px from top),
+  // place 10px below the LAST selected line so it never covers the selected words!
+  if (top < 72) {
+    top = lastRect.bottom + 10;
+  }
+
+  // Ensure fully within vertical viewport bounds
+  top = Math.max(12, Math.min(window.innerHeight - toolbarHeight - 12, top));
+
+  currentSelectedText.value = selectedText;
+  textToolbarPosition.value = {
+    left: Math.round(left),
+    top: Math.round(top)
+  };
+  isTextToolbarVisible.value = true;
+}
+
+function hideTextToolbar() {
+  if (isTextToolbarVisible.value) {
+    isTextToolbarVisible.value = false;
+  }
+}
+
+function clearTextSelection() {
+  hideTextToolbar();
+  currentSelectedText.value = '';
+  try {
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) {
+      sel.removeAllRanges();
+    }
+  } catch (e) {}
+}
+
+function handleSelectionChange() {
+  if (selectionCheckTimer) clearTimeout(selectionCheckTimer);
+  selectionCheckTimer = setTimeout(() => {
+    updateTextSelectionToolbar();
+  }, 60);
+}
+
+function onPointerSelectionEnd() {
+  setTimeout(() => {
+    updateTextSelectionToolbar();
+  }, 30);
 }
 
 // Fullscreen Browser API with vendor prefix support & graceful fallback
@@ -1360,26 +1683,52 @@ async function loadPdfDocument() {
     const doc = await loadingTask.promise;
     currentLoadingTask = null;
 
+    // Retrieve aspect ratio of first page for zero-shift slot sizing
+    try {
+      const firstPage = await doc.getPage(1);
+      const vp = firstPage.getViewport({ scale: 1.0 });
+      if (vp && vp.width > 0 && vp.height > 0) {
+        pageAspectRatio.value = vp.height / vp.width;
+      }
+    } catch (e) {
+      console.warn('Could not read page aspect ratio:', e);
+    }
+
     // Use markRaw to ensure PDFDocumentProxy is never wrapped in a Vue reactive proxy
     pdfDoc.value = markRaw(doc);
     totalPages.value = doc.numPages;
 
-    if (currentPage.value > totalPages.value) {
-      currentPage.value = 1;
-    }
+    const targetPage = Math.max(1, Math.min(Number(props.initialPage) || 1, totalPages.value));
+    currentPage.value = targetPage;
+    isRestoringPage.value = true;
 
     loading.value = false;
     await nextTick();
 
     if (viewMode.value === 'long') {
+      scrollToLongPage(targetPage, true);
+      renderLongPage(targetPage);
+      if (targetPage > 1) renderLongPage(targetPage - 1);
+      if (targetPage < totalPages.value) renderLongPage(targetPage + 1);
+      recordPageReached(targetPage);
+
+      await nextTick();
+      scrollToLongPage(targetPage, true);
+
       initLongStripObserver();
-      renderLongPage(currentPage.value);
-      if (currentPage.value > 1) renderLongPage(currentPage.value - 1);
-      if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1);
-      scrollToLongPage(currentPage.value);
+      initReadingObserver();
+      checkLongStripBottom();
+
+      requestAnimationFrame(() => {
+        scrollToLongPage(targetPage, true);
+        isRestoringPage.value = false;
+      });
     } else {
-      renderWidePage(currentPage.value);
+      renderWidePage(targetPage);
+      recordPageReached(targetPage);
+      isRestoringPage.value = false;
     }
+    emitProgressUpdate();
 
     initResizeObserver();
 
@@ -1415,6 +1764,15 @@ async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targ
     activeRenderTasks.delete(canvas);
   }
 
+  // Cancel any prior in-progress text layer task for this textContainer to prevent duplicate text layers
+  if (textContainer && activeTextLayerTasks.has(textContainer)) {
+    const activeTextTask = activeTextLayerTasks.get(textContainer);
+    try {
+      activeTextTask.cancel();
+    } catch (e) {}
+    activeTextLayerTasks.delete(textContainer);
+  }
+
   let page = existingPage;
   try {
     if (!page) {
@@ -1426,10 +1784,16 @@ async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targ
     const displayViewport = page.getViewport({ scale: targetScale });
     const ctx = canvas.getContext('2d');
 
+    const displayW = Math.floor(displayViewport.width);
+    const displayH = Math.floor(displayViewport.height);
+
     canvas.width = Math.floor(renderViewport.width);
     canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-    canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+    canvas.style.width = `${displayW}px`;
+    canvas.style.height = `${displayH}px`;
+    canvas.style.display = 'block';
+    canvas.style.margin = '0';
+    canvas.style.padding = '0';
 
     const renderContext = {
       canvasContext: ctx,
@@ -1443,9 +1807,18 @@ async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targ
 
     if (textContainer) {
       try {
-        textContainer.innerHTML = '';
-        textContainer.style.width = `${Math.floor(displayViewport.width)}px`;
-        textContainer.style.height = `${Math.floor(displayViewport.height)}px`;
+        // Fast, clean wipe of any existing text layer content
+        textContainer.replaceChildren();
+
+        // PDF.js 3.11.x requires the --scale-factor CSS variable to match viewport.scale
+        // so that font sizes (calc(var(--scale-factor) * ...)) and text positions match the canvas exactly.
+        textContainer.style.setProperty('--scale-factor', String(displayViewport.scale));
+        textContainer.style.width = `${displayW}px`;
+        textContainer.style.height = `${displayH}px`;
+        textContainer.style.position = 'absolute';
+        textContainer.style.left = `${canvas.offsetLeft || 0}px`;
+        textContainer.style.top = `${canvas.offsetTop || 0}px`;
+
         const textContent = await page.getTextContent();
         const textLayerTask = pdfjsLib.renderTextLayer({
           textContentSource: textContent,
@@ -1453,11 +1826,17 @@ async function renderPageToCanvas(pageNumber, canvas, textContainer = null, targ
           viewport: displayViewport,
           textDivs: []
         });
+        activeTextLayerTasks.set(textContainer, textLayerTask);
+
         if (textLayerTask?.promise) {
           await textLayerTask.promise;
         }
       } catch (textErr) {
-        // Text layer failure is non-fatal
+        if (textErr?.name !== 'RenderingCancelledException') {
+          console.warn(`Text layer rendering cancelled or non-fatal error for page ${pageNumber}:`, textErr);
+        }
+      } finally {
+        activeTextLayerTasks.delete(textContainer);
       }
     }
   } catch (err) {
@@ -1525,12 +1904,6 @@ function initLongStripObserver() {
           renderLongPage(pageNum);
           if (pageNum > 1) renderLongPage(pageNum - 1);
           if (pageNum < totalPages.value) renderLongPage(pageNum + 1);
-
-          // Update active page when substantially visible
-          if (entry.intersectionRatio >= 0.35) {
-            currentPage.value = pageNum;
-            emit('update-progress', { page: pageNum, mode: viewMode.value, totalPages: totalPages.value });
-          }
         }
       });
     },
@@ -1547,7 +1920,93 @@ function initLongStripObserver() {
   }
 }
 
+// Reading Page Tracker for Long Strip mode
+let readingObserver = null;
+const visiblePageDwellTimers = new Map();
+
+function initReadingObserver() {
+  if (readingObserver) {
+    readingObserver.disconnect();
+    readingObserver = null;
+  }
+  visiblePageDwellTimers.forEach((t) => clearTimeout(t));
+  visiblePageDwellTimers.clear();
+
+  if (!longStripContainerRef.value || totalPages.value <= 0) return;
+
+  readingObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const pageNum = parseInt(entry.target.getAttribute('data-page'), 10);
+        if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages.value) return;
+
+        // In Long Strip mode, count a page when it becomes sufficiently visible:
+        // - At least 180px of page visible, OR
+        // - Intersection ratio >= 0.25, OR
+        // - Occupies at least 25% of container viewport height
+        const containerH = longStripContainerRef.value?.clientHeight || 600;
+        const isSufficientlyVisible = entry.isIntersecting && (
+          entry.intersectionRect.height >= 180 ||
+          entry.intersectionRatio >= 0.25 ||
+          (containerH > 0 && (entry.intersectionRect.height / containerH) >= 0.25)
+        );
+
+        if (isSufficientlyVisible) {
+          if (!pagesRead.value.has(pageNum)) {
+            if (!visiblePageDwellTimers.has(pageNum)) {
+              const timer = setTimeout(() => {
+                visiblePageDwellTimers.delete(pageNum);
+                markPageAsRead(pageNum);
+              }, 400);
+              visiblePageDwellTimers.set(pageNum, timer);
+            }
+          }
+        } else {
+          // Page was scrolled past before dwell threshold elapsed
+          if (visiblePageDwellTimers.has(pageNum)) {
+            clearTimeout(visiblePageDwellTimers.get(pageNum));
+            visiblePageDwellTimers.delete(pageNum);
+          }
+        }
+      });
+    },
+    {
+      root: longStripContainerRef.value,
+      rootMargin: '0px',
+      threshold: [0.05, 0.15, 0.25, 0.5]
+    }
+  );
+
+  for (let i = 1; i <= totalPages.value; i++) {
+    const el = document.getElementById(`long-page-slot-${i}`);
+    if (el) readingObserver.observe(el);
+  }
+}
+
+// Wide Strip reading dwell timer (300ms dwell before counting page as read)
+let widePageDwellTimer = null;
+function scheduleWidePageRead(pageNum) {
+  if (widePageDwellTimer) clearTimeout(widePageDwellTimer);
+  widePageDwellTimer = setTimeout(() => {
+    if (viewMode.value === 'wide' && currentPage.value === pageNum) {
+      markPageAsRead(pageNum);
+    }
+  }, 300);
+}
+
+// Long Strip reading dwell timer (350ms dwell when directly navigating to a page)
+let longPageDwellTimer = null;
+function scheduleLongPageRead(pageNum) {
+  if (longPageDwellTimer) clearTimeout(longPageDwellTimer);
+  longPageDwellTimer = setTimeout(() => {
+    if (viewMode.value === 'long' && currentPage.value === pageNum) {
+      markPageAsRead(pageNum);
+    }
+  }, 350);
+}
+
 let scrollRafId = null;
+let scrollEndTimer = null;
 
 function checkLongStripBottom() {
   if (viewMode.value !== 'long' || !longStripContainerRef.value || totalPages.value <= 0) {
@@ -1595,21 +2054,88 @@ function checkLongStripBottom() {
   isLongStripAtBottom.value = atBottom;
 }
 
+function updateLongStripScrollPosition() {
+  if (isRestoringPage.value) return;
+  if (viewMode.value !== 'long' || !longStripContainerRef.value || totalPages.value <= 0) return;
+  const container = longStripContainerRef.value;
+  const scrollHeight = container.scrollHeight;
+  const clientHeight = container.clientHeight;
+  const scrollTop = container.scrollTop;
+
+  // 1. Immediately detect if scrolled near bottom (last page reached)
+  const scrollBottom = scrollHeight - (scrollTop + clientHeight);
+  const isAtBottom = scrollBottom <= 48;
+  checkLongStripBottom();
+
+  let activePage = currentPage.value;
+
+  if (isAtBottom || isLongStripAtBottom.value) {
+    activePage = totalPages.value;
+    isLongStripAtBottom.value = true;
+  } else if (scrollTop <= 10) {
+    activePage = 1;
+  } else {
+    const containerRect = container.getBoundingClientRect();
+    const centerY = containerRect.top + containerRect.height / 2;
+
+    for (let i = 1; i <= totalPages.value; i++) {
+      const slot = document.getElementById(`long-page-slot-${i}`);
+      if (slot) {
+        const rect = slot.getBoundingClientRect();
+        if (rect.top <= centerY && rect.bottom >= centerY) {
+          activePage = i;
+          break;
+        } else if (rect.top > centerY && i > 1) {
+          activePage = i - 1;
+          break;
+        }
+      }
+    }
+  }
+
+  // Update current page indicator in real time
+  if (currentPage.value !== activePage) {
+    currentPage.value = activePage;
+    emitProgressUpdate();
+  }
+
+  // Record progress up to this page immediately
+  recordPageReached(activePage);
+}
+
 function onLongStripScroll() {
   if (scrollRafId) return;
   scrollRafId = requestAnimationFrame(() => {
     scrollRafId = null;
-    checkLongStripBottom();
+    updateLongStripScrollPosition();
+    if (isTextToolbarVisible.value) {
+      updateTextSelectionToolbar();
+    }
+
+    if (scrollEndTimer) clearTimeout(scrollEndTimer);
+    scrollEndTimer = setTimeout(() => {
+      updateLongStripScrollPosition();
+      if (isTextToolbarVisible.value) {
+        updateTextSelectionToolbar();
+      }
+    }, 120);
   });
 }
 
-function scrollToLongPage(pageNumber) {
-  nextTick(() => {
-    const el = document.getElementById(`long-page-slot-${pageNumber}`);
-    if (el && longStripContainerRef.value) {
+function scrollToLongPage(pageNumber, immediate = false) {
+  const container = longStripContainerRef.value;
+  if (!container) return;
+  const el = document.getElementById(`long-page-slot-${pageNumber}`);
+  if (el) {
+    if (immediate) {
+      const prevBehavior = container.style.scrollBehavior;
+      container.style.scrollBehavior = 'auto';
+      el.scrollIntoView({ behavior: 'auto', block: 'start' });
+      container.style.scrollBehavior = prevBehavior;
+    } else {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  });
+  }
 }
 
 // Wide Strip Rendering: Fits within both width and height without cropping
@@ -1635,8 +2161,9 @@ async function renderWidePage(pageNumber) {
 
     await renderPageToCanvas(pageNumber, wideCanvasRef.value, wideTextRef.value, scale, page);
 
-    // Auto-scroll thumbnail strip
+    // Auto-scroll thumbnail strip and schedule page read
     scrollThumbnailIntoView(pageNumber);
+    scheduleWidePageRead(pageNumber);
   } catch (err) {
     if (err?.name !== 'RenderingCancelledException') {
       console.error(`Error rendering wide page ${pageNumber}:`, err);
@@ -1677,6 +2204,7 @@ function initResizeObserver() {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (loading.value || !pdfDoc.value) return;
+        clearTextSelection();
 
         if (viewMode.value === 'wide') {
           renderWidePage(currentPage.value);
@@ -1697,9 +2225,9 @@ function initResizeObserver() {
 // Page Navigation
 function goToPage(pageNumber) {
   if (pageNumber < 1 || pageNumber > totalPages.value) return;
+  clearTextSelection();
   resetPan();
   currentPage.value = pageNumber;
-  emit('update-progress', { page: pageNumber, mode: viewMode.value, totalPages: totalPages.value });
 
   if (viewMode.value === 'wide') {
     renderWidePage(pageNumber);
@@ -1708,19 +2236,52 @@ function goToPage(pageNumber) {
     scrollToLongPage(pageNumber);
   }
   scrollThumbnailIntoView(pageNumber);
+
+  // Immediately record page reached in both modes and emit progress update
+  recordPageReached(pageNumber);
+  emitProgressUpdate();
 }
 
-// Mode Switching (Preserves current page)
+function flushActivePageRead() {
+  if (currentPage.value) {
+    recordPageReached(currentPage.value);
+  }
+  emitProgressUpdate();
+}
+
+function handleBack() {
+  flushActivePageRead();
+  emit('back', {
+    page: currentPage.value,
+    currentPage: currentPage.value,
+    mode: viewMode.value,
+    totalPages: totalPages.value,
+    highestPageReached: getHighestPageReached(),
+    pagesRead: Array.from(pagesRead.value).sort((a, b) => a - b),
+  });
+}
+
+// Mode Switching (Preserves current page and read pages)
 async function switchViewMode(newMode) {
   if (viewMode.value === newMode) return;
+  clearTextSelection();
+  flushActivePageRead();
   resetPan();
   viewMode.value = newMode;
-  emit('update-progress', { page: currentPage.value, mode: newMode, totalPages: totalPages.value });
+  emitProgressUpdate();
 
   await nextTick();
   if (newMode === 'wide') {
     if (intersectionObserver) intersectionObserver.disconnect();
+    if (readingObserver) {
+      readingObserver.disconnect();
+      readingObserver = null;
+    }
+    visiblePageDwellTimers.forEach((t) => clearTimeout(t));
+    visiblePageDwellTimers.clear();
+
     renderWidePage(currentPage.value);
+    recordPageReached(currentPage.value);
     if (thumbnailsOpen.value) {
       nextTick(() => {
         initThumbnailObserver();
@@ -1736,12 +2297,19 @@ async function switchViewMode(newMode) {
       thumbIntersectionObserver = null;
     }
     isLongStripAtBottom.value = false;
+    isRestoringPage.value = true;
+    scrollToLongPage(currentPage.value, true);
+    renderLongPage(currentPage.value, true);
+    if (currentPage.value > 1) renderLongPage(currentPage.value - 1, true);
+    if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1, true);
+    recordPageReached(currentPage.value);
     initLongStripObserver();
-    renderLongPage(currentPage.value);
-    if (currentPage.value > 1) renderLongPage(currentPage.value - 1);
-    if (currentPage.value < totalPages.value) renderLongPage(currentPage.value + 1);
-    scrollToLongPage(currentPage.value);
-    nextTick(() => checkLongStripBottom());
+    initReadingObserver();
+    checkLongStripBottom();
+    requestAnimationFrame(() => {
+      scrollToLongPage(currentPage.value, true);
+      isRestoringPage.value = false;
+    });
   }
 }
 
@@ -1752,6 +2320,7 @@ function openConfirmationModal() {
 
 function confirmProceedToPostTest() {
   showConfirmModal.value = false;
+  flushActivePageRead();
   emit('proceed-to-post-test');
 }
 
@@ -1768,6 +2337,9 @@ watch(
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange);
   window.addEventListener('orientationchange', onOrientationChange);
+  document.addEventListener('selectionchange', handleSelectionChange);
+  window.addEventListener('mouseup', onPointerSelectionEnd);
+  window.addEventListener('touchend', onPointerSelectionEnd);
   loadPdfDocument();
 });
 
@@ -1775,6 +2347,7 @@ function onOrientationChange() {
   if (orientationTimer) clearTimeout(orientationTimer);
   orientationTimer = setTimeout(() => {
     if (loading.value || !pdfDoc.value) return;
+    clearTextSelection();
     if (viewMode.value === 'wide') {
       renderWidePage(currentPage.value);
     } else {
@@ -1787,8 +2360,39 @@ function onOrientationChange() {
 }
 
 onBeforeUnmount(() => {
+  flushActivePageRead();
+  clearTextSelection();
   document.removeEventListener('fullscreenchange', onFullscreenChange);
   window.removeEventListener('orientationchange', onOrientationChange);
+  document.removeEventListener('selectionchange', handleSelectionChange);
+  window.removeEventListener('mouseup', onPointerSelectionEnd);
+  window.removeEventListener('touchend', onPointerSelectionEnd);
+  if (selectionCheckTimer) {
+    clearTimeout(selectionCheckTimer);
+    selectionCheckTimer = null;
+  }
+  if (copyTimeout) {
+    clearTimeout(copyTimeout);
+    copyTimeout = null;
+  }
+  if (readingObserver) {
+    readingObserver.disconnect();
+    readingObserver = null;
+  }
+  visiblePageDwellTimers.forEach((t) => clearTimeout(t));
+  visiblePageDwellTimers.clear();
+  if (widePageDwellTimer) {
+    clearTimeout(widePageDwellTimer);
+    widePageDwellTimer = null;
+  }
+  if (longPageDwellTimer) {
+    clearTimeout(longPageDwellTimer);
+    longPageDwellTimer = null;
+  }
+  if (scrollEndTimer) {
+    clearTimeout(scrollEndTimer);
+    scrollEndTimer = null;
+  }
   if (intersectionObserver) {
     intersectionObserver.disconnect();
     intersectionObserver = null;
@@ -1888,6 +2492,7 @@ watch(
 watch(
   () => zoomScale.value,
   () => {
+    clearTextSelection();
     if (viewMode.value === 'long') {
       nextTick(() => checkLongStripBottom());
     }
@@ -2056,6 +2661,39 @@ watch(
   border-top-color: #f8fafc;
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.pdf-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid #475569;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+  text-decoration: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pdf-back-btn:hover {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #64748b;
+}
+
+.pdf-back-btn svg {
   flex-shrink: 0;
 }
 
@@ -2359,6 +2997,9 @@ watch(
   font-weight: 600;
   color: #dbeafe;
   line-height: 1.35;
+  white-space: pre-line;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .instruction-dismiss-btn {
@@ -2479,33 +3120,119 @@ watch(
 }
 
 .long-canvas-box {
-  width: 100%;
+  position: relative;
+  width: fit-content;
   max-width: 100%;
   min-height: 280px;
   display: flex;
   justify-content: center;
   align-items: center;
   background: #ffffff;
-  position: relative;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s ease;
   box-sizing: border-box;
+  user-select: text;
+  -webkit-user-select: text;
+  margin: 0 auto;
 }
 
+/* Official PDF.js Text Layer Specification */
 .textLayer {
   position: absolute;
-  top: 0;
+  text-align: initial;
   left: 0;
+  top: 0;
   overflow: hidden;
-  opacity: 0;
+  opacity: 1;
   line-height: 1;
-  pointer-events: none;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+}
+
+:deep(.textLayer) {
+  position: absolute;
+  text-align: initial;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+}
+
+:deep(.textLayer) :is(span, br) {
+  color: transparent !important;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+}
+
+/* Chrome Issue 14205 fix: prevent marked content from pushing child spans */
+:deep(.textLayer) span.markedContent {
+  top: 0 !important;
+  height: 0 !important;
+}
+
+/* Chrome Issue 13840 fix: prevent line-break artifacts when selecting across lines */
+:deep(.textLayer) br::-moz-selection {
+  background: transparent !important;
+}
+:deep(.textLayer) br::selection {
+  background: transparent !important;
+}
+
+/* End of content marker */
+:deep(.textLayer) .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+:deep(.textLayer) .endOfContent.active {
+  top: 0;
+}
+
+/* Custom blue selection highlight matching ALS theme */
+:deep(.textLayer) ::selection {
+  background: rgba(22, 93, 252, 0.35) !important;
+  color: transparent !important;
+}
+
+:deep(.textLayer) ::-moz-selection {
+  background: rgba(22, 93, 252, 0.35) !important;
+  color: transparent !important;
 }
 
 .pdf-canvas {
   display: block;
   max-width: 100%;
   height: auto;
+  margin: 0;
+  padding: 0;
 }
 
 .page-divider-tag {
@@ -2515,6 +3242,9 @@ watch(
   font-size: 0.675rem;
   color: #475569;
   font-weight: 700;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
 }
 
 .long-strip-end-sentinel {
@@ -2533,12 +3263,12 @@ watch(
   align-items: center;
   justify-content: center;
   position: relative;
-  touch-action: none;
-  user-select: none;
   overflow: hidden;
   box-sizing: border-box;
   padding-top: max(104px, calc(env(safe-area-inset-top) + 96px));
   padding-bottom: max(88px, calc(env(safe-area-inset-bottom) + 80px));
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .wide-active-page-stage {
@@ -2551,6 +3281,8 @@ watch(
   overflow: hidden;
   padding: 4px;
   box-sizing: border-box;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .wide-canvas-box {
@@ -2562,8 +3294,10 @@ watch(
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   border-radius: 4px;
   transition: transform 0.08s ease-out;
-  touch-action: none;
+  touch-action: manipulation;
   box-sizing: border-box;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .wide-nav-arrow {
@@ -3090,6 +3824,12 @@ watch(
     min-height: 40px;
     padding: 0;
   }
+  .pdf-back-btn {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 0.65rem;
+    font-size: 0.8rem;
+  }
   .viewer-controls-bar {
     padding: 0.35rem 0.45rem;
     gap: 0.25rem;
@@ -3160,6 +3900,133 @@ watch(
   .zoom-level-text {
     min-width: 28px;
     font-size: 0.65rem;
+  }
+}
+
+/* ============================================================
+   Floating Text Selection Toolbar (Highlight & Explain with Google)
+   ============================================================ */
+.pdf-text-selection-toolbar {
+  position: fixed;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #f8fafc;
+  padding: 5px 8px;
+  border-radius: 9999px;
+  box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 99999;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+  white-space: nowrap;
+  animation: toolbarPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toolbarPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.toolbar-pop-enter-active,
+.toolbar-pop-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.toolbar-pop-enter-from,
+.toolbar-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.92) translateY(4px);
+}
+
+.text-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #f1f5f9;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  line-height: 1;
+  text-decoration: none;
+  outline: none;
+}
+
+.text-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.text-toolbar-btn:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.text-toolbar-btn.is-copied {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.action-icon {
+  flex-shrink: 0;
+}
+
+.action-icon.check-icon {
+  color: #4ade80;
+}
+
+.action-icon.google-color-icon {
+  flex-shrink: 0;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+  margin: 0 1px;
+}
+
+.explain-btn {
+  color: #ffffff;
+}
+
+.explain-btn:hover {
+  background: rgba(66, 133, 244, 0.22);
+  color: #ffffff;
+}
+
+@media (max-width: 480px) {
+  .pdf-text-selection-toolbar {
+    padding: 4px 6px;
+    gap: 3px;
+  }
+  .text-toolbar-btn {
+    font-size: 0.75rem;
+    padding: 5px 8px;
+    gap: 5px;
+  }
+  .action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .action-icon.google-color-icon {
+    width: 15px;
+    height: 15px;
   }
 }
 </style>

@@ -2,6 +2,26 @@
   <div class="module-details-page">
     <!-- Top Breadcrumb / Back Navigation (Hidden when in Full-Width Review Learner Activity Page) -->
     <div v-if="!showReviewModal || !currentSubmission" class="back-nav-bar">
+      <nav class="page-breadcrumbs" aria-label="Breadcrumb">
+        <ol class="breadcrumbs-list">
+          <li class="breadcrumb-item">
+            <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
+            <span class="breadcrumb-separator">/</span>
+          </li>
+          <li class="breadcrumb-item">
+            <router-link to="/dashboard/modules" class="breadcrumb-link">Modules</router-link>
+            <span class="breadcrumb-separator">/</span>
+          </li>
+          <li class="breadcrumb-item">
+            <router-link :to="backToModulesRoute" class="breadcrumb-link">{{ formatAlsLevelDisplay(moduleData?.level) }}</router-link>
+            <span class="breadcrumb-separator">/</span>
+          </li>
+          <li class="breadcrumb-item">
+            <span class="breadcrumb-current">{{ moduleData?.title || 'Details' }}</span>
+          </li>
+        </ol>
+      </nav>
+
       <router-link :to="backToModulesRoute" class="btn-back-link">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"/>
@@ -79,7 +99,7 @@
             type="button"
             class="tab-btn"
             :class="{ active: activeTab === 'details' }"
-            @click="activeTab = 'details'"
+            @click="selectModuleTab('details')"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -95,7 +115,7 @@
             type="button"
             class="tab-btn"
             :class="{ active: activeTab === 'submissions' }"
-            @click="activeTab = 'submissions'"
+            @click="selectModuleTab('submissions')"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -110,7 +130,7 @@
 
       <!-- TAB 1: DETAILS -->
       <div v-show="activeTab === 'details'" class="tab-pane-content">
-        <!-- 1. Overview Card: 5 Horizontal Details + Side-by-Side Instructions & Related Activities -->
+        <!-- 1. Overview Card: 5 Horizontal Details + Instructions -->
         <div class="content-section-card details-overview-card">
           <!-- 5 Horizontal Module Details Row -->
           <div class="module-info-horizontal-row">
@@ -192,7 +212,7 @@
             </div>
           </div>
 
-          <!-- Instructions and Related Activities (Full-Width Vertically Arranged) -->
+          <!-- Instructions Section -->
           <div class="instructions-activities-stack">
             <!-- Instructions Panel -->
             <div class="detail-note-panel">
@@ -211,23 +231,6 @@
                   {{ moduleData.instructions || moduleData.description }}
                 </p>
                 <p v-else class="empty-text-hint">No instructions provided for this module.</p>
-              </div>
-            </div>
-
-            <!-- Related Activities Panel -->
-            <div class="detail-note-panel">
-              <div class="detail-note-header">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 11l3 3L22 4"/>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                </svg>
-                <h3 class="detail-note-title">Related Activities</h3>
-              </div>
-              <div class="detail-note-body">
-                <p v-if="moduleData.activitiesRelated" class="prose-text">
-                  {{ moduleData.activitiesRelated }}
-                </p>
-                <p v-else class="empty-text-hint">No related activities provided for this module.</p>
               </div>
             </div>
           </div>
@@ -547,31 +550,44 @@
                   :class="{ active: selectedStatusFilter === 'ALL' }"
                   @click="selectedStatusFilter = 'ALL'"
                 >
-                  All ({{ submissions.length }})
+                  <span>All</span>
+                  <span class="tab-count">{{ submissions.length }}</span>
                 </button>
                 <button
                   type="button"
                   class="filter-pill-btn"
-                  :class="{ active: selectedStatusFilter === 'Submitted' }"
-                  @click="selectedStatusFilter = 'Submitted'"
+                  :class="{ active: selectedStatusFilter === 'Recorded' }"
+                  @click="selectedStatusFilter = 'Recorded'"
                 >
-                  Submitted ({{ countByStatus('Submitted') }})
+                  <span>Recorded</span>
+                  <span class="tab-count">{{ countByStatus('Recorded') }}</span>
                 </button>
                 <button
                   type="button"
                   class="filter-pill-btn"
-                  :class="{ active: selectedStatusFilter === 'Mastered' }"
-                  @click="selectedStatusFilter = 'Mastered'"
+                  :class="{ active: selectedStatusFilter === 'Not Recorded' }"
+                  @click="selectedStatusFilter = 'Not Recorded'"
                 >
-                  Mastered ({{ countByStatus('Mastered') }})
+                  <span>Not Recorded</span>
+                  <span class="tab-count">{{ countByStatus('Not Recorded') }}</span>
                 </button>
                 <button
                   type="button"
                   class="filter-pill-btn"
-                  :class="{ active: selectedStatusFilter === 'Not Mastered' }"
-                  @click="selectedStatusFilter = 'Not Mastered'"
+                  :class="{ active: selectedStatusFilter === 'In Progress' }"
+                  @click="selectedStatusFilter = 'In Progress'"
                 >
-                  Not Mastered ({{ countByStatus('Not Mastered') }})
+                  <span>In Progress</span>
+                  <span class="tab-count">{{ countByStatus('In Progress') }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="filter-pill-btn"
+                  :class="{ active: selectedStatusFilter === 'Overdue' }"
+                  @click="selectedStatusFilter = 'Overdue'"
+                >
+                  <span>Overdue</span>
+                  <span class="tab-count">{{ countByStatus('Overdue') }}</span>
                 </button>
               </div>
             </div>
@@ -584,12 +600,9 @@
                 <tr>
                   <th class="th-learner-name">Learner Name</th>
                   <th class="th-lrn">LRN</th>
-                  <th class="th-level">ALS Level</th>
-                  <th class="th-activity">Activity</th>
                   <th class="th-date">Submitted Date</th>
                   <th class="th-status">Status</th>
-                  <th class="th-remarks">Teacher Remarks</th>
-                  <th class="th-action text-right">Action</th>
+                  <th class="th-action text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -597,51 +610,32 @@
                   <td class="td-learner-name table-cell-name">
                     {{ sub.learnerName }}
                   </td>
-                  <td class="td-lrn text-muted font-mono">
+                  <td class="td-lrn">
                     {{ sub.lrn || '—' }}
                   </td>
-                  <td class="td-level table-cell-als-level">
-                    {{ formatAlsLevelDisplay(sub.programLevel || moduleData.level) }}
-                  </td>
-                  <td class="td-activity">
-                    <div class="activity-cell-wrap">
-                      <span class="text-dark">{{ sub.activity || sub.title || moduleData.title }}</span>
-                      <span v-if="getSubmissionFilesList(sub).length > 1" class="activity-files-count-badge">
-                        {{ getSubmissionFilesList(sub).length }} files
-                      </span>
-                    </div>
-                  </td>
-                  <td class="td-date text-muted">
-                    {{ formatDisplayDate(sub.submittedAt || sub.dateSubmitted) }}
+                  <td class="td-date">
+                    {{ hasSubmissionOutput(sub) ? formatDisplayDate(sub.submittedAt || sub.dateSubmitted) : '—' }}
                   </td>
                   <td class="td-status">
                     <span
                       class="sub-status-badge"
-                      :class="getStatusClass(sub.status)"
+                      :class="getStatusClass(sub.status, sub)"
                     >
                       <span class="sub-dot"></span>
-                      {{ formatProgressStatus(sub.status) }}
+                      {{ formatProgressStatus(sub.status, sub) }}
                     </span>
                   </td>
-                  <td class="td-remarks remarks-cell" :title="sub.teacherRemarks || sub.remarks || sub.feedback">
-                    <span v-if="sub.teacherRemarks || sub.remarks || sub.feedback" class="remarks-snippet">
-                      {{ sub.teacherRemarks || sub.remarks || sub.feedback }}
-                    </span>
-                    <span v-else class="text-muted-dash">—</span>
-                  </td>
-                  <td class="td-action text-right">
+                  <td class="td-action text-center">
                     <button
                       type="button"
-                      class="btn-review-sub"
-                      title="Review Learner Activity"
-                      aria-label="Review Output"
+                      class="btn-action-chevron"
+                      title="Open"
+                      aria-label="Open"
                       @click="openReviewModal(sub)"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
                       </svg>
-                      <span>Review Output</span>
                     </button>
                   </td>
                 </tr>
@@ -751,7 +745,7 @@
 
           <div class="learner-meta-cell">
             <span class="learner-meta-label">LRN</span>
-            <span class="learner-meta-value font-mono">{{ currentSubmission.lrn || '—' }}</span>
+            <span class="learner-meta-value">{{ currentSubmission.lrn || '—' }}</span>
           </div>
 
           <div class="learner-meta-cell">
@@ -760,11 +754,11 @@
           </div>
 
           <div class="learner-meta-cell">
-            <span class="learner-meta-label">Submission Status</span>
+            <span class="learner-meta-label">Status</span>
             <div class="learner-meta-status-wrap">
-              <span class="sub-status-badge" :class="getStatusClass(currentSubmission.status)">
+              <span class="sub-status-badge" :class="getStatusClass(currentSubmission.status, currentSubmission)">
                 <span class="sub-dot"></span>
-                {{ formatProgressStatus(currentSubmission.status) }}
+                {{ formatProgressStatus(currentSubmission.status, currentSubmission) }}
               </span>
             </div>
           </div>
@@ -807,16 +801,22 @@
             <div class="submitted-activities-header">
               <div class="submitted-activities-title-group">
                 <h2 class="panel-heading">Submitted Activities</h2>
-                <span class="files-total-badge">
+                <span
+                  v-if="hasSubmissionOutput(currentSubmission)"
+                  class="files-total-badge"
+                >
                   {{ currentSubmissionFiles.length }} {{ currentSubmissionFiles.length === 1 ? 'File' : 'Files' }}
                 </span>
               </div>
-              <span class="submitted-date-caption">
+              <span
+                v-if="hasSubmissionOutput(currentSubmission) && (currentSubmission.submittedAt || currentSubmission.dateSubmitted)"
+                class="submitted-date-caption"
+              >
                 Submitted {{ formatDisplayDate(currentSubmission.submittedAt || currentSubmission.dateSubmitted) }}
               </span>
             </div>
 
-            <div v-if="currentSubmissionFiles.length > 0" class="submitted-activities-body">
+            <div v-if="hasSubmissionOutput(currentSubmission) && currentSubmissionFiles.length > 0" class="submitted-activities-body">
               <!-- Left Side of Preview Area: Uploaded File List -->
               <div class="submitted-files-list" role="listbox" aria-label="Submitted Activity Files">
                 <button
@@ -1027,19 +1027,19 @@
               </div>
             </div>
 
-            <!-- Fallback if learner submission has no files -->
+            <!-- Fallback if learner submission has no files or no activity submitted -->
             <div v-else class="no-artifact-hint">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/>
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
-              <span>No activity files attached with this submission.</span>
+              <span>{{ hasSubmissionOutput(currentSubmission) ? 'No activity files attached with this submission.' : 'No activity submitted yet.' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- RIGHT COLUMN (40%): Assessment Scores, Evaluation & Teacher Remarks -->
+        <!-- RIGHT COLUMN (40%): Module Assessment Scores & Action Buttons -->
         <div class="review-right-col">
           <div class="review-panel-card evaluation-sidebar-card">
             <!-- 1. Module Assessment Scores -->
@@ -1071,88 +1071,11 @@
               </div>
             </div>
 
-            <div class="eval-divider"></div>
-
-            <!-- 2. Learning Progress Evaluation -->
-            <div class="eval-section-block">
-              <h2 class="panel-heading">Learning Progress Evaluation</h2>
-              <p class="eval-description-text">
-                Evaluate whether the learner has demonstrated mastery of the activity competencies.
-              </p>
-
-              <div class="eval-field-group">
-                <label class="eval-label" for="learning-progress-select">
-                  Learning Progress <span class="req">*</span>
-                </label>
-                <select
-                  id="learning-progress-select"
-                  v-model="reviewForm.status"
-                  class="eval-select-input"
-                  required
-                >
-                  <option value="" disabled>Select Learning Progress</option>
-                  <option value="Mastered">Mastered</option>
-                  <option value="Not Mastered">Not Mastered</option>
-                </select>
-
-                <!-- Dynamic Confirmation / Explanation Message -->
-                <div
-                  v-if="reviewForm.status === 'Mastered'"
-                  class="eval-guidance-callout is-mastered"
-                >
-                  <div class="guidance-flex">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                      <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
-                    <div>
-                      <strong>Mastered:</strong>
-                      <span> The learner has demonstrated mastery of the activity competencies and completed the required output satisfactorily.</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  v-else-if="reviewForm.status === 'Not Mastered'"
-                  class="eval-guidance-callout is-not-mastered"
-                >
-                  <div class="guidance-flex">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="8" x2="12" y2="12"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <div>
-                      <strong>Not Mastered:</strong>
-                      <span> The learner requires additional guidance, practice, or follow-up support before the activity competencies are mastered.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="eval-divider"></div>
-
-            <!-- 3. Teacher Remarks -->
-            <div class="eval-section-block">
-              <label class="panel-heading remarks-heading-label" for="teacher-remarks-textarea">
-                Teacher Remarks
-              </label>
-              <textarea
-                id="teacher-remarks-textarea"
-                v-model="reviewForm.teacherRemarks"
-                rows="6"
-                class="eval-textarea-input"
-                placeholder="Write your feedback, observations, or additional remarks here..."
-              ></textarea>
-            </div>
-
-            <!-- 4. Save Review Footer Actions -->
+            <!-- Action Buttons -->
             <div class="eval-panel-actions">
               <button
                 type="button"
                 class="btn-modal-cancel"
-                :disabled="isSavingReview"
                 @click="closeReviewModal"
               >
                 Cancel
@@ -1160,11 +1083,15 @@
               <button
                 type="button"
                 class="btn-modal-save"
-                :disabled="isSavingReview"
-                @click="saveSubmissionReview"
+                :disabled="!hasSubmissionOutput(currentSubmission)"
+                :title="!hasSubmissionOutput(currentSubmission) ? 'Cannot create record: no activity submitted yet' : 'Add to Records'"
+                @click="hasSubmissionOutput(currentSubmission) && handleAddOrCheckRecords()"
               >
-                <span v-if="isSavingReview">Saving Review...</span>
-                <span v-else>Save Review</span>
+                <span>Add to Records</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
               </button>
             </div>
           </div>
@@ -1232,6 +1159,20 @@
                 ></textarea>
               </div>
 
+              <!-- Teacher Reading Instructions -->
+              <div class="field-item full-width">
+                <label class="field-lbl">Teacher Reading Instructions</label>
+                <p class="field-helper-text">
+                  Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
+                </p>
+                <textarea
+                  v-model="editForm.readingInstructions"
+                  rows="3"
+                  class="field-textarea-box"
+                  placeholder="Instructions for the learner (e.g., Read Sections 1 through 3 before attempting Post-Test activities)..."
+                ></textarea>
+              </div>
+
               <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
               <div class="field-item">
                 <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
@@ -1264,158 +1205,27 @@
 
               <div class="field-item">
                 <label class="field-lbl">Module Code <span class="req">*</span></label>
-                <input
-                  type="text"
-                  :value="editForm.code"
-                  class="field-input-box is-readonly"
-                  placeholder="Auto-populated based on Learning Strand"
-                  readonly
-                  disabled
-                />
+                <LockedFieldTooltip message="This field cannot be edited.">
+                  <input
+                    type="text"
+                    :value="editForm.code"
+                    class="field-input-box is-readonly"
+                    placeholder="Auto-populated based on Learning Strand"
+                    readonly
+                    title="This field cannot be edited."
+                  />
+                </LockedFieldTooltip>
               </div>
 
-              <!-- ROW 5 — FULL WIDTH: Learner Assignment Section -->
-              <div class="field-item full-width learner-assignment-section">
-                <label class="field-lbl">Assign Module To <span class="req">*</span></label>
-                
-                <div class="assignment-radio-group">
-                  <!-- Option 1: All Learners -->
-                  <label class="assignment-radio-card" :class="{ 'is-selected': editForm.isAllLearners }">
-                    <input
-                      type="radio"
-                      name="editModuleAssignMode"
-                      :value="true"
-                      v-model="editForm.isAllLearners"
-                      class="custom-radio"
-                      @change="onEditAssignmentModeChange(true)"
-                    />
-                    <div class="radio-label-group">
-                      <span class="radio-title">All Learners</span>
-                      <span class="radio-desc">Assign the module to all eligible learners under the selected Learning Center and ALS Level.</span>
-                    </div>
-                  </label>
-
-                  <!-- Option 2: Specific Learners -->
-                  <label class="assignment-radio-card" :class="{ 'is-selected': !editForm.isAllLearners }">
-                    <input
-                      type="radio"
-                      name="editModuleAssignMode"
-                      :value="false"
-                      v-model="editForm.isAllLearners"
-                      class="custom-radio"
-                      @change="onEditAssignmentModeChange(false)"
-                    />
-                    <div class="radio-label-group">
-                      <span class="radio-title">Specific Learners</span>
-                      <span class="radio-desc">Allow the teacher to select individual learners who will receive the module.</span>
-                    </div>
-                  </label>
-                </div>
-
-                <!-- When All Learners is selected -->
-                <div v-if="editForm.isAllLearners" class="all-learners-summary-card">
-                  <div v-if="editEligibleLearners.length > 0" class="learners-count-badge">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="9" cy="7" r="4"></circle>
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    <span><strong>{{ editEligibleLearners.length }}</strong> {{ editEligibleLearners.length === 1 ? 'learner' : 'learners' }} will receive this module.</span>
-                  </div>
-                  <div v-else class="empty-eligible-box">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="8" x2="12" y2="12"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <span>No eligible {{ editForm.level }} learners found for the selected Learning Center.</span>
-                  </div>
-                </div>
-
-                <!-- When Specific Learners is selected -->
-                <div v-else class="specific-learners-section">
-                  <label class="field-sub-lbl">Select Learners <span class="req">*</span></label>
-                  
-                  <div class="specific-learners-container">
-                    <!-- Search box -->
-                    <div class="learner-search-wrapper">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                      </svg>
-                      <input
-                        v-model="editLearnerSearchQuery"
-                        type="text"
-                        class="field-input-box learner-search-input"
-                        placeholder="Search learner name..."
-                      />
-                      <button
-                        v-if="editLearnerSearchQuery"
-                        type="button"
-                        class="clear-search-btn"
-                        @click="editLearnerSearchQuery = ''"
-                        aria-label="Clear search"
-                      >
-                        &times;
-                      </button>
-                    </div>
-
-                    <!-- Selected Learners Chips -->
-                    <div v-if="selectedEditLearnersList.length > 0" class="selected-chips-row">
-                      <div
-                        v-for="l in selectedEditLearnersList"
-                        :key="l.id"
-                        class="selected-learner-chip"
-                      >
-                        <span class="chip-name">{{ l.name }}</span>
-                        <button
-                          type="button"
-                          class="chip-close-btn"
-                          @click="toggleEditLearner(l.id)"
-                          :title="`Remove ${l.name}`"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    </div>
-
-                    <!-- Multi-select list -->
-                    <div v-if="filteredEditSpecificLearners.length > 0" class="learners-multi-list">
-                      <label
-                        v-for="l in filteredEditSpecificLearners"
-                        :key="l.id"
-                        class="learner-check-row"
-                        :class="{ 'is-checked': editForm.selectedLearnerIds.includes(l.id) }"
-                      >
-                        <input
-                          type="checkbox"
-                          class="learner-checkbox"
-                          :checked="editForm.selectedLearnerIds.includes(l.id)"
-                          @change="toggleEditLearner(l.id)"
-                        />
-                        <div class="learner-row-text">
-                          <span class="learner-row-name">{{ l.name }}</span>
-                          <span class="learner-row-sub">{{ l.level }} &bull; {{ l.learningCenter }}</span>
-                        </div>
-                      </label>
-                    </div>
-
-                    <!-- Empty State -->
-                    <div v-else-if="editEligibleLearners.length === 0" class="no-learners-box">
-                      <span>No eligible {{ editForm.level }} learners found for the selected Learning Center.</span>
-                    </div>
-                    <div v-else class="no-learners-box">
-                      <span>No learners match "{{ editLearnerSearchQuery }}".</span>
-                    </div>
-
-                    <!-- Selection Count Footer -->
-                    <div class="selection-count-footer">
-                      <span>{{ editForm.selectedLearnerIds.length }} {{ editForm.selectedLearnerIds.length === 1 ? 'learner' : 'learners' }} selected</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <!-- ROW 5 — FULL WIDTH: Assign Module To * -->
+              <AssignModuleToDropdown
+                v-model:is-all-learners="editForm.isAllLearners"
+                v-model:selected-learner-ids="editForm.selectedLearnerIds"
+                :eligible-learners="editEligibleLearners"
+                :active-level="editForm.level"
+                :center-name="editSelectedCenterName"
+                label-id="edit-assign-module-label"
+              />
 
               <!-- ROW 6 — TWO COLUMNS: Date Started * | Date Ended * -->
               <div class="field-item">
@@ -1437,24 +1247,13 @@
                   required
                 />
               </div>
-
-              <!-- ROW 7 — FULL WIDTH: Activities Related -->
-              <div class="field-item full-width">
-                <label class="field-lbl">Activities Related</label>
-                <textarea
-                  v-model="editForm.activitiesRelated"
-                  rows="2"
-                  class="field-textarea-box"
-                  placeholder="Describe the activities related to this module..."
-                ></textarea>
-              </div>
             </div>
 
             <!-- EDIT PRE-TEST (Assessment) QUESTIONS -->
             <div class="edit-assessment-block">
               <div class="edit-assessment-header">
                 <h3>Pre-Test (Assessment)</h3>
-                <p>Add multiple choice questions to assess learners' prior knowledge before the module.</p>
+                <p>Add multiple-choice questions to assess learners' prior knowledge before the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
               </div>
 
               <div class="gf-questions-container">
@@ -1474,27 +1273,13 @@
                     />
                   </div>
 
-                  <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
-                    <div class="gf-ak-banner-text">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 11l3 3L22 4"/>
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                      </svg>
-                      <span>Select the correct option below using the radio button:</span>
-                    </div>
-                    <button type="button" class="gf-ak-done-btn" @click="q.answerKeyMode = false">
-                      Done
-                    </button>
-                  </div>
-
                   <div class="gf-options-list">
                     <div
                       v-for="(choice, cIdx) in q.choices"
                       :key="cIdx"
                       class="gf-option-row"
                       :class="{
-                        'is-correct-choice': q.correctAnswer === cIdx,
-                        'is-ak-mode': q.answerKeyMode
+                        'is-correct-choice': q.correctAnswer === cIdx
                       }"
                     >
                       <input
@@ -1503,10 +1288,12 @@
                         :name="`edit-pretest-correct-${q.uid || q.id || qIdx}`"
                         :value="cIdx"
                         :checked="q.correctAnswer === cIdx"
-                        title="Select as correct answer"
+                        title="Click circle to select as correct answer"
                         @change="selectEditCorrectAnswer(q, cIdx)"
                       />
                       <input
+                        :id="`edit-opt-preTest-${q.uid || q.id || qIdx}-${cIdx}`"
+                        :ref="(el) => setEditOptionInputRef(`preTest-${q.uid || q.id || qIdx}-${cIdx}`, el)"
                         v-model="q.choices[cIdx]"
                         type="text"
                         class="gf-option-input"
@@ -1536,22 +1323,63 @@
 
                   <div class="gf-add-option-row">
                     <span class="gf-radio-deco" aria-hidden="true"></span>
-                    <button type="button" class="gf-add-option-btn" @click="addEditOption(q)">
+                    <button type="button" class="gf-add-option-btn" @click="addEditOption(q, 'preTest')">
                       Add option
                     </button>
                   </div>
 
+                  <!-- Inline Feedback Section (Correct Answer & Incorrect Answer Feedback) -->
                   <div
-                    v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
-                    class="gf-saved-feedback-box"
+                    v-if="isFeedbackVisible(q)"
+                    class="gf-inline-feedback-container"
                   >
-                    <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
-                      <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
-                      <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                    <div class="gf-inline-feedback-header">
+                      <span class="gf-inline-feedback-title">Question Feedback</span>
+                      <button
+                        type="button"
+                        class="gf-feedback-collapse-btn"
+                        title="Hide feedback fields"
+                        @click="q.showFeedback = false"
+                      >
+                        Hide
+                      </button>
                     </div>
-                    <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
-                      <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
-                      <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+
+                    <div class="gf-feedback-field">
+                      <div class="gf-feedback-field-header">
+                        <label class="gf-feedback-label">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon correct">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          <span>Correct Answer Feedback</span>
+                        </label>
+                        <span class="gf-feedback-helper-text">Feedback displayed when the learner selects the correct answer.</span>
+                      </div>
+                      <textarea
+                        v-model="q.correctFeedback"
+                        rows="2"
+                        class="gf-feedback-input"
+                        placeholder="e.g. Great job! That's correct."
+                      ></textarea>
+                    </div>
+
+                    <div class="gf-feedback-field">
+                      <div class="gf-feedback-field-header">
+                        <label class="gf-feedback-label">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon incorrect">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                          <span>Incorrect Answer Feedback</span>
+                        </label>
+                        <span class="gf-feedback-helper-text">Feedback displayed when the learner selects an incorrect answer.</span>
+                      </div>
+                      <textarea
+                        v-model="q.incorrectFeedback"
+                        rows="2"
+                        class="gf-feedback-input"
+                        placeholder="e.g. Review page 5 of the module for the correct explanation."
+                      ></textarea>
                     </div>
                   </div>
 
@@ -1559,47 +1387,18 @@
                     <div class="gf-footer-left">
                       <button
                         type="button"
-                        class="gf-answer-key-btn"
-                        :class="{
-                          'is-active': q.answerKeyMode,
-                          'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
-                        }"
-                        @click="q.answerKeyMode = !q.answerKeyMode"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M9 11l3 3L22 4"/>
-                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                        </svg>
-                        <span>Answer Key</span>
-                      </button>
-
-                      <button
-                        type="button"
                         class="gf-add-feedback-btn"
-                        :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
-                        @click="openEditFeedbackModal('preTest', qIdx)"
+                        :class="{
+                          'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim(),
+                          'is-open': isFeedbackVisible(q)
+                        }"
+                        @click="toggleQuestionFeedback(q)"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                         </svg>
                         <span>Add feedback answer</span>
                       </button>
-
-                      <span
-                        v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
-                        class="gf-ak-status is-set"
-                      >
-                        Correct: {{ q.choices[q.correctAnswer] }}
-                      </span>
-                      <span
-                        v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
-                        class="gf-ak-status is-set"
-                      >
-                        Option {{ q.correctAnswer + 1 }} selected
-                      </span>
-                      <span v-else class="gf-ak-status is-empty">
-                        Select correct answer
-                      </span>
                     </div>
 
                     <div class="gf-footer-right">
@@ -1620,7 +1419,11 @@
                 </div>
               </div>
 
+              <!-- Bottom Bar: Total Questions on Left, + Add Question on Right -->
               <div class="gf-questions-bottom-bar">
+                <div class="gf-total-questions">
+                  Total Questions: <strong>{{ editForm.preTest.length }}</strong>
+                </div>
                 <button
                   type="button"
                   class="gf-btn-add-question"
@@ -1628,17 +1431,29 @@
                 >
                   + Add Question
                 </button>
-                <div class="gf-total-questions">
-                  Total Questions: <strong>{{ editForm.preTest.length }}</strong>
-                </div>
               </div>
             </div>
 
             <!-- EDIT POST-TEST QUESTIONS -->
             <div class="edit-assessment-block">
               <div class="edit-assessment-header">
-                <h3>Post-Test</h3>
-                <p>Add multiple choice questions to assess what learners have learned after completing the module.</p>
+                <div class="edit-assessment-title-bar">
+                  <h3>Post-Test</h3>
+                  <button
+                    type="button"
+                    class="btn-duplicate-pretest"
+                    :disabled="!hasValidEditPreTestQuestions"
+                    :title="!hasValidEditPreTestQuestions ? 'No Pre-Test questions available to duplicate.' : 'Duplicate all questions created in Pre-Test'"
+                    @click="handleEditDuplicateClick"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <span>Duplicate from Pre-Test</span>
+                  </button>
+                </div>
+                <p>Add multiple-choice questions to assess what learners have learned after completing the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
               </div>
 
               <div class="gf-questions-container">
@@ -1658,27 +1473,13 @@
                     />
                   </div>
 
-                  <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
-                    <div class="gf-ak-banner-text">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 11l3 3L22 4"/>
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                      </svg>
-                      <span>Select the correct option below using the radio button:</span>
-                    </div>
-                    <button type="button" class="gf-ak-done-btn" @click="q.answerKeyMode = false">
-                      Done
-                    </button>
-                  </div>
-
                   <div class="gf-options-list">
                     <div
                       v-for="(choice, cIdx) in q.choices"
                       :key="cIdx"
                       class="gf-option-row"
                       :class="{
-                        'is-correct-choice': q.correctAnswer === cIdx,
-                        'is-ak-mode': q.answerKeyMode
+                        'is-correct-choice': q.correctAnswer === cIdx
                       }"
                     >
                       <input
@@ -1687,10 +1488,12 @@
                         :name="`edit-posttest-correct-${q.uid || q.id || qIdx}`"
                         :value="cIdx"
                         :checked="q.correctAnswer === cIdx"
-                        title="Select as correct answer"
+                        title="Click circle to select as correct answer"
                         @change="selectEditCorrectAnswer(q, cIdx)"
                       />
                       <input
+                        :id="`edit-opt-postTest-${q.uid || q.id || qIdx}-${cIdx}`"
+                        :ref="(el) => setEditOptionInputRef(`postTest-${q.uid || q.id || qIdx}-${cIdx}`, el)"
                         v-model="q.choices[cIdx]"
                         type="text"
                         class="gf-option-input"
@@ -1720,22 +1523,63 @@
 
                   <div class="gf-add-option-row">
                     <span class="gf-radio-deco" aria-hidden="true"></span>
-                    <button type="button" class="gf-add-option-btn" @click="addEditOption(q)">
+                    <button type="button" class="gf-add-option-btn" @click="addEditOption(q, 'postTest')">
                       Add option
                     </button>
                   </div>
 
+                  <!-- Inline Feedback Section (Correct Answer & Incorrect Answer Feedback) -->
                   <div
-                    v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
-                    class="gf-saved-feedback-box"
+                    v-if="isFeedbackVisible(q)"
+                    class="gf-inline-feedback-container"
                   >
-                    <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
-                      <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
-                      <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                    <div class="gf-inline-feedback-header">
+                      <span class="gf-inline-feedback-title">Question Feedback</span>
+                      <button
+                        type="button"
+                        class="gf-feedback-collapse-btn"
+                        title="Hide feedback fields"
+                        @click="q.showFeedback = false"
+                      >
+                        Hide
+                      </button>
                     </div>
-                    <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
-                      <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
-                      <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+
+                    <div class="gf-feedback-field">
+                      <div class="gf-feedback-field-header">
+                        <label class="gf-feedback-label">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon correct">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          <span>Correct Answer Feedback</span>
+                        </label>
+                        <span class="gf-feedback-helper-text">Feedback displayed when the learner selects the correct answer.</span>
+                      </div>
+                      <textarea
+                        v-model="q.correctFeedback"
+                        rows="2"
+                        class="gf-feedback-input"
+                        placeholder="e.g. Great job! That's correct."
+                      ></textarea>
+                    </div>
+
+                    <div class="gf-feedback-field">
+                      <div class="gf-feedback-field-header">
+                        <label class="gf-feedback-label">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon incorrect">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                          <span>Incorrect Answer Feedback</span>
+                        </label>
+                        <span class="gf-feedback-helper-text">Feedback displayed when the learner selects an incorrect answer.</span>
+                      </div>
+                      <textarea
+                        v-model="q.incorrectFeedback"
+                        rows="2"
+                        class="gf-feedback-input"
+                        placeholder="e.g. Review page 5 of the module for the correct explanation."
+                      ></textarea>
                     </div>
                   </div>
 
@@ -1743,47 +1587,18 @@
                     <div class="gf-footer-left">
                       <button
                         type="button"
-                        class="gf-answer-key-btn"
-                        :class="{
-                          'is-active': q.answerKeyMode,
-                          'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
-                        }"
-                        @click="q.answerKeyMode = !q.answerKeyMode"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M9 11l3 3L22 4"/>
-                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                        </svg>
-                        <span>Answer Key</span>
-                      </button>
-
-                      <button
-                        type="button"
                         class="gf-add-feedback-btn"
-                        :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
-                        @click="openEditFeedbackModal('postTest', qIdx)"
+                        :class="{
+                          'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim(),
+                          'is-open': isFeedbackVisible(q)
+                        }"
+                        @click="toggleQuestionFeedback(q)"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                         </svg>
                         <span>Add feedback answer</span>
                       </button>
-
-                      <span
-                        v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
-                        class="gf-ak-status is-set"
-                      >
-                        Correct: {{ q.choices[q.correctAnswer] }}
-                      </span>
-                      <span
-                        v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
-                        class="gf-ak-status is-set"
-                      >
-                        Option {{ q.correctAnswer + 1 }} selected
-                      </span>
-                      <span v-else class="gf-ak-status is-empty">
-                        Select correct answer
-                      </span>
                     </div>
 
                     <div class="gf-footer-right">
@@ -1804,7 +1619,11 @@
                 </div>
               </div>
 
+              <!-- Bottom Bar: Total Questions on Left, + Add Question on Right -->
               <div class="gf-questions-bottom-bar">
+                <div class="gf-total-questions">
+                  Total Questions: <strong>{{ editForm.postTest.length }}</strong>
+                </div>
                 <button
                   type="button"
                   class="gf-btn-add-question"
@@ -1812,9 +1631,6 @@
                 >
                   + Add Question
                 </button>
-                <div class="gf-total-questions">
-                  Total Questions: <strong>{{ editForm.postTest.length }}</strong>
-                </div>
               </div>
             </div>
           </div>
@@ -1841,89 +1657,20 @@
           </div>
         </div>
       </div>
-
-      <!-- ADD FEEDBACK MODAL (INSIDE EDIT MODULE) -->
-      <div
-        v-if="editFeedbackModal.open"
-        class="gf-feedback-modal-backdrop"
-        @click.self="closeEditFeedbackModal"
-      >
-        <div class="gf-feedback-modal-card" role="dialog" aria-modal="true" aria-labelledby="gf-edit-feedback-modal-title">
-          <div class="gf-feedback-modal-header">
-            <h3 id="gf-edit-feedback-modal-title" class="gf-feedback-modal-title">Add feedback</h3>
-            <button
-              type="button"
-              class="gf-feedback-modal-close"
-              title="Close"
-              aria-label="Close"
-              @click="closeEditFeedbackModal"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="gf-feedback-modal-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              class="gf-feedback-tab-btn"
-              :class="{ 'is-active': editFeedbackModal.activeTab === 'incorrect' }"
-              :aria-selected="editFeedbackModal.activeTab === 'incorrect'"
-              @click="editFeedbackModal.activeTab = 'incorrect'"
-            >
-              Incorrect answers
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="gf-feedback-tab-btn"
-              :class="{ 'is-active': editFeedbackModal.activeTab === 'correct' }"
-              :aria-selected="editFeedbackModal.activeTab === 'correct'"
-              @click="editFeedbackModal.activeTab = 'correct'"
-            >
-              Correct answers
-            </button>
-          </div>
-
-          <div class="gf-feedback-modal-body">
-            <textarea
-              v-if="editFeedbackModal.activeTab === 'incorrect'"
-              v-model="editFeedbackModal.incorrectFeedback"
-              rows="4"
-              class="gf-feedback-textarea"
-              placeholder="Enter feedback here..."
-            ></textarea>
-            <textarea
-              v-else
-              v-model="editFeedbackModal.correctFeedback"
-              rows="4"
-              class="gf-feedback-textarea"
-              placeholder="Enter feedback here..."
-            ></textarea>
-          </div>
-
-          <div class="gf-feedback-modal-footer">
-            <button
-              type="button"
-              class="gf-feedback-cancel-btn"
-              @click="closeEditFeedbackModal"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="gf-feedback-save-btn"
-              @click="saveEditFeedbackModal"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
     </Teleport>
+
+    <!-- ADD LEARNER RECORD MODAL (Opened from Review Learner Activity -> Add to Records) -->
+    <AddLearnerRecordModal
+      v-model="showAddRecordModal"
+      mode="submission"
+      :record="submissionRecordForm"
+      :fallback-learner-name="currentSubmission?.learnerName || ''"
+      :saving="isSavingSubmissionRecord"
+      :error-message="submissionRecordError"
+      @close="closeAddToRecordsModal"
+      @save="saveSubmissionRecordFromReview"
+      @clear-error="submissionRecordError = ''"
+    />
 
     <!-- DELETE CONFIRMATION MODAL -->
     <DeleteConfirmModal
@@ -1936,6 +1683,97 @@
       @cancel="showDeleteModal = false"
       @confirm="confirmDeleteModule"
     />
+
+    <!-- ALREADY RECORDED NOTIFICATION MODAL -->
+    <Teleport to="body">
+      <div
+        v-if="showAlreadyRecordedModal"
+        class="already-recorded-overlay"
+        @click.self="showAlreadyRecordedModal = false"
+        @keydown.esc="showAlreadyRecordedModal = false"
+        tabindex="-1"
+      >
+        <div class="already-recorded-card" role="dialog" aria-modal="true" aria-labelledby="already-recorded-title">
+          <div class="already-recorded-icon-badge">
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+
+          <h2 id="already-recorded-title" class="already-recorded-title">Already Recorded</h2>
+          <p class="already-recorded-message">This learner's activity has already been added to Records.</p>
+
+          <div class="already-recorded-actions">
+            <button
+              type="button"
+              class="btn-already-recorded-ok"
+              @click="showAlreadyRecordedModal = false"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Confirmation Dialog: Duplicate from Pre-Test (Edit Module) -->
+    <Teleport to="body">
+      <div
+        v-if="showEditDuplicateConfirmModal"
+        class="modal-overlay"
+        @click.self="showEditDuplicateConfirmModal = false"
+      >
+        <div
+          class="modal-box duplicate-confirm-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-dup-confirm-title"
+        >
+          <div class="dup-modal-header">
+            <div class="dup-modal-icon-circle">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </div>
+            <div class="dup-modal-title-group">
+              <h3 id="edit-dup-confirm-title" class="dup-modal-title">Duplicate Pre-Test Questions?</h3>
+              <p class="dup-modal-desc">
+                This will replace your current Post-Test questions with copies of your Pre-Test questions. Any unsaved Post-Test questions will be removed.
+              </p>
+            </div>
+          </div>
+          <div class="dup-modal-actions">
+            <button
+              type="button"
+              class="btn-dup-cancel"
+              @click="showEditDuplicateConfirmModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn-dup-confirm"
+              @click="confirmEditDuplicate"
+            >
+              Duplicate Questions
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -1946,30 +1784,59 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useClcData } from '../composables/useClcData.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
+import AssignModuleToDropdown from '../components/AssignModuleToDropdown.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
+import AddLearnerRecordModal from '../components/AddLearnerRecordModal.vue';
 import { getModule, updateModule, deleteModule } from '../api/modules.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getSubmissions, updateSubmission, getLearnerAssessmentScores } from '../api/submissions.js';
+import { getRecordContext, createRecord } from '../api/records.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 const route = useRoute();
 const router = useRouter();
-const { teacherId, teacherName, assignedCenters } = useTeacherSession();
+const {
+  teacherId,
+  teacherName,
+  assignedCenters,
+  activeModuleLevelSlug,
+  getCachedModuleLevelSlug,
+  setActiveModuleLevel,
+} = useTeacherSession();
 
 const loading = ref(true);
 const errorMessage = ref('');
 const moduleData = ref(null);
 const submissions = ref([]);
-const activeTab = ref('details');
+const activeTab = ref(route.query.tab === 'submissions' ? 'submissions' : 'details');
 const showMaterialSection = ref(false);
 const showAssessmentSection = ref(false);
+
+function selectModuleTab(tab) {
+  activeTab.value = tab;
+  if (moduleData.value) {
+    setActiveModuleLevel(
+      moduleData.value.targetLevel || moduleData.value.level || moduleData.value.programLevel,
+      moduleData.value.id || route.params.id || route.params.moduleId
+    );
+  }
+}
 
 // Dynamic back destination according to module's ALS Level
 const backToModulesRoute = computed(() => {
   const target = String(moduleData.value?.targetLevel || '').toUpperCase().trim();
   const lvl = String(moduleData.value?.level || moduleData.value?.programLevel || '').toLowerCase().trim();
   if (target === 'JUNIOR' || lvl.includes('junior') || lvl.includes('jhs') || lvl.includes('sec')) {
+    return '/dashboard/modules/junior-high';
+  }
+  if (target === 'ELEMENTARY' || lvl.includes('elem')) {
+    return '/dashboard/modules/elementary';
+  }
+  const modId = route.params.id || route.params.moduleId;
+  const cachedSlug = getCachedModuleLevelSlug(modId) || activeModuleLevelSlug.value;
+  if (cachedSlug === 'junior-high') {
     return '/dashboard/modules/junior-high';
   }
   return '/dashboard/modules/elementary';
@@ -2027,10 +1894,19 @@ function createBlankEditQuestion() {
     choices: [''],
     optionIds: [null],
     correctAnswer: null,
-    answerKeyMode: false,
     correctFeedback: '',
     incorrectFeedback: '',
+    showFeedback: false,
   };
+}
+
+function isFeedbackVisible(q) {
+  if (q.showFeedback !== undefined) return !!q.showFeedback;
+  return !!(q.correctFeedback?.trim() || q.incorrectFeedback?.trim());
+}
+
+function toggleQuestionFeedback(q) {
+  q.showFeedback = !isFeedbackVisible(q);
 }
 
 function mapExistingQuestionsForEdit(questionsList) {
@@ -2053,59 +1929,22 @@ function mapExistingQuestionsForEdit(questionsList) {
       choices: choices.length > 0 ? choices : [''],
       optionIds: optionIds.length > 0 ? optionIds : [null],
       correctAnswer,
-      answerKeyMode: false,
       correctFeedback: q.correctFeedback ? String(q.correctFeedback) : '',
       incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback) : '',
     };
   });
 }
 
-const editFeedbackModal = reactive({
-  open: false,
-  targetKey: 'preTest',
-  questionIndex: -1,
-  activeTab: 'incorrect',
-  incorrectFeedback: '',
-  correctFeedback: '',
-});
-
-function openEditFeedbackModal(targetKey, qIdx) {
-  const list = editForm[targetKey];
-  if (!Array.isArray(list) || !list[qIdx]) return;
-  const q = list[qIdx];
-  editFeedbackModal.targetKey = targetKey;
-  editFeedbackModal.questionIndex = qIdx;
-  editFeedbackModal.activeTab = 'incorrect';
-  editFeedbackModal.incorrectFeedback = q.incorrectFeedback || '';
-  editFeedbackModal.correctFeedback = q.correctFeedback || '';
-  editFeedbackModal.open = true;
-}
-
-function closeEditFeedbackModal() {
-  editFeedbackModal.open = false;
-  editFeedbackModal.questionIndex = -1;
-}
-
-function saveEditFeedbackModal() {
-  const list = editForm[editFeedbackModal.targetKey];
-  if (Array.isArray(list) && list[editFeedbackModal.questionIndex]) {
-    const q = list[editFeedbackModal.questionIndex];
-    q.incorrectFeedback = (editFeedbackModal.incorrectFeedback || '').trim();
-    q.correctFeedback = (editFeedbackModal.correctFeedback || '').trim();
-  }
-  closeEditFeedbackModal();
-}
-
 const editForm = reactive({
   title: '',
   instructions: '',
+  readingInstructions: '',
   strand: 'Communication Skills (English)',
   level: 'A&E Elementary',
   learningCenterId: '',
   code: 'LS1',
   dateStarted: '',
   dateEnded: '',
-  activitiesRelated: '',
   isAllLearners: true,
   selectedLearnerIds: [],
   preTest: [],
@@ -2122,12 +1961,43 @@ function removeEditQuestion(targetKey, idx) {
   editForm[targetKey].splice(idx, 1);
 }
 
-function addEditOption(q) {
+// Template refs map for autofocusing newly created option inputs in edit modal
+const editOptionInputRefs = new Map();
+
+function setEditOptionInputRef(key, el) {
+  if (el) {
+    editOptionInputRefs.set(key, el);
+  } else {
+    editOptionInputRefs.delete(key);
+  }
+}
+
+function addEditOption(q, targetKey = 'edit') {
   editErrorMessage.value = '';
   if (!Array.isArray(q.choices)) q.choices = [];
+  const newIdx = q.choices.length;
   q.choices.push('');
   if (!Array.isArray(q.optionIds)) q.optionIds = [];
   q.optionIds.push(null);
+
+  if (!q.uid) {
+    editQuestionUidCounter += 1;
+    q.uid = `eq-${editQuestionUidCounter}-${Date.now()}`;
+  }
+  const qKey = q.uid || q.id || 'q';
+  const targetId = `edit-opt-${targetKey}-${qKey}-${newIdx}`;
+  const refKey = `${targetKey}-${qKey}-${newIdx}`;
+
+  nextTick(() => {
+    const el = editOptionInputRefs.get(refKey) || document.getElementById(targetId);
+    if (el && typeof el.focus === 'function') {
+      el.focus();
+      if (typeof el.setSelectionRange === 'function') {
+        const len = (el.value || '').length;
+        el.setSelectionRange(len, len);
+      }
+    }
+  });
 }
 
 function removeEditOption(q, cIdx) {
@@ -2147,6 +2017,71 @@ function removeEditOption(q, cIdx) {
 function selectEditCorrectAnswer(q, cIdx) {
   editErrorMessage.value = '';
   q.correctAnswer = cIdx;
+}
+
+// --- DUPLICATE PRE-TEST TO POST-TEST (EDIT MODULE) ---
+const showEditDuplicateConfirmModal = ref(false);
+
+function isEditQuestionEmpty(q) {
+  if (!q) return true;
+  const hasPrompt = !!(q.prompt && String(q.prompt).trim());
+  const hasChoices = Array.isArray(q.choices) && q.choices.some((c) => c && String(c).trim());
+  const hasFeedback = !!(q.correctFeedback?.trim() || q.incorrectFeedback?.trim());
+  return !hasPrompt && !hasChoices && !hasFeedback;
+}
+
+const hasValidEditPreTestQuestions = computed(() => {
+  if (!Array.isArray(editForm.preTest) || editForm.preTest.length === 0) return false;
+  return editForm.preTest.some((q) => !isEditQuestionEmpty(q));
+});
+
+function hasExistingEditPostTestQuestions() {
+  if (!Array.isArray(editForm.postTest) || editForm.postTest.length === 0) {
+    return false;
+  }
+  if (editForm.postTest.length > 1) {
+    return true;
+  }
+  return !isEditQuestionEmpty(editForm.postTest[0]);
+}
+
+function duplicateEditPreTestQuestions() {
+  if (!Array.isArray(editForm.preTest)) return;
+  const sourceQuestions = editForm.preTest.filter((q) => !isEditQuestionEmpty(q));
+  if (sourceQuestions.length === 0) return;
+
+  const copied = sourceQuestions.map((q) => {
+    editQuestionUidCounter += 1;
+    const choices = Array.isArray(q.choices) && q.choices.length > 0 ? [...q.choices] : [''];
+    return {
+      uid: `eq-${editQuestionUidCounter}-${Date.now()}`,
+      id: null,
+      prompt: q.prompt ? String(q.prompt) : '',
+      choices: choices,
+      optionIds: choices.map(() => null),
+      correctAnswer: q.correctAnswer !== null && q.correctAnswer !== undefined ? q.correctAnswer : null,
+      correctFeedback: q.correctFeedback ? String(q.correctFeedback) : '',
+      incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback) : '',
+      showFeedback: !!(q.showFeedback || q.correctFeedback?.trim() || q.incorrectFeedback?.trim()),
+    };
+  });
+
+  editForm.postTest = copied;
+  editErrorMessage.value = '';
+}
+
+function handleEditDuplicateClick() {
+  if (!hasValidEditPreTestQuestions.value) return;
+  if (hasExistingEditPostTestQuestions()) {
+    showEditDuplicateConfirmModal.value = true;
+  } else {
+    duplicateEditPreTestQuestions();
+  }
+}
+
+function confirmEditDuplicate() {
+  duplicateEditPreTestQuestions();
+  showEditDuplicateConfirmModal.value = false;
 }
 
 function validateEditAssessmentQuestions(questionsArray, label) {
@@ -2197,7 +2132,7 @@ function validateEditAssessmentQuestions(questionsArray, label) {
     ) {
       return {
         valid: false,
-        error: `${label} Question ${qNum}: Please select 1 correct answer using the Answer Key or radio button.`,
+        error: `${label} Question ${qNum}: Please select 1 correct answer by clicking the circle beside the option.`,
       };
     }
   }
@@ -2266,69 +2201,85 @@ watch(
   }
 );
 
+const editSelectedCenterName = computed(() => {
+  if (!editForm.learningCenterId) return 'Selected Center';
+  const c = availableLearningCenters.value.find(
+    (item) => Number(item.id) === Number(editForm.learningCenterId)
+  );
+  return c ? c.name : moduleData.value?.learningCenter || 'Selected Center';
+});
+
 const editEligibleLearners = computed(() => {
-  if (!editForm.level) return [];
+  if (!editForm.level || !editForm.learningCenterId) return [];
   const targetLevelNorm = editForm.level.toLowerCase().trim();
-  const selectedCenterId = editForm.learningCenterId ? Number(editForm.learningCenterId) : null;
+  const selectedCenterId = Number(editForm.learningCenterId);
 
   return (teacherLearners.value || []).filter((l) => {
+    const isActive = (l.status || 'Active').toLowerCase() === 'active';
+    if (!isActive) return false;
+
     const isElem = l.targetLevel === 'ELEMENTARY' || (l.level || '').toLowerCase().includes('elem');
     const isMatchLevel = targetLevelNorm.includes('elem') ? isElem : !isElem;
     if (!isMatchLevel) return false;
 
-    if (selectedCenterId && l.learningCenterId) {
+    if (l.learningCenterId) {
       if (Number(l.learningCenterId) !== selectedCenterId) return false;
+    } else if (l.learningCenter && editSelectedCenterName.value !== 'Selected Center') {
+      if (l.learningCenter !== editSelectedCenterName.value) return false;
     }
     return true;
   });
 });
 
-const editLearnerSearchQuery = ref('');
+const isInitializingEditModal = ref(false);
+const hasUserModifiedEditAssignment = ref(false);
 
-const filteredEditSpecificLearners = computed(() => {
-  const query = editLearnerSearchQuery.value.trim().toLowerCase();
-  if (!query) return editEligibleLearners.value;
-  return editEligibleLearners.value.filter((l) => {
-    const nameMatch = (l.name || l.fullName || '').toLowerCase().includes(query);
-    const centerMatch = (l.learningCenter || '').toLowerCase().includes(query);
-    return nameMatch || centerMatch;
-  });
-});
+function syncEditModalInitialAssignments() {
+  if (!moduleData.value) return;
+  const eligibleIds = editEligibleLearners.value.map((l) => Number(l.id));
+  const validSet = new Set(eligibleIds);
+  const rawAssignedIds = Array.isArray(moduleData.value.assignedLearnerIds)
+    ? moduleData.value.assignedLearnerIds.map(Number).filter((n) => !isNaN(n))
+    : [];
+  const savedIsAll = moduleData.value.isAllLearners !== false && rawAssignedIds.length === 0;
 
-const selectedEditLearnersList = computed(() => {
-  const selectedSet = new Set((editForm.selectedLearnerIds || []).map(Number));
-  return (teacherLearners.value || []).filter((l) => selectedSet.has(Number(l.id)));
-});
-
-function onEditAssignmentModeChange(isAll) {
-  editForm.isAllLearners = isAll;
-  if (isAll) {
-    editForm.selectedLearnerIds = [];
-  }
-}
-
-function toggleEditLearner(learnerId) {
-  editForm.isAllLearners = false;
-  const numId = Number(learnerId);
-  const idx = editForm.selectedLearnerIds.indexOf(numId);
-  if (idx === -1) {
-    editForm.selectedLearnerIds.push(numId);
+  if (savedIsAll) {
+    editForm.isAllLearners = eligibleIds.length > 0;
+    editForm.selectedLearnerIds = [...eligibleIds];
   } else {
-    editForm.selectedLearnerIds.splice(idx, 1);
+    const filteredIds =
+      validSet.size > 0 ? rawAssignedIds.filter((id) => validSet.has(id)) : rawAssignedIds;
+    const uniqueIds = [...new Set(filteredIds)];
+    editForm.selectedLearnerIds = uniqueIds;
+    editForm.isAllLearners = validSet.size > 0 && uniqueIds.length === validSet.size;
   }
 }
 
 watch(
+  () => [editForm.isAllLearners, editForm.selectedLearnerIds],
+  () => {
+    if (!showEditModal.value || isInitializingEditModal.value) return;
+    hasUserModifiedEditAssignment.value = true;
+  },
+  { deep: true }
+);
+
+watch(
   () => [editForm.learningCenterId, editForm.level],
   () => {
-    if (!editForm.isAllLearners && Array.isArray(editForm.selectedLearnerIds)) {
-      const validIds = new Set(editEligibleLearners.value.map((l) => Number(l.id)));
-      editForm.selectedLearnerIds = editForm.selectedLearnerIds.filter((id) => validIds.has(Number(id)));
-    }
+    if (!showEditModal.value || isInitializingEditModal.value) return;
+    hasUserModifiedEditAssignment.value = true;
+    const validIds = new Set(editEligibleLearners.value.map((l) => Number(l.id)));
+    const currentSelected = Array.isArray(editForm.selectedLearnerIds)
+      ? editForm.selectedLearnerIds.map(Number)
+      : [];
+    const filtered = currentSelected.filter((id) => validIds.has(id));
+    editForm.selectedLearnerIds = [...new Set(filtered)];
+    editForm.isAllLearners = validIds.size > 0 && editForm.selectedLearnerIds.length === validIds.size;
   }
 );
 
-async function loadEditPrerequisites() {
+async function loadEditPrerequisites(shouldSyncInitial = false) {
   const tid = teacherId.value;
   try {
     const [learnersRes, centersRes] = await Promise.allSettled([
@@ -2360,6 +2311,10 @@ async function loadEditPrerequisites() {
     if (centersRes.status === 'fulfilled' && Array.isArray(centersRes.value.data)) {
       allLearningCenters.value = centersRes.value.data;
     }
+
+    if (shouldSyncInitial && showEditModal.value && !hasUserModifiedEditAssignment.value) {
+      syncEditModalInitialAssignments();
+    }
   } catch (err) {
     console.warn('Error loading edit prerequisites:', err);
   }
@@ -2367,6 +2322,8 @@ async function loadEditPrerequisites() {
 
 function openEditModal() {
   if (!moduleData.value) return;
+  isInitializingEditModal.value = true;
+  hasUserModifiedEditAssignment.value = false;
   editErrorMessage.value = '';
   editLearnerDropdownOpen.value = false;
 
@@ -2376,22 +2333,24 @@ function openEditModal() {
 
   editForm.title = moduleData.value.title || '';
   editForm.instructions = moduleData.value.instructions || moduleData.value.description || '';
+  editForm.readingInstructions = moduleData.value.readingInstructions !== undefined
+    ? moduleData.value.readingInstructions
+    : (moduleData.value.learningNotes !== undefined ? moduleData.value.learningNotes : '');
   editForm.strand = moduleData.value.strand || 'Communication Skills (English)';
   editForm.level = normLevel;
   editForm.learningCenterId = moduleData.value.learningCenterId || '';
   editForm.code = moduleData.value.code || 'LS1';
   editForm.dateStarted = moduleData.value.dateStarted ? String(moduleData.value.dateStarted).split('T')[0] : '';
   editForm.dateEnded = moduleData.value.dateEnded ? String(moduleData.value.dateEnded).split('T')[0] : '';
-  editForm.activitiesRelated = moduleData.value.activitiesRelated || '';
-  editForm.isAllLearners = moduleData.value.isAllLearners !== false;
-  editForm.selectedLearnerIds = Array.isArray(moduleData.value.assignedLearnerIds)
-    ? [...moduleData.value.assignedLearnerIds]
-    : [];
+  syncEditModalInitialAssignments();
   editForm.preTest = mapExistingQuestionsForEdit(preTestQuestions.value);
   editForm.postTest = mapExistingQuestionsForEdit(postTestQuestions.value);
 
   showEditModal.value = true;
-  loadEditPrerequisites();
+  nextTick(() => {
+    isInitializingEditModal.value = false;
+  });
+  loadEditPrerequisites(true);
 }
 
 function closeEditModal() {
@@ -2423,8 +2382,12 @@ async function saveEditModule() {
     editErrorMessage.value = 'Module Code is required.';
     return;
   }
+  if (editEligibleLearners.value.length === 0) {
+    editErrorMessage.value = 'No active learners are available in the selected Learning Center and ALS Level.';
+    return;
+  }
   if (!editForm.isAllLearners && (!editForm.selectedLearnerIds || editForm.selectedLearnerIds.length === 0)) {
-    editErrorMessage.value = 'Please select the learners who will receive this module.';
+    editErrorMessage.value = 'Please select at least one learner under "Assign Module To".';
     return;
   }
   if (!editForm.dateStarted) {
@@ -2457,13 +2420,14 @@ async function saveEditModule() {
     const payload = {
       title: editForm.title.trim(),
       instructions: editForm.instructions.trim(),
+      readingInstructions: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
+      learningNotes: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
       strand: editForm.strand,
       level: editForm.level,
       learningCenterId: Number(editForm.learningCenterId),
       code: editForm.code,
       dateStarted: editForm.dateStarted,
       dateEnded: editForm.dateEnded,
-      activitiesRelated: editForm.activitiesRelated.trim(),
       isAllLearners: editForm.isAllLearners,
       assignedLearnerIds: editForm.isAllLearners ? [] : editForm.selectedLearnerIds,
       preTest: editForm.preTest.map((q, idx) => ({
@@ -2500,6 +2464,10 @@ async function saveEditModule() {
         ...moduleData.value,
         ...res.data,
       };
+      setActiveModuleLevel(
+        moduleData.value.targetLevel || moduleData.value.level || moduleData.value.programLevel,
+        moduleData.value.id
+      );
     }
     closeEditModal();
   } catch (err) {
@@ -2573,21 +2541,70 @@ const postTestQuestions = computed(() => {
   return post?.questions || [];
 });
 
-// Normalize status into canonical buckets: 'Submitted', 'Mastered', 'Not Mastered'
-function normalizeSubmissionBucket(status) {
-  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
-  if (s === 'mastered') return 'mastered';
-  if (s === 'not mastered') return 'not mastered';
-  return 'submitted';
+function hasSubmissionOutput(sub) {
+  if (!sub) return false;
+  if (sub.hasSubmitted === false) return false;
+  if (String(sub.id || '').startsWith('pending_')) return false;
+  const s = String(sub.status || '').trim().toLowerCase();
+  if (s === 'in progress' || s === 'overdue') return false;
+  return Boolean(
+    sub.hasSubmitted === true ||
+    sub.submittedAt ||
+    sub.dateSubmitted ||
+    sub.fileUrl ||
+    (Array.isArray(sub.files) && sub.files.length > 0)
+  );
 }
 
-// Filtered Submissions (All / Submitted / Mastered / Not Mastered)
+function isDeadlinePassedFrontend(deadlineVal) {
+  if (!deadlineVal) return false;
+  const trimmed = String(deadlineVal).trim();
+  if (!trimmed) return false;
+  let deadlineDate = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    deadlineDate = new Date(`${trimmed}T23:59:59.999+08:00`);
+  } else {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      const ymd = parsed.toISOString().split('T')[0];
+      deadlineDate = new Date(`${ymd}T23:59:59.999+08:00`);
+    }
+  }
+  if (!deadlineDate || isNaN(deadlineDate.getTime())) return false;
+  return Date.now() > deadlineDate.getTime();
+}
+
+// Normalize status into canonical buckets: 'recorded', 'not recorded', 'in progress', 'overdue'
+function normalizeSubmissionBucket(status, item = null) {
+  if (item && !hasSubmissionOutput(item)) {
+    const raw = String(status ?? item.status ?? '').trim().toLowerCase().replace(/_/g, ' ');
+    if (raw === 'overdue') return 'overdue';
+    if (raw === 'in progress') return 'in progress';
+    const deadlineCandidate = item.dateEnded || moduleData.value?.dateEnded || null;
+    return isDeadlinePassedFrontend(deadlineCandidate) ? 'overdue' : 'in progress';
+  }
+
+  if (item && item.isRecorded === true) {
+    return 'recorded';
+  }
+
+  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (s === 'recorded') return 'recorded';
+  if (s === 'not recorded' || s === 'submitted' || s === 'not evaluated' || s === 'pending') {
+    return 'not recorded';
+  }
+  if (s === 'in progress') return 'in progress';
+  if (s === 'overdue') return 'overdue';
+  return 'not recorded';
+}
+
+// Filtered Submissions (All / Recorded / Not Recorded / In Progress / Overdue)
 const filteredSubmissions = computed(() => {
   let list = submissions.value || [];
 
   if (selectedStatusFilter.value !== 'ALL') {
     const target = selectedStatusFilter.value.toLowerCase();
-    list = list.filter((s) => normalizeSubmissionBucket(s.status) === target);
+    list = list.filter((s) => normalizeSubmissionBucket(s.status, s) === target);
   }
 
   if (submissionSearchQuery.value.trim()) {
@@ -2605,21 +2622,23 @@ const filteredSubmissions = computed(() => {
 
 function countByStatus(statusName) {
   const target = String(statusName || '').toLowerCase();
-  return (submissions.value || []).filter((s) => normalizeSubmissionBucket(s.status) === target).length;
+  return (submissions.value || []).filter((s) => normalizeSubmissionBucket(s.status, s) === target).length;
 }
 
-function formatProgressStatus(status) {
-  const bucket = normalizeSubmissionBucket(status);
-  if (bucket === 'mastered') return 'Mastered';
-  if (bucket === 'not mastered') return 'Not Mastered';
-  return 'Submitted';
+function formatProgressStatus(status, item = null) {
+  const bucket = normalizeSubmissionBucket(status, item);
+  if (bucket === 'recorded') return 'Recorded';
+  if (bucket === 'in progress') return 'In Progress';
+  if (bucket === 'overdue') return 'Overdue';
+  return 'Not Recorded';
 }
 
-function getStatusClass(status) {
-  const bucket = normalizeSubmissionBucket(status);
-  if (bucket === 'mastered') return 'status-mastered';
-  if (bucket === 'not mastered') return 'status-not-mastered';
-  return 'status-submitted';
+function getStatusClass(status, item = null) {
+  const bucket = normalizeSubmissionBucket(status, item);
+  if (bucket === 'recorded') return 'status-recorded';
+  if (bucket === 'in progress') return 'status-in-progress';
+  if (bucket === 'overdue') return 'status-overdue';
+  return 'status-not-recorded';
 }
 
 function isImageFile(url, fileName) {
@@ -2721,7 +2740,7 @@ async function probeFileSizeIfNeeded(fileItem) {
 
 // Extract normalized array of uploaded files for a submission
 function getSubmissionFilesList(sub) {
-  if (!sub) return [];
+  if (!sub || !hasSubmissionOutput(sub)) return [];
   const rawList = [];
 
   if (Array.isArray(sub.files) && sub.files.length > 0) {
@@ -3013,13 +3032,15 @@ async function downloadSelectedSubmissionFile() {
 
 // Learner Prev / Next Navigation on the Review Page
 const navigableSubmissions = computed(() => {
-  return filteredSubmissions.value.length > 0 ? filteredSubmissions.value : submissions.value;
+  if ((filteredSubmissions.value || []).length > 0) return filteredSubmissions.value;
+  return submissions.value || [];
 });
 
 const currentLearnerNavIndex = computed(() => {
   if (!currentSubmission.value) return -1;
   return navigableSubmissions.value.findIndex(
     (s) =>
+      String(s.id) === String(currentSubmission.value.id) ||
       Number(s.id) === Number(currentSubmission.value.id) ||
       (s.learnerId && Number(s.learnerId) === Number(currentSubmission.value.learnerId))
   );
@@ -3110,30 +3131,49 @@ function consolidateLearnerSubmissionsFrontend(rawList) {
 
   for (const item of rawList) {
     const key = `${item.moduleId || 'mod'}_${item.learnerId || item.lrn || item.learnerName || item.id}`;
-    const itemFiles = getSubmissionFilesList(item);
+    const itemHasOutput = hasSubmissionOutput(item);
+    const itemFiles = itemHasOutput ? getSubmissionFilesList(item) : [];
 
     if (!grouped.has(key)) {
       grouped.set(key, {
         ...item,
+        hasSubmitted: itemHasOutput,
         files: itemFiles,
         fileCount: itemFiles.length,
       });
     } else {
       const existing = grouped.get(key);
-      const existingUrls = new Set((existing.files || []).map((f) => f.fileUrl));
-      for (const f of itemFiles) {
-        if (f.fileUrl && !existingUrls.has(f.fileUrl)) {
-          existing.files.push(f);
-          existingUrls.add(f.fileUrl);
-        }
+      // If existing was a non-submitted placeholder and item has a submission, replace with the submitted row
+      if (!existing.hasSubmitted && itemHasOutput) {
+        grouped.set(key, {
+          ...item,
+          hasSubmitted: true,
+          files: itemFiles,
+          fileCount: itemFiles.length,
+        });
+        continue;
       }
-      existing.fileCount = existing.files.length;
+
+      if (itemHasOutput) {
+        const existingUrls = new Set((existing.files || []).map((f) => f.fileUrl));
+        for (const f of itemFiles) {
+          if (f.fileUrl && !existingUrls.has(f.fileUrl)) {
+            existing.files.push(f);
+            existingUrls.add(f.fileUrl);
+          }
+        }
+        existing.fileCount = existing.files.length;
+      }
+
       if (!existing.teacherRemarks && (item.teacherRemarks || item.remarks)) {
         existing.teacherRemarks = item.teacherRemarks || item.remarks;
         existing.remarks = existing.teacherRemarks;
       }
-      if (normalizeSubmissionBucket(existing.status) === 'submitted' && normalizeSubmissionBucket(item.status) !== 'submitted') {
-        existing.status = item.status;
+      if (item.isRecorded) {
+        existing.isRecorded = true;
+        existing.status = 'Recorded';
+        if (item.existingRecordId) existing.existingRecordId = item.existingRecordId;
+        if (item.evaluationStatus) existing.evaluationStatus = item.evaluationStatus;
       }
     }
   }
@@ -3150,6 +3190,11 @@ async function fetchModuleDetails() {
     return;
   }
 
+  const cachedSlug = getCachedModuleLevelSlug(moduleId);
+  if (cachedSlug) {
+    setActiveModuleLevel(cachedSlug, moduleId);
+  }
+
   loading.value = true;
   errorMessage.value = '';
 
@@ -3157,6 +3202,10 @@ async function fetchModuleDetails() {
     const res = await getModule(moduleId);
     if (res.data) {
       moduleData.value = res.data;
+      setActiveModuleLevel(
+        res.data.targetLevel || res.data.level || res.data.programLevel,
+        res.data.id || moduleId
+      );
       await fetchSubmissions(moduleId);
 
       // If route has a submissionId parameter or tab=submissions query, open accordingly
@@ -3167,7 +3216,10 @@ async function fetchModuleDetails() {
       if (routeSubId) {
         activeTab.value = 'submissions';
         const targetSub = submissions.value.find(
-          (s) => Number(s.id) === Number(routeSubId) || Number(s.learnerId) === Number(routeSubId)
+          (s) =>
+            String(s.id) === String(routeSubId) ||
+            Number(s.id) === Number(routeSubId) ||
+            (s.learnerId && (String(s.learnerId) === String(routeSubId) || Number(s.learnerId) === Number(routeSubId)))
         );
         if (targetSub) {
           await openReviewModal(targetSub, { skipRouteSync: true });
@@ -3187,7 +3239,7 @@ async function fetchModuleDetails() {
 // Fetch Submissions for this Module
 async function fetchSubmissions(moduleId) {
   try {
-    const params = { moduleId };
+    const params = { moduleId, includeEligible: '1' };
     if (teacherId.value) {
       params.teacherId = teacherId.value;
     }
@@ -3210,8 +3262,7 @@ async function openReviewModal(submission, options = {}) {
   reviewErrorMessage.value = '';
 
   currentSubmission.value = submission;
-  const bucket = normalizeSubmissionBucket(submission.status);
-  if (bucket === 'not mastered') {
+  if (submission.evaluationStatus === 'Not Mastered') {
     reviewForm.status = 'Not Mastered';
   } else {
     reviewForm.status = 'Mastered';
@@ -3247,8 +3298,9 @@ async function openReviewModal(submission, options = {}) {
 
   // Sync URL to dedicated full-width review page if needed
   const modId = moduleData.value?.id || route.params.id;
-  if (!options.skipRouteSync && modId && submission.id) {
-    const targetPath = `/dashboard/modules/${modId}/submissions/${submission.id}`;
+  const subTargetId = submission.id || submission.learnerId;
+  if (!options.skipRouteSync && modId && subTargetId) {
+    const targetPath = `/dashboard/modules/${modId}/submissions/${subTargetId}`;
     if (route.path !== targetPath) {
       router.replace(targetPath).catch(() => {});
     }
@@ -3327,6 +3379,39 @@ async function openReviewModal(submission, options = {}) {
   } finally {
     learnerScores.value.loading = false;
   }
+
+  // Detect whether this specific submission has already been added to Records via the real database
+  try {
+    const moduleId = moduleData.value?.id || submission.moduleId;
+    const learnerId = submission.learnerId;
+    const submissionId = submission.id;
+    if (learnerId) {
+      const recCtxRes = await getRecordContext({ learnerId, moduleId, submissionId });
+      const recCtx = recCtxRes?.data;
+      if (recCtx?.isRecorded) {
+        submission.isRecorded = true;
+        submission.status = 'Recorded';
+        if (currentSubmission.value) {
+          currentSubmission.value.isRecorded = true;
+          currentSubmission.value.status = 'Recorded';
+          if (recCtx.existingRecordId) {
+            currentSubmission.value.existingRecordId = recCtx.existingRecordId;
+          }
+          if (recCtx.assessment) {
+            currentSubmission.value.evaluationStatus = recCtx.assessment;
+            reviewForm.status = recCtx.assessment;
+          }
+          if (recCtx.remarks) {
+            currentSubmission.value.teacherRemarks = recCtx.remarks;
+            currentSubmission.value.remarks = recCtx.remarks;
+            reviewForm.teacherRemarks = recCtx.remarks;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Could not verify record status from database in openReviewModal:', err);
+  }
 }
 
 function closeReviewModal() {
@@ -3348,6 +3433,376 @@ function closeReviewModal() {
   if (modId && route.params.submissionId) {
     router.replace({ path: `/dashboard/modules/${modId}`, query: { tab: 'submissions' } }).catch(() => {});
   }
+}
+
+const showAlreadyRecordedModal = ref(false);
+const showAddRecordModal = ref(false);
+const isSavingSubmissionRecord = ref(false);
+const submissionRecordError = ref('');
+
+async function handleAddOrCheckRecords() {
+  if (!currentSubmission.value || !hasSubmissionOutput(currentSubmission.value)) return;
+
+  const isAlreadyRec =
+    currentSubmission.value.isRecorded === true ||
+    normalizeSubmissionBucket(currentSubmission.value.status, currentSubmission.value) === 'recorded' ||
+    String(currentSubmission.value.status || '').trim().toLowerCase() === 'recorded';
+
+  if (isAlreadyRec) {
+    showAlreadyRecordedModal.value = true;
+    return;
+  }
+
+  // Double check with real database before opening the record modal
+  try {
+    const learnerId = currentSubmission.value.learnerId;
+    const moduleId = moduleData.value?.id || currentSubmission.value.moduleId;
+    const submissionId = currentSubmission.value.id;
+
+    if (learnerId) {
+      const res = await getRecordContext({ learnerId, moduleId, submissionId });
+      if (res?.data?.isRecorded) {
+        currentSubmission.value.isRecorded = true;
+        currentSubmission.value.status = 'Recorded';
+        if (res.data.existingRecordId) {
+          currentSubmission.value.existingRecordId = res.data.existingRecordId;
+        }
+        showAlreadyRecordedModal.value = true;
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not verify record status in handleAddOrCheckRecords:', err);
+  }
+
+  await openAddToRecordsModal();
+}
+
+const submissionRecordForm = reactive({
+  existingRecordId: null,
+  submissionId: null,
+  learnerId: '',
+  learnerName: '',
+  lrn: '',
+  level: '',
+  learningCenter: '',
+  learningCenterId: null,
+  moduleId: null,
+  moduleTitle: '',
+  strandName: '',
+  dateStarted: '',
+  dateFinished: '',
+  preTestScore: null,
+  preTestTotal: null,
+  postTestScore: null,
+  postTestTotal: null,
+  otherActivities: '',
+  selfAssessment: '',
+  assessment: '',
+  remarks: '',
+});
+
+function formatToDateInputString(rawDate) {
+  if (!rawDate) return '';
+  const str = String(rawDate).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const parsed = new Date(str);
+  if (isNaN(parsed.getTime())) return str.split('T')[0] || '';
+  return parsed.toISOString().split('T')[0];
+}
+
+async function openAddToRecordsModal() {
+  if (!currentSubmission.value || !hasSubmissionOutput(currentSubmission.value)) return;
+
+  const isAlreadyRec =
+    currentSubmission.value.isRecorded === true ||
+    normalizeSubmissionBucket(currentSubmission.value.status, currentSubmission.value) === 'recorded' ||
+    String(currentSubmission.value.status || '').trim().toLowerCase() === 'recorded';
+
+  if (isAlreadyRec) {
+    showAlreadyRecordedModal.value = true;
+    return;
+  }
+
+  submissionRecordError.value = '';
+  const sub = currentSubmission.value;
+  const mod = moduleData.value || {};
+  const learnerId = sub.learnerId;
+  const modId = mod.id || sub.moduleId || route.params.id;
+  const subId = sub.id;
+
+  const initialActivities =
+    sub.otherActivities !== undefined && sub.otherActivities !== ''
+      ? String(sub.otherActivities).trim()
+      : mod.activitiesRelated
+        ? String(mod.activitiesRelated).replace(/\\n/g, '\n').trim()
+        : '';
+
+  const initialAssessment =
+    sub.evaluationStatus === 'Mastered' || sub.evaluationStatus === 'Not Mastered'
+      ? sub.evaluationStatus
+      : sub.status === 'Mastered' || sub.status === 'Not Mastered'
+        ? sub.status
+        : '';
+  const initialRemarks = String(sub.teacherRemarks || sub.remarks || sub.feedback || '').trim();
+
+  submissionRecordForm.existingRecordId = sub.existingRecordId || null;
+  submissionRecordForm.submissionId = subId || null;
+  submissionRecordForm.learnerId = learnerId || '';
+  submissionRecordForm.learnerName = sub.learnerName || '';
+  submissionRecordForm.lrn = sub.lrn || '';
+  submissionRecordForm.level = formatAlsLevelDisplay(sub.programLevel || mod.level);
+  submissionRecordForm.learningCenter =
+    sub.learningCenter || mod.learningCenter || assignedCenters.value?.[0]?.name || '';
+  submissionRecordForm.learningCenterId =
+    sub.learningCenterId || mod.learningCenterId || assignedCenters.value?.[0]?.id || null;
+  submissionRecordForm.moduleId = modId ? Number(modId) : null;
+  submissionRecordForm.moduleTitle = mod.title || sub.moduleTitle || '';
+  submissionRecordForm.strandName =
+    mod.strand || mod.learningArea?.name || sub.strandName || '';
+  submissionRecordForm.dateStarted = formatToDateInputString(
+    sub.dateStarted || mod.dateStarted || ''
+  );
+  submissionRecordForm.dateFinished = formatToDateInputString(
+    sub.dateFinished || sub.submittedAt || sub.dateSubmitted || mod.dateEnded || ''
+  );
+  submissionRecordForm.preTestScore =
+    learnerScores.value.preTestScore != null ? learnerScores.value.preTestScore : null;
+  submissionRecordForm.preTestTotal =
+    learnerScores.value.preTestTotal != null ? learnerScores.value.preTestTotal : 10;
+  submissionRecordForm.postTestScore =
+    learnerScores.value.postTestScore != null ? learnerScores.value.postTestScore : null;
+  submissionRecordForm.postTestTotal =
+    learnerScores.value.postTestTotal != null ? learnerScores.value.postTestTotal : 10;
+  submissionRecordForm.otherActivities = initialActivities;
+  submissionRecordForm.selfAssessment = '';
+  submissionRecordForm.assessment = initialAssessment;
+  submissionRecordForm.remarks = initialRemarks;
+
+  showAddRecordModal.value = true;
+
+  if (!learnerId) return;
+
+  try {
+    const res = await getRecordContext({ learnerId, moduleId: modId, submissionId: subId });
+    const ctx = res.data;
+    if (ctx) {
+      if (ctx.isRecorded) {
+        currentSubmission.value.isRecorded = true;
+        currentSubmission.value.status = 'Recorded';
+        if (ctx.existingRecordId) {
+          currentSubmission.value.existingRecordId = ctx.existingRecordId;
+        }
+        showAddRecordModal.value = false;
+        showAlreadyRecordedModal.value = true;
+        return;
+      }
+      submissionRecordForm.existingRecordId =
+        ctx.existingRecordId || submissionRecordForm.existingRecordId || null;
+      submissionRecordForm.learnerId = ctx.learnerId || learnerId;
+      submissionRecordForm.learnerName = ctx.learnerName || submissionRecordForm.learnerName;
+      submissionRecordForm.lrn = ctx.lrn || submissionRecordForm.lrn;
+      submissionRecordForm.level = ctx.level || submissionRecordForm.level;
+      submissionRecordForm.learningCenter =
+        ctx.learningCenter || submissionRecordForm.learningCenter;
+      submissionRecordForm.learningCenterId =
+        ctx.learningCenterId || submissionRecordForm.learningCenterId;
+      submissionRecordForm.moduleId = ctx.moduleId || submissionRecordForm.moduleId;
+      submissionRecordForm.moduleTitle = ctx.moduleTitle || submissionRecordForm.moduleTitle;
+      submissionRecordForm.strandName = ctx.strandName || submissionRecordForm.strandName;
+      submissionRecordForm.dateStarted =
+        ctx.dateStarted || submissionRecordForm.dateStarted || '';
+      submissionRecordForm.dateFinished =
+        ctx.dateFinished || submissionRecordForm.dateFinished || '';
+      if (ctx.preTestScore !== undefined && ctx.preTestScore !== null) {
+        submissionRecordForm.preTestScore = ctx.preTestScore;
+      }
+      if (ctx.preTestTotal !== undefined && ctx.preTestTotal !== null) {
+        submissionRecordForm.preTestTotal = ctx.preTestTotal;
+      }
+      if (ctx.postTestScore !== undefined && ctx.postTestScore !== null) {
+        submissionRecordForm.postTestScore = ctx.postTestScore;
+      }
+      if (ctx.postTestTotal !== undefined && ctx.postTestTotal !== null) {
+        submissionRecordForm.postTestTotal = ctx.postTestTotal;
+      }
+      if (ctx.otherActivities !== undefined && ctx.otherActivities !== '') {
+        submissionRecordForm.otherActivities = ctx.otherActivities;
+      }
+      if (ctx.assessment === 'Mastered' || ctx.assessment === 'Not Mastered') {
+        submissionRecordForm.assessment = ctx.assessment;
+      }
+      if (ctx.remarks !== undefined && ctx.remarks !== '') {
+        submissionRecordForm.remarks = ctx.remarks;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load record context from API:', err);
+  }
+}
+
+function closeAddToRecordsModal() {
+  showAddRecordModal.value = false;
+  submissionRecordError.value = '';
+}
+
+async function saveSubmissionRecordFromReview() {
+  if (!currentSubmission.value) return;
+  if (isSavingSubmissionRecord.value) return;
+
+  const isAlreadyRec =
+    currentSubmission.value.isRecorded === true ||
+    normalizeSubmissionBucket(currentSubmission.value.status, currentSubmission.value) === 'recorded' ||
+    String(currentSubmission.value.status || '').trim().toLowerCase() === 'recorded';
+
+  if (isAlreadyRec) {
+    showAddRecordModal.value = false;
+    showAlreadyRecordedModal.value = true;
+    return;
+  }
+
+  if (!submissionRecordForm.learnerId || !submissionRecordForm.learnerName) {
+    submissionRecordError.value = 'Learner information is missing.';
+    return;
+  }
+
+  if (!submissionRecordForm.moduleTitle || !String(submissionRecordForm.moduleTitle).trim()) {
+    submissionRecordError.value = 'Module information is missing.';
+    return;
+  }
+
+  if (
+    submissionRecordForm.assessment !== 'Mastered' &&
+    submissionRecordForm.assessment !== 'Not Mastered'
+  ) {
+    submissionRecordError.value =
+      "Please select the ALS Teacher's Assessment (Mastered or Not Mastered).";
+    return;
+  }
+
+  isSavingSubmissionRecord.value = true;
+  submissionRecordError.value = '';
+  reviewSuccessMessage.value = '';
+  reviewErrorMessage.value = '';
+
+  const trimmedActivities = submissionRecordForm.otherActivities
+    ? String(submissionRecordForm.otherActivities).trim()
+    : '';
+  const trimmedRemarks = submissionRecordForm.remarks
+    ? String(submissionRecordForm.remarks).trim()
+    : '';
+
+  const recordPayload = {
+    mode: 'submission',
+    submissionId: submissionRecordForm.submissionId || currentSubmission.value.id || null,
+    teacherId: teacherId.value,
+    learnerId: Number(submissionRecordForm.learnerId),
+    learnerName: String(submissionRecordForm.learnerName).trim(),
+    lrn: submissionRecordForm.lrn || '',
+    level: formatAlsLevelDisplay(submissionRecordForm.level),
+    learningCenter:
+      submissionRecordForm.learningCenter || assignedCenters.value?.[0]?.name || '',
+    learningCenterId: submissionRecordForm.learningCenterId || null,
+    moduleId: submissionRecordForm.moduleId || moduleData.value?.id || null,
+    moduleTitle: String(submissionRecordForm.moduleTitle).trim(),
+    strandName: submissionRecordForm.strandName || '',
+    dateStarted: submissionRecordForm.dateStarted || '',
+    dateFinished: submissionRecordForm.dateFinished || '',
+    preTestScore:
+      submissionRecordForm.preTestScore != null && submissionRecordForm.preTestScore !== ''
+        ? Number(submissionRecordForm.preTestScore)
+        : null,
+    preTestTotal:
+      submissionRecordForm.preTestTotal != null && submissionRecordForm.preTestTotal !== ''
+        ? Number(submissionRecordForm.preTestTotal)
+        : null,
+    postTestScore:
+      submissionRecordForm.postTestScore != null && submissionRecordForm.postTestScore !== ''
+        ? Number(submissionRecordForm.postTestScore)
+        : null,
+    postTestTotal:
+      submissionRecordForm.postTestTotal != null && submissionRecordForm.postTestTotal !== ''
+        ? Number(submissionRecordForm.postTestTotal)
+        : null,
+    otherActivities: trimmedActivities,
+    selfAssessment: '',
+    assessment: submissionRecordForm.assessment,
+    moduleStatus: submissionRecordForm.assessment,
+    dateCompleted: submissionRecordForm.dateFinished || '',
+    remarks: trimmedRemarks,
+  };
+
+  let savedRes = null;
+  try {
+    savedRes = await createRecord(recordPayload);
+  } catch (err) {
+    console.warn('Failed to save learner record:', err);
+    if (err?.response?.status === 409 || err?.response?.data?.alreadyRecorded) {
+      isSavingSubmissionRecord.value = false;
+      showAddRecordModal.value = false;
+      if (currentSubmission.value) {
+        currentSubmission.value.isRecorded = true;
+        currentSubmission.value.status = 'Recorded';
+      }
+      showAlreadyRecordedModal.value = true;
+      return;
+    }
+    submissionRecordError.value =
+      err?.response?.data?.error ||
+      err?.message ||
+      'Failed to save learner record. Please try again.';
+    isSavingSubmissionRecord.value = false;
+    return;
+  }
+
+  isSavingSubmissionRecord.value = false;
+  const savedRecordId =
+    savedRes?.data?.id || submissionRecordForm.existingRecordId || null;
+  submissionRecordForm.existingRecordId = savedRecordId;
+
+  // Update currentSubmission and submissions list in place so state stays synchronized
+  const updatedSub = {
+    ...currentSubmission.value,
+    existingRecordId: savedRecordId,
+    hasSubmitted: true,
+    isRecorded: true,
+    status: 'Recorded',
+    evaluationStatus: submissionRecordForm.assessment,
+    otherActivities: trimmedActivities,
+    teacherRemarks: trimmedRemarks,
+    remarks: trimmedRemarks,
+    feedback: trimmedRemarks,
+    reviewedAt: new Date().toISOString(),
+  };
+  currentSubmission.value = updatedSub;
+
+  const subIdx = submissions.value.findIndex(
+    (s) =>
+      Number(s.id) === Number(updatedSub.id) ||
+      (s.learnerId && Number(s.learnerId) === Number(updatedSub.learnerId))
+  );
+  if (subIdx !== -1) {
+    submissions.value[subIdx] = updatedSub;
+  }
+
+  // Sync with local CLC store without creating duplicates
+  try {
+    const centerSlug =
+      moduleData.value?.centerSlug ||
+      assignedCenters.value?.[0]?.slug ||
+      '_standalone-modules';
+    const clcData = useClcData(centerSlug);
+    if (savedRecordId) {
+      clcData.updateRecord(savedRecordId, recordPayload);
+    } else {
+      clcData.addRecord(recordPayload);
+    }
+  } catch (clcErr) {
+    console.warn('Could not sync to local clcData:', clcErr);
+  }
+
+  showAddRecordModal.value = false;
+  reviewSuccessMessage.value = 'Learner record saved successfully.';
 }
 
 async function saveSubmissionReview() {
@@ -3485,6 +3940,7 @@ onMounted(() => {
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
   fetchModuleDetails();
+  loadEditPrerequisites();
 });
 
 onBeforeUnmount(() => {
@@ -3509,11 +3965,31 @@ watch(
       closeReviewModal();
     } else if (newSubId && submissions.value.length > 0) {
       const targetSub = submissions.value.find(
-        (s) => Number(s.id) === Number(newSubId) || Number(s.learnerId) === Number(newSubId)
+        (s) =>
+          String(s.id) === String(newSubId) ||
+          Number(s.id) === Number(newSubId) ||
+          (s.learnerId && (String(s.learnerId) === String(newSubId) || Number(s.learnerId) === Number(newSubId)))
       );
-      if (targetSub && (!currentSubmission.value || Number(currentSubmission.value.id) !== Number(targetSub.id))) {
+      if (
+        targetSub &&
+        (!currentSubmission.value ||
+          (String(currentSubmission.value.id) !== String(targetSub.id) &&
+            String(currentSubmission.value.learnerId) !== String(targetSub.learnerId)))
+      ) {
         openReviewModal(targetSub, { skipRouteSync: true });
       }
+    }
+  }
+);
+
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (route.params.submissionId) return;
+    if (newTab === 'submissions') {
+      activeTab.value = 'submissions';
+    } else {
+      activeTab.value = 'details';
     }
   }
 );
@@ -3529,7 +4005,69 @@ watch(
 
 /* Back Nav Bar */
 .back-nav-bar {
-  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem; /* 24px spacing below breadcrumb */
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.back-nav-bar .page-breadcrumbs {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.back-nav-bar .breadcrumbs-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+.back-nav-bar .breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.back-nav-bar .breadcrumb-link {
+  color: #64748b;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: color 0.15s ease;
+}
+
+.back-nav-bar .breadcrumb-link:hover {
+  color: #2563eb;
+}
+
+.back-nav-bar .breadcrumb-separator {
+  color: #cbd5e1;
+  user-select: none;
+  font-size: 0.875rem;
+}
+
+.back-nav-bar .breadcrumb-current {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.875rem;
+  word-break: break-word;
 }
 
 .bottom-back-nav-bar {
@@ -3546,15 +4084,17 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 500;
   color: #475569;
   text-decoration: none;
-  padding: 0.4rem 0.75rem;
+  height: 2.375rem; /* 38px standard button height */
+  padding: 0 1rem;
   border-radius: 8px;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .btn-back-link:hover {
@@ -4036,7 +4576,7 @@ watch(
   font-weight: 700;
 }
 
-/* Full-Width Vertical Instructions and Related Activities */
+/* Full-Width Instructions */
 .instructions-activities-stack,
 .instructions-activities-grid {
   display: flex;
@@ -4575,16 +5115,32 @@ watch(
   flex-wrap: wrap;
 }
 
+@media (max-width: 992px) {
+  .status-filter-pills {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+}
+
 .filter-pill-btn {
-  background: #f1f5f9;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
   border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f1f5f9;
   color: #475569;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  padding: 0.45rem 0.85rem;
-  border-radius: 9999px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-pill-btn:hover {
@@ -4594,6 +5150,24 @@ watch(
 
 .filter-pill-btn.active {
   background: #2563eb;
+  color: #ffffff;
+}
+
+.filter-pill-btn .tab-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.filter-pill-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
 }
 
@@ -4608,7 +5182,7 @@ watch(
 
 .submissions-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 720px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -4627,7 +5201,9 @@ watch(
 
 .submissions-table td {
   padding: 1rem 1.15rem;
+  font-family: inherit;
   font-size: 0.875rem;
+  font-weight: 400;
   color: #334155;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
@@ -4644,53 +5220,64 @@ watch(
 /* Balanced, Responsive Column Widths Across Full Width */
 .th-learner-name,
 .td-learner-name {
-  width: 17%;
-  min-width: 160px;
+  width: 34%;
+  min-width: 180px;
+  white-space: nowrap;
+}
+
+.td-learner-name {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600 !important;
+  color: #0f172a !important;
 }
 
 .th-lrn,
 .td-lrn {
-  width: 12%;
-  min-width: 120px;
+  width: 20%;
+  min-width: 130px;
+  white-space: nowrap;
 }
 
-.th-level,
-.td-level {
-  width: 12%;
-  min-width: 120px;
-}
-
-.th-activity,
-.td-activity {
-  width: 17%;
-  min-width: 160px;
+.td-lrn {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #334155;
 }
 
 .th-date,
 .td-date {
-  width: 11%;
-  min-width: 115px;
+  width: 20%;
+  min-width: 130px;
   white-space: nowrap;
+}
+
+.td-date {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #334155;
 }
 
 .th-status,
 .td-status {
-  width: 10%;
-  min-width: 105px;
-}
-
-.th-remarks,
-.td-remarks {
-  width: 15%;
-  min-width: 160px;
+  width: 16%;
+  min-width: 130px;
+  white-space: nowrap;
 }
 
 .th-action,
 .td-action {
-  width: 6%;
-  min-width: 135px;
-  text-align: right;
+  width: 10%;
+  min-width: 80px;
+  text-align: center;
   white-space: nowrap;
+}
+
+.td-action {
+  text-align: center;
+  vertical-align: middle;
 }
 
 .sub-level-tag {
@@ -4718,33 +5305,48 @@ watch(
   border-radius: 50%;
 }
 
+.sub-status-badge.status-recorded,
 .sub-status-badge.status-mastered {
   background: #f0fdf4;
   color: #16a34a;
   border: 1px solid #bbf7d0;
 }
+.sub-status-badge.status-recorded .sub-dot,
 .sub-status-badge.status-mastered .sub-dot {
   background: #22c55e;
 }
 
-.sub-status-badge.status-not-mastered {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+.sub-status-badge.status-not-recorded {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
 }
-.sub-status-badge.status-not-mastered .sub-dot {
-  background: #ef4444;
+.sub-status-badge.status-not-recorded .sub-dot {
+  background: #f97316;
 }
 
+.sub-status-badge.status-in-progress,
 .sub-status-badge.status-submitted,
 .sub-status-badge.status-not-evaluated {
   background: #eff6ff;
   color: #2563eb;
   border: 1px solid #bfdbfe;
 }
+.sub-status-badge.status-in-progress .sub-dot,
 .sub-status-badge.status-submitted .sub-dot,
 .sub-status-badge.status-not-evaluated .sub-dot {
   background: #3b82f6;
+}
+
+.sub-status-badge.status-overdue,
+.sub-status-badge.status-not-mastered {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.sub-status-badge.status-overdue .sub-dot,
+.sub-status-badge.status-not-mastered .sub-dot {
+  background: #ef4444;
 }
 
 .activity-cell-wrap {
@@ -4791,6 +5393,10 @@ watch(
   text-align: right;
 }
 
+.text-center {
+  text-align: center;
+}
+
 .font-mono {
   font-family: monospace;
 }
@@ -4807,31 +5413,41 @@ watch(
   color: #64748b;
 }
 
-.btn-review-sub {
+.btn-action-chevron {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  background: var(--action-view-bg, #EFF6FF);
-  border: 1px solid var(--action-view-border, #DCE7F6);
-  color: var(--action-view-color, #4169A8);
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.45rem 0.85rem;
+  justify-content: center;
   border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
   cursor: pointer;
   transition: all 0.15s ease;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.btn-review-sub:hover {
-  background: var(--action-view-hover-bg, #E0EEFE);
-  color: var(--action-view-hover-color, #315488);
-  border-color: var(--action-view-hover-border, #B9D3F4);
+.btn-action-chevron:not(.is-disabled):hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #2563eb;
 }
 
-.btn-review-sub:focus-visible {
-  outline: 2px solid var(--action-view-color, #4169A8);
+.btn-action-chevron:not(.is-disabled):focus-visible {
+  outline: 2px solid #2563eb;
   outline-offset: 1px;
-  box-shadow: 0 0 0 3px var(--action-view-focus-ring, rgba(65, 105, 168, 0.35));
+}
+
+.btn-action-chevron.is-disabled {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #cbd5e1;
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 /* Submissions Empty Card */
@@ -4983,16 +5599,19 @@ watch(
 }
 
 .learner-meta-value {
+  font-family: inherit;
   font-size: 0.925rem;
   font-weight: 600;
-  color: #1e293b;
+  color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .learner-meta-value.strong {
-  font-weight: 700;
+  font-family: inherit;
+  font-size: 0.925rem;
+  font-weight: 600;
   color: #0f172a;
 }
 
@@ -5051,12 +5670,14 @@ watch(
   display: grid;
   grid-template-columns: minmax(0, 6fr) minmax(0, 4fr);
   gap: 1.25rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .review-left-col,
 .review-right-col {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .review-panel-card {
@@ -5398,13 +6019,17 @@ watch(
 }
 
 /* ========================================================================= */
-/* RIGHT COLUMN (40%): SCORES, EVALUATION & TEACHER REMARKS                  */
+/* RIGHT COLUMN (40%): SCORES & ACTION BUTTONS                               */
 /* ========================================================================= */
 .evaluation-sidebar-card {
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 1.25rem;
+  flex: 1;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .eval-section-block {
@@ -5544,16 +6169,20 @@ watch(
   cursor: pointer;
 }
 
-/* 4. Save Review Footer Actions */
+/* 4. Action Buttons Footer */
 .eval-panel-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
   padding-top: 0.5rem;
+  margin-top: auto;
 }
 
 .btn-modal-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   color: #475569;
@@ -5571,6 +6200,10 @@ watch(
 }
 
 .btn-modal-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   background: #2563eb;
   border: 1px solid transparent;
   color: #ffffff;
@@ -5595,6 +6228,10 @@ watch(
 @media (max-width: 1120px) {
   .review-two-column-layout {
     grid-template-columns: 1fr;
+  }
+
+  .evaluation-sidebar-card {
+    min-height: auto;
   }
 
   .submitted-activities-body {
@@ -5771,6 +6408,13 @@ watch(
   font-weight: 600;
   color: #334155;
   margin-bottom: 0.4rem;
+}
+
+.field-helper-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -0.15rem 0 0.45rem 0;
+  line-height: 1.4;
 }
 
 .field-lbl .req {
@@ -6221,6 +6865,147 @@ watch(
   margin: 0;
 }
 
+.edit-assessment-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.edit-assessment-title-bar h3 {
+  margin: 0;
+}
+
+.btn-duplicate-pretest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2563eb;
+  background-color: #ffffff;
+  border: 1.5px solid #2563eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  line-height: 1.25;
+}
+
+.btn-duplicate-pretest:hover:not(:disabled) {
+  background-color: #eff6ff;
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+.btn-duplicate-pretest:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+/* Modal: Duplicate Questions Confirmation */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.duplicate-confirm-modal {
+  max-width: 480px;
+  width: 90%;
+  padding: 1.6rem;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dup-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dup-modal-icon-circle {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dup-modal-title-group {
+  flex: 1;
+}
+
+.dup-modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.45rem 0;
+}
+
+.dup-modal-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dup-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.btn-dup-cancel {
+  padding: 0.55rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-dup-cancel:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.btn-dup-confirm {
+  padding: 0.55rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-dup-confirm:hover {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
 .gf-questions-container {
   display: flex;
   flex-direction: column;
@@ -6335,7 +7120,7 @@ watch(
 }
 
 .gf-option-row.is-correct-choice {
-  background: #f0fdf4;
+  background: #eff6ff;
 }
 
 .gf-option-radio {
@@ -6343,7 +7128,7 @@ watch(
   height: 17px;
   margin: 0;
   cursor: pointer;
-  accent-color: #16a34a;
+  accent-color: #2563eb;
   flex-shrink: 0;
 }
 
@@ -6370,7 +7155,7 @@ watch(
 }
 
 .gf-option-row.is-correct-choice .gf-option-input {
-  border-color: #86efac;
+  border-color: #93c5fd;
   background: #ffffff;
 }
 
@@ -6380,8 +7165,8 @@ watch(
   gap: 0.25rem;
   padding: 0.18rem 0.5rem;
   border-radius: 999px;
-  background: #dcfce7;
-  color: #15803d;
+  background: #dbeafe;
+  color: #1d4ed8;
   font-size: 0.7rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -6441,43 +7226,106 @@ watch(
   color: #1d4ed8;
 }
 
-.gf-saved-feedback-box {
+/* Inline Feedback Container */
+.gf-inline-feedback-container {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.6rem 0.8rem;
-  margin-bottom: 0.7rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
 
-.gf-saved-feedback-item {
+.gf-inline-feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.1rem;
+}
+
+.gf-inline-feedback-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.gf-feedback-collapse-btn {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gf-feedback-collapse-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.gf-feedback-field {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
-  font-size: 0.785rem;
-  line-height: 1.4;
+  gap: 0.35rem;
 }
 
-.gf-saved-feedback-label {
+.gf-feedback-field-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.gf-feedback-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
   font-weight: 700;
-  color: #334155;
-  font-size: 0.725rem;
+  color: #1e293b;
 }
 
-.gf-saved-feedback-item.is-correct .gf-saved-feedback-label {
-  color: #15803d;
+.gf-feedback-icon.correct {
+  color: #16a34a;
 }
 
-.gf-saved-feedback-item.is-incorrect .gf-saved-feedback-label {
-  color: #b91c1c;
+.gf-feedback-icon.incorrect {
+  color: #dc2626;
 }
 
-.gf-saved-feedback-text {
-  color: #475569;
-  white-space: pre-wrap;
-  word-break: break-word;
+.gf-feedback-helper-text {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.gf-feedback-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+  min-height: 52px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gf-feedback-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .gf-card-footer {
@@ -6497,39 +7345,6 @@ watch(
   flex-wrap: wrap;
 }
 
-.gf-answer-key-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.38rem 0.75rem;
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  border-radius: 7px;
-  font-size: 0.785rem;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-answer-key-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-}
-
-.gf-answer-key-btn.has-selected {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
-}
-
-.gf-answer-key-btn.is-active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-}
-
 .gf-add-feedback-btn {
   display: inline-flex;
   align-items: center;
@@ -6543,26 +7358,15 @@ watch(
   color: #2563eb;
   cursor: pointer;
   font-family: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .gf-add-feedback-btn:hover,
-.gf-add-feedback-btn.has-feedback {
+.gf-add-feedback-btn.has-feedback,
+.gf-add-feedback-btn.is-open {
   background: #eff6ff;
   border-color: #93c5fd;
   color: #1d4ed8;
-}
-
-.gf-ak-status {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.gf-ak-status.is-set {
-  color: #15803d;
-}
-
-.gf-ak-status.is-empty {
-  color: #64748b;
 }
 
 .gf-footer-right {
@@ -6593,162 +7397,6 @@ watch(
   background: #fef2f2;
   border-color: #fecaca;
   color: #b91c1c;
-}
-
-.gf-feedback-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  z-index: 1400;
-}
-
-.gf-feedback-modal-card {
-  width: 100%;
-  max-width: 520px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.gf-feedback-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.1rem 1.35rem 0.85rem 1.35rem;
-}
-
-.gf-feedback-modal-title {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.gf-feedback-modal-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-}
-
-.gf-feedback-modal-close:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.gf-feedback-modal-tabs {
-  display: flex;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0 1.35rem;
-  gap: 1.5rem;
-}
-
-.gf-feedback-tab-btn {
-  padding: 0.65rem 0.15rem;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: -1px;
-}
-
-.gf-feedback-tab-btn:hover {
-  color: #0f172a;
-}
-
-.gf-feedback-tab-btn.is-active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-}
-
-.gf-feedback-modal-body {
-  padding: 1.25rem 1.35rem;
-}
-
-.gf-feedback-textarea {
-  width: 100%;
-  min-height: 115px;
-  padding: 0.75rem 0.85rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  outline: none;
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.gf-feedback-textarea::placeholder {
-  color: #94a3b8;
-}
-
-.gf-feedback-textarea:focus {
-  background: #ffffff;
-  border-color: #2563eb;
-}
-
-.gf-feedback-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.65rem;
-  padding: 0.85rem 1.35rem 1.15rem 1.35rem;
-  border-top: 1px solid #f1f5f9;
-}
-
-.gf-feedback-cancel-btn {
-  padding: 0.48rem 1rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-feedback-cancel-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.gf-feedback-save-btn {
-  padding: 0.48rem 1.15rem;
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  border-radius: 7px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-feedback-save-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
 }
 
 .gf-questions-bottom-bar {
@@ -6807,5 +7455,106 @@ watch(
   .field-item.full-width {
     grid-column: span 1;
   }
+}
+
+/* Already Recorded Modal */
+.already-recorded-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1.25rem;
+  animation: alreadyRecordedFadeIn 0.18s ease-out;
+}
+
+@keyframes alreadyRecordedFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.already-recorded-card {
+  background: #ffffff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 440px;
+  padding: 2.25rem 2.25rem 2rem;
+  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.15), 0 10px 15px -5px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  box-sizing: border-box;
+  animation: alreadyRecordedPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes alreadyRecordedPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.already-recorded-icon-badge {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+}
+
+.already-recorded-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.65rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.already-recorded-message {
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0 auto 1.75rem;
+  max-width: 360px;
+}
+
+.already-recorded-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-already-recorded-ok {
+  min-width: 120px;
+  padding: 0.65rem 2rem;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.btn-already-recorded-ok:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 </style>

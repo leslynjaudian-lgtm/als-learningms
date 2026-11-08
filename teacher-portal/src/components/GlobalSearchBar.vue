@@ -5,7 +5,7 @@
       type="button"
       class="mobile-search-trigger"
       aria-label="Open global search"
-      title="Search learners, modules, and more..."
+      :title="placeholder"
       @click="openMobileSearch"
     >
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -29,7 +29,7 @@
         v-model="searchQuery"
         type="text"
         class="global-search-input"
-        placeholder="Search learners, modules, and more..."
+        :placeholder="placeholder"
         aria-label="Global search"
         aria-autocomplete="list"
         :aria-expanded="showDropdown ? 'true' : 'false'"
@@ -193,6 +193,13 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { searchTeacherGlobal } from '../api/search.js';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
+
+const props = defineProps({
+  placeholder: {
+    type: String,
+    default: 'Search learners, modules, and records...',
+  },
+});
 
 const router = useRouter();
 const { teacherId } = useTeacherSession();

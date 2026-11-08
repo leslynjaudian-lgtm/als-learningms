@@ -12,26 +12,24 @@
       </div>
     </div>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Teachers</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Teachers / Implementors</h1>
-        <p>Manage ALS teachers and implementors.</p>
-      </div>
-      <button class="btn btn-primary" @click="openAddModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Add Teacher</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Teachers / Implementors"
+      description="Manage ALS teachers and implementors."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Teachers' },
+      ]"
+    >
+      <template #actions>
+        <button class="btn btn-primary" @click="openAddModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add Teacher</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter Card -->
     <div class="filter-card">
@@ -440,6 +438,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 import {

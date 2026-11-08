@@ -13,27 +13,25 @@
       </div>
     </transition>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Announcements</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row announcement-header">
-      <div class="page-title-group">
-        <h1>Announcements</h1>
-        <p>Create and manage announcements for teachers and learners.</p>
-      </div>
-      <button type="button" class="btn btn-primary" @click="openCreateModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Create Announcement</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Announcements"
+      description="Create and manage announcements for teachers and learners."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Announcements' },
+      ]"
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Create Announcement</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter Section (Matches Teacher Portal Style) -->
     <div class="filter-card announcement-filters">
@@ -551,6 +549,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import {
   getAnnouncements,
   createAnnouncement,
@@ -1049,11 +1048,13 @@ onMounted(async () => {
   if (route.query.action === 'create') {
     openCreateModal();
     router.replace({ path: route.path, query: {} });
-  } else if (route.query.view) {
-    const targetId = Number(route.query.view);
+  } else if (route.query.view || route.query.id) {
+    const targetId = Number(route.query.view || route.query.id);
     const found = announcements.value.find((a) => Number(a.id) === targetId);
     if (found) {
       openViewModal(found);
+    } else {
+      showToast('The requested announcement was not found or is no longer available.', 'error');
     }
     router.replace({ path: route.path, query: {} });
   }
@@ -1078,62 +1079,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-/* Breadcrumb */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: #64748b;
-  margin-bottom: 0.85rem;
-}
-
-.breadcrumb a {
-  color: #2563eb;
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.breadcrumb a:hover {
-  color: #1d4ed8;
-  text-decoration: underline;
-}
-
-.breadcrumb-separator {
-  color: #cbd5e1;
-}
-
-.breadcrumb-current {
-  color: #0f172a;
-  font-weight: 600;
-}
-
-/* Page Header */
-.announcement-header,
-.page-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
-  flex-wrap: wrap;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.page-title-group h1 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 0.25rem 0;
-  letter-spacing: -0.02em;
-}
-
-.page-title-group p {
-  color: #64748b;
-  font-size: 0.95rem;
-  margin: 0;
-}
+/* Main Filters */
 
 /* Buttons */
 .btn {

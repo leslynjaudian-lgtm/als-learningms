@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import prisma from '../config/prisma.js';
 import { verifyToken } from '../config/jwt.js';
-import { notifyAnnouncementPublished } from '../services/notificationService.js';
+import {
+  notifyAnnouncementPublished,
+  notifyAnnouncementUpdated,
+  notifyAnnouncementDeleted,
+} from '../services/notificationService.js';
 
 const router = Router();
 
@@ -1049,6 +1053,10 @@ router.put('/:id', async (req, res, next) => {
     const transitionedToPublished = newStatus === 'PUBLISHED' && existing.status !== 'PUBLISHED';
     if (updated?.id && transitionedToPublished) {
       notifyAnnouncementPublished(updated.id).catch((e) => console.error('[Announcements] notify error:', e));
+    } else if (updated?.id && updated.status === 'PUBLISHED') {
+      notifyAnnouncementUpdated(updated.id).catch((e) => console.error('[Announcements] notify error:', e));
+    } else if (updated?.id && updated.status !== 'PUBLISHED') {
+      notifyAnnouncementDeleted(updated.id).catch((e) => console.error('[Announcements] notify error:', e));
     }
 
     res.json(formatAnnouncement(updated));
@@ -1177,6 +1185,8 @@ router.delete('/:id', async (req, res, next) => {
     }
 
     await prisma.$executeRawUnsafe('DELETE FROM announcements WHERE id = ?', id);
+
+    notifyAnnouncementDeleted(id).catch((e) => console.error('[Announcements] notify delete error:', e));
 
     res.status(200).json({ success: true, message: 'Announcement deleted successfully', id });
   } catch (err) {

@@ -36,12 +36,15 @@
 
           <div class="form-group">
             <label class="form-label">Learning Area / Strand</label>
-            <input
-              type="text"
-              class="form-input disabled-input"
-              :value="strandName"
-              disabled
-            />
+            <LockedFieldTooltip message="This field cannot be edited.">
+              <input
+                type="text"
+                class="form-input disabled-input"
+                :value="strandName"
+                readonly
+                title="This field cannot be edited."
+              />
+            </LockedFieldTooltip>
           </div>
         </div>
 
@@ -123,6 +126,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 
 const route = useRoute();
 const router = useRouter();

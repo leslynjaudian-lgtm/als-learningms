@@ -102,7 +102,7 @@
                 :to="lvl.path"
                 class="nav-sublink"
                 :class="{ active: isModuleLevelActive(lvl.slug) }"
-                @click="handleSublinkClick('modules')"
+                @click="handleSublinkClick('modules', lvl.slug)"
               >
                 <span class="sublink-dot"></span>
                 <span class="sublink-label">{{ lvl.label }}</span>
@@ -203,11 +203,27 @@
         >
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 11 18-5v12L3 14v-3z"/>
+              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+            </svg>
+          </span>
+          <span class="nav-label">Announcements</span>
+        </router-link>
+
+        <!-- 9. Notifications -->
+        <router-link
+          to="/dashboard/notifications"
+          class="nav-link"
+          :class="{ active: activeMenu === 'notifications' }"
+          @click="handleNavClick('notifications')"
+        >
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
           </span>
-          <span class="nav-label">Announcements</span>
+          <span class="nav-label">Notifications</span>
         </router-link>
 
         <!-- 9. Reports (Dropdown: ALS AF2, Module Progress, Attendance Summary) -->
@@ -343,16 +359,21 @@
               <div class="notif-panel-header">
                 <div class="notif-panel-title-wrap">
                   <span class="notif-panel-title">Notifications</span>
-                  <span v-if="unreadCount > 0" class="notif-unread-pill">{{ unreadCount }} new</span>
+                  <template v-if="unreadCount > 0">
+                    <span class="notif-header-sep">|</span>
+                    <span class="notif-unread-pill">{{ unreadCount }} new</span>
+                  </template>
                 </div>
-                <button
-                  v-if="unreadCount > 0"
-                  type="button"
-                  class="notif-mark-all-btn"
-                  @click="handleMarkAllRead"
-                >
-                  Mark all read
-                </button>
+                <div v-if="unreadCount > 0" class="notif-header-actions">
+                  <span class="notif-header-sep">|</span>
+                  <button
+                    type="button"
+                    class="notif-mark-all-btn"
+                    @click="handleMarkAllRead"
+                  >
+                    Mark all read
+                  </button>
+                </div>
               </div>
 
               <div class="notif-panel-body">
@@ -378,7 +399,6 @@
                       <span class="notif-type-badge" :class="'type-' + (item.type || 'ANNOUNCEMENT').toLowerCase()">
                         {{ formatNotifType(item.type) }}
                       </span>
-                      <span v-if="item.isImportant" class="notif-important-badge">Important</span>
                     </div>
                     <span class="notif-time">{{ item.relativeTime }}</span>
                   </div>
@@ -386,7 +406,11 @@
                     <span v-if="!item.isRead" class="notif-unread-dot"></span>
                     <span class="notif-item-title">{{ item.title }}</span>
                   </div>
-                  <p class="notif-item-message">{{ item.message }}</p>
+                  <p v-if="item.message" class="notif-item-message">{{ item.message }}</p>
+                  <div v-if="item.scheduleTime" class="notif-item-schedule-time">
+                    <span class="sched-label">Schedule:</span>
+                    <span class="sched-value">{{ item.scheduleTime }}</span>
+                  </div>
                   <div class="notif-item-footer">
                     <span class="notif-sender">{{ item.sender }}</span>
                     <button
@@ -402,12 +426,8 @@
               </div>
 
               <div class="notif-panel-footer">
-                <router-link to="/dashboard/announcements" class="notif-view-all-link" @click="notifPanelOpen = false">
-                  View Announcements
-                </router-link>
-                <span class="notif-footer-sep">•</span>
-                <router-link to="/dashboard/schedule" class="notif-view-all-link" @click="notifPanelOpen = false">
-                  View Schedule
+                <router-link to="/dashboard/notifications" class="notif-view-all-link" @click="notifPanelOpen = false">
+                  View All Notifications
                 </router-link>
               </div>
             </div>
@@ -475,6 +495,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useNotifications } from '../composables/useNotifications.js';
+import { getModule } from '../api/modules.js';
 import SignoutConfirmationModal from '../components/SignoutConfirmationModal.vue';
 import GlobalSearchBar from '../components/GlobalSearchBar.vue';
 
@@ -486,7 +507,19 @@ const notifPanelOpen = ref(false);
 const notifContainerRef = ref(null);
 const avatarImgError = ref(false);
 
-const { teacherName, teacherPosition, teacherPhoto, assignedCenters, assignedLevels, clearSession, refreshProfile } = useTeacherSession();
+const {
+  teacherName,
+  teacherPosition,
+  teacherPhoto,
+  assignedCenters,
+  assignedLevels,
+  activeModuleLevelSlug,
+  normalizeModuleLevelSlug,
+  getCachedModuleLevelSlug,
+  setActiveModuleLevel,
+  clearSession,
+  refreshProfile,
+} = useTeacherSession();
 
 watch(teacherPhoto, () => {
   avatarImgError.value = false;
@@ -509,12 +542,15 @@ function toggleNotifPanel() {
 
 function formatNotifType(type) {
   const t = String(type || '').toUpperCase();
-  if (t === 'SUBMISSION') return 'Submission';
-  if (t === 'REMINDER') return 'Reminder';
-  if (t === 'SCHEDULE') return 'Schedule';
-  if (t === 'ANNOUNCEMENT') return 'Announcement';
-  if (t === 'MODULE') return 'Module';
   if (t === 'RECORD') return 'Record';
+  if (t === 'SCHEDULE') return 'Schedule';
+  if (t === 'REMINDER') return 'Reminder';
+  if (t === 'ANNOUNCEMENT') return 'Announcement';
+  if (t === 'LEARNER') return 'Learner';
+  if (t === 'ASSIGNMENT') return 'Assignment';
+  if (t === 'CENTER') return 'Center';
+  if (t === 'SUBMISSION') return 'Submission';
+  if (t === 'MODULE') return 'Module';
   return t ? t.charAt(0) + t.slice(1).toLowerCase() : 'Notification';
 }
 
@@ -562,6 +598,7 @@ function getMenuFromPath(pathname) {
   if (pathname.startsWith('/dashboard/records')) return 'records';
   if (pathname.startsWith('/dashboard/schedule')) return 'schedule';
   if (pathname.startsWith('/dashboard/announcements')) return 'announcements';
+  if (pathname.startsWith('/dashboard/notifications')) return 'notifications';
   if (pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/profile')) return 'settings';
   return '';
 }
@@ -590,9 +627,12 @@ function handleParentClick(menu) {
 }
 
 // Child sublink click handler
-function handleSublinkClick(parentMenu) {
+function handleSublinkClick(parentMenu, levelSlug = null) {
   activeMenu.value = parentMenu;
   expandedMenu.value = parentMenu;
+  if (parentMenu === 'modules' && levelSlug) {
+    setActiveModuleLevel(levelSlug);
+  }
   sidebarOpen.value = false;
 }
 
@@ -624,20 +664,96 @@ const isAttendanceSummaryActive = computed(() => {
   );
 });
 
+function extractModuleIdFromPath(pathname) {
+  if (!pathname) return '';
+  const match = String(pathname).match(/^\/(?:dashboard|teacher)\/modules\/([^/?#]+)/i);
+  if (!match || !match[1]) return '';
+  const segment = match[1].trim();
+  const lower = segment.toLowerCase();
+  if (lower === 'elementary' || lower === 'junior-high' || lower === 'junior') {
+    return '';
+  }
+  return segment;
+}
+
+async function syncModuleLevelForRoute(currentPath) {
+  const pathStr = String(currentPath || route.path || '');
+  if (!pathStr.startsWith('/dashboard/modules') && !pathStr.startsWith('/teacher/modules')) {
+    return;
+  }
+
+  const lowerPath = pathStr.toLowerCase();
+  if (lowerPath.includes('/modules/elementary') || route.params?.defaultLevelSlug === 'elementary') {
+    setActiveModuleLevel('elementary');
+    return;
+  }
+  if (lowerPath.includes('/modules/junior-high') || route.params?.defaultLevelSlug === 'junior-high') {
+    setActiveModuleLevel('junior-high');
+    return;
+  }
+
+  const queryLevelSlug = normalizeModuleLevelSlug(route.query?.level || route.query?.targetLevel);
+  const modId = route.params?.id || route.params?.moduleId || extractModuleIdFromPath(pathStr);
+
+  if (queryLevelSlug) {
+    setActiveModuleLevel(queryLevelSlug, modId || null);
+    return;
+  }
+
+  if (modId) {
+    const cached = getCachedModuleLevelSlug(modId);
+    if (cached) {
+      setActiveModuleLevel(cached, modId);
+    }
+    try {
+      const res = await getModule(modId);
+      const actualLevel = res?.data?.targetLevel || res?.data?.level || res?.data?.programLevel;
+      if (actualLevel) {
+        const currentModId = route.params?.id || route.params?.moduleId || extractModuleIdFromPath(route.path);
+        if (String(currentModId) === String(modId)) {
+          setActiveModuleLevel(actualLevel, modId);
+        }
+      }
+    } catch {
+      // Fallback handled by cached module level or ModuleDetailsView
+    }
+  }
+}
+
 function isModuleLevelActive(slug) {
+  if (activeMenu.value !== 'modules') {
+    return false;
+  }
   if (!route.path.startsWith('/dashboard/modules') && !route.path.startsWith('/teacher/modules')) {
     return false;
   }
-  if (route.path.includes(slug)) return true;
-  if (route.params.defaultLevelSlug === slug) return true;
-  if (route.query.level === slug) return true;
-  if (
-    (route.path === '/dashboard/modules' || route.path === '/dashboard/modules/') &&
-    assignedLevels.value?.[0]?.slug === slug
-  ) {
-    return true;
+
+  const lowerPath = route.path.toLowerCase();
+  let resolvedSlug = '';
+
+  if (lowerPath.includes('/modules/elementary') || route.params?.defaultLevelSlug === 'elementary') {
+    resolvedSlug = 'elementary';
+  } else if (lowerPath.includes('/modules/junior-high') || route.params?.defaultLevelSlug === 'junior-high') {
+    resolvedSlug = 'junior-high';
+  } else {
+    const querySlug = normalizeModuleLevelSlug(route.query?.level || route.query?.targetLevel);
+    if (querySlug) {
+      resolvedSlug = querySlug;
+    } else {
+      const modId = route.params?.id || route.params?.moduleId || extractModuleIdFromPath(route.path);
+      if (modId) {
+        resolvedSlug = getCachedModuleLevelSlug(modId) || activeModuleLevelSlug.value || '';
+      } else if (activeModuleLevelSlug.value) {
+        resolvedSlug = activeModuleLevelSlug.value;
+      }
+    }
   }
-  return false;
+
+  if (!resolvedSlug && (route.path === '/dashboard/modules' || route.path === '/dashboard/modules/')) {
+    resolvedSlug = assignedLevels.value?.[0]?.slug || 'elementary';
+  }
+
+  return resolvedSlug === slug;
 }
 
 onMounted(() => {
@@ -656,10 +772,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('als-notifications-updated', handleWindowFocus);
 });
 
-// Route watcher: synchronizes activeMenu and expandedMenu ONLY when route path actually changes
+// Route watcher: synchronizes activeMenu, expandedMenu, and active module ALS level on route navigation
 watch(
-  () => route.path,
-  (newPath) => {
+  () => route.fullPath,
+  () => {
+    const newPath = route.path;
     notifPanelOpen.value = false;
     fetchNotifications();
     const routeMenu = getMenuFromPath(newPath);
@@ -673,6 +790,7 @@ watch(
       expandedMenu.value = 'reports';
     } else if (newPath.startsWith('/dashboard/modules') || newPath.startsWith('/teacher/modules')) {
       expandedMenu.value = 'modules';
+      syncModuleLevelForRoute(newPath);
     } else {
       expandedMenu.value = null;
     }
@@ -767,9 +885,23 @@ function confirmSignout() {
   padding: 12px 15px;
   border-bottom: 1px solid #f1f5f9;
   background: #f8fafc;
+  flex-shrink: 0;
 }
 
 .notif-panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-header-sep {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 400;
+  user-select: none;
+}
+
+.notif-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -807,6 +939,24 @@ function confirmSignout() {
 .notif-panel-body {
   overflow-y: auto;
   max-height: 350px;
+  flex-grow: 1;
+}
+
+.notif-panel-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notif-panel-body::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+.notif-panel-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.notif-panel-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .notif-empty-state {
@@ -843,7 +993,8 @@ function confirmSignout() {
 }
 
 .notif-item {
-  padding: 11px 15px;
+  padding: 12px 15px;
+  background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -855,11 +1006,11 @@ function confirmSignout() {
 }
 
 .notif-item.is-unread {
-  background: #eff6ff;
+  background: #f0f7ff;
 }
 
 .notif-item.is-unread:hover {
-  background: #dbeafe;
+  background: #e2eeff;
 }
 
 .notif-item-top {
@@ -916,6 +1067,21 @@ function confirmSignout() {
   color: #047857;
 }
 
+.notif-type-badge.type-learner {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.notif-type-badge.type-assignment {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.notif-type-badge.type-center {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .notif-important-badge {
   font-size: 0.65rem;
   font-weight: 700;
@@ -969,6 +1135,24 @@ function confirmSignout() {
   overflow: hidden;
 }
 
+.notif-item-schedule-time {
+  font-size: 0.74rem;
+  color: #64748b;
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+
+.notif-item-schedule-time .sched-label {
+  font-weight: 600;
+  color: #475569;
+  margin-right: 3px;
+}
+
+.notif-item-schedule-time .sched-value {
+  font-weight: 400;
+  color: #64748b;
+}
+
 .notif-item-footer {
   display: flex;
   align-items: center;
@@ -998,13 +1182,14 @@ function confirmSignout() {
 }
 
 .notif-panel-footer {
-  padding: 9px 14px;
+  padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
   background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .notif-footer-sep {

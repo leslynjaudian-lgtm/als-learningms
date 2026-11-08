@@ -10,6 +10,27 @@ export function getRecords(params = {}) {
 }
 
 /**
+ * Fetch authoritative learner + module + submission + score context for Add/Edit Learner Record modal.
+ * Supports both object params ({ learnerId, moduleId, submissionId }) and positional arguments (learnerId, moduleId, submissionId).
+ * @param {Object|number|string} paramsOrLearnerId
+ * @param {number|string|null} [moduleId]
+ * @param {number|string|null} [submissionId]
+ */
+export function getRecordContext(paramsOrLearnerId = {}, moduleId = null, submissionId = null) {
+  let params = {};
+  if (typeof paramsOrLearnerId === 'object' && paramsOrLearnerId !== null) {
+    params = paramsOrLearnerId;
+  } else {
+    params = {
+      learnerId: paramsOrLearnerId,
+      ...(moduleId ? { moduleId } : {}),
+      ...(submissionId ? { submissionId } : {}),
+    };
+  }
+  return api.get('/records/context', { params });
+}
+
+/**
  * Create a new learner performance record.
  * @param {Object} data
  */

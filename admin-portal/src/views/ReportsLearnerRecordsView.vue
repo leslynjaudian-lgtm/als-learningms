@@ -1,21 +1,10 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/reports">Reports</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Learner Records</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Learner Records</h1>
-        <p>View complete individual learner records including information, modules, assessments, and progress.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <ReportsPageHeader
+      title="Learner Records"
+      description="View complete individual learner records including information, modules, assessments, and progress."
+    />
 
     <!-- Learner Search / Selector -->
     <div class="filter-card">
@@ -147,6 +136,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 
 const searchQuery = ref('');

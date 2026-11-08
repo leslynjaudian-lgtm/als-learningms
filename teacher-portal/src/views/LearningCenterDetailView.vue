@@ -1,13 +1,24 @@
 <template>
   <div class="page-container center-detail-page">
-    <!-- Breadcrumb Navigation -->
-    <nav class="breadcrumb-nav">
-      <router-link to="/dashboard" class="breadcrumb-link">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <router-link to="/dashboard/learning-centers" class="breadcrumb-link">My Learning Centers</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">{{ center?.name || 'Learning Center Details' }}</span>
-    </nav>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      :title="center?.name || 'Learning Center Details'"
+      description="Learning Center assigned to you"
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Learning Centers', to: '/dashboard/learning-centers' },
+        { label: center?.name || 'Details' },
+      ]"
+    >
+      <template #actions>
+        <router-link to="/dashboard/learning-centers" class="btn btn-secondary btn-back-outline">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          <span>Back to Learning Centers</span>
+        </router-link>
+      </template>
+    </PageHeader>
 
     <!-- Loading State -->
     <div v-if="loading" class="state-container">
@@ -173,6 +184,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherProfile } from '../api/auth.js';
 import { getAssignedLearners } from '../api/learners.js';

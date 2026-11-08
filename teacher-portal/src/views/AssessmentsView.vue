@@ -1,19 +1,15 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Assessments</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Assessments</h1>
-        <p>Manage all assessments and view submission status.</p>
-      </div>
-      <div style="display: flex; gap: 0.65rem; align-items: center;">
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Assessments"
+      description="Manage all assessments and view submission status."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Assessments' },
+      ]"
+    >
+      <template #actions>
         <router-link to="/dashboard/assessments/record" class="btn btn-secondary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 02 2h14a2 2 0 0 02-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -26,8 +22,8 @@
           </svg>
           <span>Create Assessment</span>
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- Tabs Row matching bottom-right screenshot -->
     <div class="tab-bar-card">
@@ -223,6 +219,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 
 const tabs = ['All Assessments', 'Online Assessments', 'Face-to-face Assessments'];
 const activeTab = ref('All Assessments');

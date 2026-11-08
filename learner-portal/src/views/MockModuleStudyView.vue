@@ -17,26 +17,33 @@
       </div>
       <p class="error-msg">{{ loadError }}</p>
       <button type="button" class="btn-primary retry-btn" @click="fetchModuleData">
-        Retry Loading
+        Retry
       </button>
     </div>
 
     <!-- Main Module Study View -->
     <template v-else>
-      <!-- Subpage Top Bar (visible only when inside Steps 1, 3, or 4) -->
-      <div v-if="currentStep !== 0 && currentStep !== 2" class="subpage-nav-bar">
-        <!-- First row: Back to Module -->
-        <div class="subpage-nav-row">
-          <button type="button" class="subpage-back-btn" @click="goToOverview">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            <span>Back to Module</span>
-          </button>
-        </div>
+      <!-- Consistent Back Navigation Bar: Outside and above the main content card -->
+      <div class="module-back-bar">
+        <router-link v-if="currentStep === 0" to="/modules" class="module-back-btn" @click="handleModulesBackClick($event)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>My Modules</span>
+        </router-link>
+        <button v-else type="button" class="module-back-btn" @click="goToOverview">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Go Back</span>
+        </button>
+      </div>
 
-        <!-- Second row: STEP X & Activity Title & Completed Status -->
+      <!-- Subpage Heading Card (visible only when inside Steps 1, 3, or 4) -->
+      <div v-if="currentStep === 1 || currentStep === 3 || currentStep === 4" class="subpage-nav-bar">
+        <!-- STEP X & Activity Title & Completed Status -->
         <div class="subpage-heading-group">
           <div class="subpage-meta-row">
             <span class="subpage-step-label">STEP {{ currentStep }}</span>
@@ -57,22 +64,14 @@
       <!-- STEP 0: MODULE OVERVIEW (Clean Google Classroom Checklist)    -->
       <!-- ============================================================ -->
       <div v-if="currentStep === 0" class="module-details-container">
-        <!-- Section 1: Module Header -->
+        <!-- Section 1: Module Overview Card -->
         <div class="module-header-card">
-          <div class="header-top-nav">
-            <router-link to="/modules" class="back-to-modules-link">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              <span>My Modules</span>
-            </router-link>
-          </div>
-
           <div class="header-titles">
             <h1 class="module-main-title">{{ moduleTitle }}</h1>
-            <p class="module-strand-subtitle">{{ strandAndCodeText }}</p>
+            <p v-if="moduleInstructions" class="module-instructions-inline">{{ moduleInstructions }}</p>
           </div>
+
+          <div class="overview-divider"></div>
 
           <div class="header-progress-wrap">
             <div class="header-progress-row">
@@ -87,9 +86,18 @@
 
         <!-- Section 2: Your Learning Activities -->
         <div class="learning-activities-section">
-          <div class="activities-header">
-            <h2 class="activities-title">Your Learning Activities</h2>
-            <p class="activities-desc">Follow these four steps to finish your module.</p>
+          <!-- Subtle Light-Blue Information Container -->
+          <div class="activities-info-card">
+            <div class="activities-info-icon-wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+            </div>
+            <div class="activities-info-content">
+              <h2 class="activities-info-title">Your Learning Activities</h2>
+              <p class="activities-info-desc">Start by answering the Pre-Test to unlock your learning module. Once completed, you can read and study the lessons, answer the Post-Test, and submit your activities.</p>
+            </div>
           </div>
 
           <div class="activities-checklist">
@@ -225,7 +233,7 @@
                 <div class="card-status-col">
                   <span v-if="!isStepUnlocked(2)" class="card-status-pill status-locked">Locked</span>
                   <span v-else-if="isStepCompleted(2)" class="card-status-pill status-completed">Completed</span>
-                  <span v-else-if="progress.readingStarted" class="card-status-pill status-in-progress">In Progress</span>
+                  <span v-else-if="progress.readingStarted || (progress.pagesRead && progress.pagesRead.length > 0)" class="card-status-pill status-in-progress">In Progress</span>
                   <span v-else class="card-status-pill status-ready">Ready</span>
                 </div>
               </div>
@@ -236,7 +244,7 @@
               <!-- Bottom Row: Reading Info on Left, Action Button on Right -->
               <div class="card-bottom-row">
                 <div class="card-bottom-left">
-                  <div v-if="!isStepCompleted(2) && progress.readingStarted" class="card-reading-progress">
+                  <div v-if="isStepCompleted(2) || progress.readingStarted || (progress.pagesRead && progress.pagesRead.length > 0) || progress.pdfCurrentPage" class="card-reading-progress">
                     <span>Page {{ progress.pdfCurrentPage || 1 }} of {{ progress.pdfTotalPages || 29 }}</span>
                   </div>
                 </div>
@@ -472,7 +480,7 @@
           class="btn-primary summary-action-btn"
           @click="proceedToModuleReader"
         >
-          <span>Proceed to Read the Module</span>
+          <span>Proceed to Read Module</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
@@ -581,131 +589,18 @@
         </div>
       </template>
 
-      <!-- Pre-Test Completed / Compact Score Summary & Review View -->
+      <!-- Pre-Test Completed / Score Summary & Review View -->
       <template v-else>
-        <!-- Compact Score Summary -->
-        <div class="results-score-card">
-          <div class="results-score-row">
-            <div class="results-score-badge">
-              <span class="results-score-val">{{ progress.preTestScore ?? 0 }}/{{ preTestTotal }}</span>
-              <span class="results-score-percent">({{ Math.round(((progress.preTestScore ?? 0) / (preTestTotal || 1)) * 100) }}%)</span>
-            </div>
-            <p class="results-score-confirm">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              <span>Your answers have been saved.</span>
-            </p>
-          </div>
-
-          <div class="results-actions-row">
-            <button
-              type="button"
-              class="btn-primary results-primary-btn"
-              @click="proceedToModuleReader"
-            >
-              <span>{{ progress.readingStarted ? `Continue Reading (p. ${progress.pdfCurrentPage || 1})` : 'Proceed to Read the Module' }}</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Read-Only Review of Submitted Questions & Answers -->
-        <div v-if="preTestQuestions.length > 0" class="readonly-review-section">
-          <div class="review-section-header">
-            <h3 class="review-title">Review Submitted Answers</h3>
-            <span class="review-count">{{ preTestQuestions.length }} Questions</span>
-          </div>
-
-          <div class="review-questions-list">
-            <div
-              v-for="(q, qIdx) in preTestQuestions"
-              :key="`pre-review-${q.id || qIdx}`"
-              class="review-question-card"
-            >
-              <div class="review-q-header">
-                <span class="q-num-pill">Question {{ qIdx + 1 }}</span>
-                <span
-                  class="q-result-tag"
-                  :class="progress.preTestAnswers[q.id] === q.correctAnswer ? 'tag-correct' : 'tag-incorrect'"
-                >
-                  <svg v-if="progress.preTestAnswers[q.id] === q.correctAnswer" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                  <span>{{ progress.preTestAnswers[q.id] === q.correctAnswer ? 'Correct' : 'Incorrect' }}</span>
-                </span>
-              </div>
-
-              <h4 class="review-q-text">{{ q.question }}</h4>
-
-              <div class="review-options-list">
-                <div
-                  v-for="opt in q.options"
-                  :key="opt.id"
-                  class="review-opt-item"
-                  :class="{
-                    'chosen-correct': progress.preTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer,
-                    'chosen-wrong': progress.preTestAnswers[q.id] === opt.id && opt.id !== q.correctAnswer,
-                    'is-correct-target': opt.id === q.correctAnswer && progress.preTestAnswers[q.id] !== opt.id
-                  }"
-                >
-                  <!-- Label ABOVE answer text -->
-                  <div
-                    v-if="progress.preTestAnswers[q.id] === opt.id || opt.id === q.correctAnswer"
-                    class="review-opt-label-row"
-                  >
-                    <span
-                      v-if="progress.preTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer"
-                      class="badge-user-choice badge-choice-correct"
-                    >
-                      Your Answer &bull; Correct
-                    </span>
-                    <span
-                      v-else-if="progress.preTestAnswers[q.id] === opt.id"
-                      class="badge-user-choice badge-choice-wrong"
-                    >
-                      Your Answer
-                    </span>
-                    <span
-                      v-else-if="opt.id === q.correctAnswer"
-                      class="badge-correct-choice"
-                    >
-                      Correct Answer
-                    </span>
-                  </div>
-
-                  <!-- Option circle & text -->
-                  <div class="review-opt-content">
-                    <div class="review-opt-circle">
-                      <span v-if="progress.preTestAnswers[q.id] !== opt.id && opt.id !== q.correctAnswer">
-                        {{ opt.letter || opt.id }}
-                      </span>
-                      <svg v-else-if="opt.id === q.correctAnswer" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                      <svg v-else-if="progress.preTestAnswers[q.id] === opt.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </div>
-                    <span class="review-opt-text">{{ opt.text }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="getQuestionFeedback(q, progress.preTestAnswers[q.id] === q.correctAnswer)" class="review-feedback-card">
-                <strong>Feedback:</strong> {{ getQuestionFeedback(q, progress.preTestAnswers[q.id] === q.correctAnswer) }}
-              </div>
-            </div>
-          </div>
-        </div>
+        <AssessmentResultsReview
+          test-type="preTest"
+          :score="progress.preTestScore ?? 0"
+          :total="preTestTotal"
+          :percent="preTestPercent"
+          :questions="preTestQuestions"
+          :answers="progress.preTestAnswers"
+          :get-feedback="getQuestionFeedback"
+          @proceed="proceedToModuleReader"
+        />
       </template>
     </div>
 
@@ -720,8 +615,10 @@
         :code="moduleCode"
         :subtitle="moduleStrandCode"
         :downloadFileName="moduleDownloadFileName"
+        :instructions="moduleReadingInstructions"
         :initialPage="progress.pdfCurrentPage || 1"
         :initialMode="progress.pdfViewMode || 'long'"
+        :initialPagesRead="progress.pagesRead || []"
         @back="onViewerBack"
         @proceed-to-post-test="onViewerProceedToPostTest"
         @update-progress="onViewerProgressUpdate"
@@ -817,139 +714,18 @@
         </div>
       </template>
 
-      <!-- Post-Test Completed / Compact Score Summary & Review View -->
+      <!-- Post-Test Completed / Score Summary & Review View -->
       <template v-else>
-        <!-- Compact Score Summary -->
-        <div class="results-score-card">
-          <div class="results-score-row">
-            <div class="results-score-badge">
-              <span class="results-score-val">{{ progress.postTestScore ?? 0 }}/{{ postTestTotal }}</span>
-              <span class="results-score-percent">({{ Math.round(((progress.postTestScore ?? 0) / (postTestTotal || 1)) * 100) }}%)</span>
-            </div>
-            <p class="results-score-confirm">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              <span>Your answers have been saved.</span>
-            </p>
-          </div>
-
-          <!-- Compact Comparison (if Pre-Test was also taken) -->
-          <div v-if="progress.preTestCompleted && preTestTotal > 0" class="results-comp-pills">
-            <span class="comp-pill">Pre-Test: {{ progress.preTestScore }}/{{ preTestTotal }}</span>
-            <span class="comp-pill" :class="scoreImprovement >= 0 ? 'pill-gain' : 'pill-loss'">
-              {{ scoreImprovement >= 0 ? `+${scoreImprovement}` : scoreImprovement }} pts improvement
-            </span>
-          </div>
-
-          <div class="results-actions-row">
-            <button
-              type="button"
-              class="btn-primary results-primary-btn"
-              @click="proceedToActivitySubmission"
-            >
-              <span>Proceed to Submit Activity</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Read-Only Review of Submitted Post-Test Questions & Feedback -->
-        <div v-if="postTestQuestions.length > 0" class="readonly-review-section">
-          <div class="review-section-header">
-            <h3 class="review-title">Review Submitted Answers</h3>
-            <span class="review-count">{{ postTestQuestions.length }} Questions</span>
-          </div>
-
-          <div class="review-questions-list">
-            <div
-              v-for="(q, qIdx) in postTestQuestions"
-              :key="`post-review-${q.id || qIdx}`"
-              class="review-question-card"
-            >
-              <div class="review-q-header">
-                <span class="q-num-pill">Question {{ qIdx + 1 }}</span>
-                <span
-                  class="q-result-tag"
-                  :class="progress.postTestAnswers[q.id] === q.correctAnswer ? 'tag-correct' : 'tag-incorrect'"
-                >
-                  <svg v-if="progress.postTestAnswers[q.id] === q.correctAnswer" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                  <span>{{ progress.postTestAnswers[q.id] === q.correctAnswer ? 'Correct' : 'Incorrect' }}</span>
-                </span>
-              </div>
-
-              <h4 class="review-q-text">{{ q.question }}</h4>
-
-              <div class="review-options-list">
-                <div
-                  v-for="opt in q.options"
-                  :key="opt.id"
-                  class="review-opt-item"
-                  :class="{
-                    'chosen-correct': progress.postTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer,
-                    'chosen-wrong': progress.postTestAnswers[q.id] === opt.id && opt.id !== q.correctAnswer,
-                    'is-correct-target': opt.id === q.correctAnswer && progress.postTestAnswers[q.id] !== opt.id
-                  }"
-                >
-                  <!-- Label ABOVE answer text -->
-                  <div
-                    v-if="progress.postTestAnswers[q.id] === opt.id || opt.id === q.correctAnswer"
-                    class="review-opt-label-row"
-                  >
-                    <span
-                      v-if="progress.postTestAnswers[q.id] === opt.id && opt.id === q.correctAnswer"
-                      class="badge-user-choice badge-choice-correct"
-                    >
-                      Your Answer &bull; Correct
-                    </span>
-                    <span
-                      v-else-if="progress.postTestAnswers[q.id] === opt.id"
-                      class="badge-user-choice badge-choice-wrong"
-                    >
-                      Your Answer
-                    </span>
-                    <span
-                      v-else-if="opt.id === q.correctAnswer"
-                      class="badge-correct-choice"
-                    >
-                      Correct Answer
-                    </span>
-                  </div>
-
-                  <!-- Option circle & text -->
-                  <div class="review-opt-content">
-                    <div class="review-opt-circle">
-                      <span v-if="progress.postTestAnswers[q.id] !== opt.id && opt.id !== q.correctAnswer">
-                        {{ opt.letter || opt.id }}
-                      </span>
-                      <svg v-else-if="opt.id === q.correctAnswer" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                      <svg v-else-if="progress.postTestAnswers[q.id] === opt.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </div>
-                    <span class="review-opt-text">{{ opt.text }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="getQuestionFeedback(q, progress.postTestAnswers[q.id] === q.correctAnswer)" class="review-feedback-card">
-                <strong>Feedback:</strong> {{ getQuestionFeedback(q, progress.postTestAnswers[q.id] === q.correctAnswer) }}
-              </div>
-            </div>
-          </div>
-        </div>
+        <AssessmentResultsReview
+          test-type="postTest"
+          :score="progress.postTestScore ?? 0"
+          :total="postTestTotal"
+          :percent="postTestPercent"
+          :questions="postTestQuestions"
+          :answers="progress.postTestAnswers"
+          :get-feedback="getQuestionFeedback"
+          @proceed="proceedToModuleReader"
+        />
       </template>
     </div>
 
@@ -1212,17 +988,18 @@
               </svg>
             </button>
 
-            <!-- Back to My Modules Button -->
-            <router-link
-              to="/modules"
-              class="btn-back-modules"
+            <!-- Bottom Go Back Button directly below Submit Activity -->
+            <button
+              type="button"
+              class="btn-bottom-go-back"
+              @click="goToOverview"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"/>
-                <polyline points="12 19 5 12 12 5"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span>Back to My Modules</span>
-            </router-link>
+              <span>Go Back</span>
+            </button>
           </div>
 
           <!-- When Already Submitted -->
@@ -1254,17 +1031,18 @@
               <span>Submission Closed</span>
             </div>
 
-            <!-- Back to My Modules Button -->
-            <router-link
-              to="/modules"
-              class="btn-back-modules"
+            <!-- Bottom Go Back Button directly below Add More Files / Submission Closed -->
+            <button
+              type="button"
+              class="btn-bottom-go-back"
+              @click="goToOverview"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"/>
-                <polyline points="12 19 5 12 12 5"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span>Back to My Modules</span>
-            </router-link>
+              <span>Go Back</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1292,6 +1070,32 @@
           >
             <span v-if="isUpdatingFiles">Removing...</span>
             <span v-else>Remove File</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal: Unsaved Files Before Leaving Module -->
+    <div v-if="showUnsavedLeaveModal" class="custom-modal-overlay" @click.self="cancelLeaveModule">
+      <div class="custom-modal-box" role="dialog" aria-modal="true" aria-labelledby="unsaved-modal-title">
+        <h3 id="unsaved-modal-title" class="custom-modal-title">Discard unsaved files?</h3>
+        <p class="custom-modal-text">
+          You have selected activity file(s) that have not been submitted yet. Leaving this module will discard these files.
+        </p>
+        <div class="custom-modal-actions">
+          <button
+            type="button"
+            class="modal-btn modal-cancel-btn"
+            @click="cancelLeaveModule"
+          >
+            Stay
+          </button>
+          <button
+            type="button"
+            class="modal-btn modal-danger-btn"
+            @click="confirmLeaveModule"
+          >
+            Discard &amp; Leave
           </button>
         </div>
       </div>
@@ -1352,9 +1156,15 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import api from '../api/axios';
 import MockPdfViewer from '../components/MockPdfViewer.vue';
+import AssessmentResultsReview from '../components/AssessmentResultsReview.vue';
+import {
+  calculateReadingProgressPercent,
+  isReadingStepCompleted,
+  calculateOverallModuleProgress
+} from '../utils/moduleProgress.js';
 import {
   formatStrandCode,
   formatStrandName,
@@ -1462,17 +1272,25 @@ function loadProgress() {
     const raw = localStorage.getItem(getStorageKey());
     if (raw) {
       const parsed = JSON.parse(raw);
+      const pagesReadArr = Array.isArray(parsed.pagesRead)
+        ? Array.from(new Set(parsed.pagesRead.map(Number).filter(n => n > 0))).sort((a, b) => a - b)
+        : [];
+      const totalPages = Number(parsed.pdfTotalPages) || 29;
+      const isReadingComplete = Boolean(totalPages > 0 && pagesReadArr.length >= totalPages);
+
       return {
         currentStep: parsed.currentStep !== undefined ? parsed.currentStep : 0,
         highestUnlockedStep: parsed.highestUnlockedStep || 1,
         preTestCompleted: Boolean(parsed.preTestCompleted),
         preTestScore: parsed.preTestScore != null ? Number(parsed.preTestScore) : null,
         preTestAnswers: parsed.preTestAnswers || {},
-        readingStarted: Boolean(parsed.readingStarted),
-        readingConfirmed: Boolean(parsed.readingConfirmed),
+        readingStarted: Boolean(parsed.readingStarted || pagesReadArr.length > 0),
+        readingConfirmed: isReadingComplete,
         pdfCurrentPage: parsed.pdfCurrentPage || 1,
-        pdfTotalPages: parsed.pdfTotalPages || 29,
+        pdfTotalPages: totalPages,
         pdfViewMode: parsed.pdfViewMode || 'long',
+        pagesRead: pagesReadArr,
+        completedPages: pagesReadArr.length,
         postTestCompleted: Boolean(parsed.postTestCompleted),
         postTestScore: parsed.postTestScore != null ? Number(parsed.postTestScore) : null,
         postTestAnswers: parsed.postTestAnswers || {},
@@ -1495,6 +1313,8 @@ function loadProgress() {
     pdfCurrentPage: 1,
     pdfTotalPages: 29,
     pdfViewMode: 'long',
+    pagesRead: [],
+    completedPages: 0,
     postTestCompleted: false,
     postTestScore: null,
     postTestAnswers: {},
@@ -1504,7 +1324,7 @@ function loadProgress() {
   };
 }
 
-function saveProgress(val) {
+function saveProgress(val, notify = true) {
   const p = val || progress.value;
   if (isMock.value) {
     saveMockProgress(p);
@@ -1515,26 +1335,50 @@ function saveProgress(val) {
       console.warn('Could not save module progress to storage:', e);
     }
   }
-  try {
-    window.dispatchEvent(
-      new CustomEvent('als-progress-updated', {
-        detail: { moduleId: effectiveModuleId?.value, progress: p }
-      })
-    );
-  } catch (e) {}
+  if (notify) {
+    try {
+      window.dispatchEvent(
+        new CustomEvent('als-progress-updated', {
+          detail: { moduleId: effectiveModuleId?.value, progress: p }
+        })
+      );
+    } catch (e) {}
+  }
 }
 
 const progress = ref(loadProgress());
 const currentStep = ref(progress.value.currentStep !== undefined ? progress.value.currentStep : 0);
 
 // Overview Progress Computed Values
+const readingProgressPercent = computed(() => {
+  const total = Number(progress.value.pdfTotalPages) || Number(moduleData.value?._count?.pages) || 29;
+  const count = Array.isArray(progress.value.pagesRead)
+    ? progress.value.pagesRead.length
+    : (Number(progress.value.completedPages) || 0);
+
+  return calculateReadingProgressPercent(count, total);
+});
+
 const computedProgressPercentage = computed(() => {
-  let count = 0;
-  if (isStepCompleted(1)) count += 25;
-  if (isStepCompleted(2)) count += 25;
-  if (isStepCompleted(3)) count += 25;
-  if (isStepCompleted(4)) count += 25;
-  return count;
+  const total = Number(progress.value.pdfTotalPages) || Number(moduleData.value?._count?.pages) || 29;
+  const count = Array.isArray(progress.value.pagesRead)
+    ? progress.value.pagesRead.length
+    : (Number(progress.value.completedPages) || 0);
+  const curPage = Number(progress.value.pdfCurrentPage) || 1;
+  const preDone = isStepCompleted(1);
+  const postDone = isStepCompleted(3);
+  const actDone = isStepCompleted(4);
+  const isFullDone = Boolean(progress.value.completedAt && actDone && postDone && preDone);
+
+  return calculateOverallModuleProgress({
+    preTestCompleted: preDone,
+    currentPage: curPage,
+    highestPageReached: count,
+    totalPages: total,
+    postTestCompleted: postDone,
+    activitySubmitted: actDone,
+    isLegitimateFullCompletion: isFullDone
+  });
 });
 
 const currentActiveStep = computed(() => {
@@ -1569,6 +1413,9 @@ function goToOverview() {
   currentStep.value = 0;
   progress.value.currentStep = 0;
   saveProgress();
+  if (router && effectiveModuleId.value && router.currentRoute?.value?.path !== `/modules/${effectiveModuleId.value}`) {
+    router.push(`/modules/${effectiveModuleId.value}`);
+  }
 }
 
 function goToStep(stepNum) {
@@ -1670,12 +1517,66 @@ function handleDocumentClick(e) {
   }
 }
 
+const showUnsavedLeaveModal = ref(false);
+let pendingLeaveCallback = null;
+
+function handleModulesBackClick(event) {
+  if (selectedFiles.value && selectedFiles.value.length > 0) {
+    if (event) event.preventDefault();
+    pendingLeaveCallback = () => {
+      router.push('/modules');
+    };
+    showUnsavedLeaveModal.value = true;
+  }
+}
+
+function cancelLeaveModule() {
+  showUnsavedLeaveModal.value = false;
+  pendingLeaveCallback = null;
+}
+
+function confirmLeaveModule() {
+  for (const f of selectedFiles.value) {
+    if (f && f.previewUrl) {
+      try {
+        URL.revokeObjectURL(f.previewUrl);
+      } catch (_) {}
+    }
+  }
+  selectedFiles.value = [];
+  showUnsavedLeaveModal.value = false;
+  if (pendingLeaveCallback) {
+    const cb = pendingLeaveCallback;
+    pendingLeaveCallback = null;
+    cb();
+  }
+}
+
+function handleBeforeUnload(e) {
+  if (selectedFiles.value && selectedFiles.value.length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+}
+
 onMounted(() => {
   window.addEventListener('click', handleDocumentClick);
+  window.addEventListener('beforeunload', handleBeforeUnload);
 });
 
 onUnmounted(() => {
   window.removeEventListener('click', handleDocumentClick);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+});
+
+onBeforeRouteLeave((to, from, next) => {
+  if (selectedFiles.value && selectedFiles.value.length > 0 && !showUnsavedLeaveModal.value) {
+    pendingLeaveCallback = () => next();
+    showUnsavedLeaveModal.value = true;
+    next(false);
+  } else {
+    next();
+  }
 });
 
 const isReviewFinalized = computed(() => {
@@ -1837,6 +1738,18 @@ const strandAndCodeText = computed(() => {
   return name || code || '';
 });
 
+const moduleInstructions = computed(() => {
+  if (isMock.value) return (MOCK_MODULE.instructions || MOCK_MODULE.description || '').trim();
+  const raw = moduleData.value?.instructions || moduleData.value?.description || '';
+  return String(raw).trim();
+});
+
+const moduleReadingInstructions = computed(() => {
+  if (isMock.value) return (MOCK_MODULE.readingInstructions || MOCK_MODULE.learningNotes || '').trim();
+  const raw = moduleData.value?.readingInstructions ?? moduleData.value?.learningNotes ?? '';
+  return String(raw).trim();
+});
+
 const pdfUrl = computed(() => {
   if (isMock.value) return MOCK_MODULE.fileUrl;
   const rawUrl = moduleData.value?.fileUrl;
@@ -1880,6 +1793,18 @@ const postTestTotal = computed(() => {
   return postTestQuestions.value.length || 10;
 });
 
+const preTestPercent = computed(() => {
+  const tot = preTestTotal.value || 1;
+  const sc = progress.value.preTestScore ?? 0;
+  return Math.round((sc / tot) * 100);
+});
+
+const postTestPercent = computed(() => {
+  const tot = postTestTotal.value || 1;
+  const sc = progress.value.postTestScore ?? 0;
+  return Math.round((sc / tot) * 100);
+});
+
 // Score Improvement calculation (Post score - Pre score in percentage points)
 const scoreImprovement = computed(() => {
   const preTot = preTestTotal.value || 1;
@@ -1893,14 +1818,15 @@ const scoreImprovement = computed(() => {
 function isStepCompleted(stepNum) {
   if (stepNum === 1) return Boolean(progress.value.preTestCompleted || preTestQuestions.value.length === 0);
   if (stepNum === 2) {
-    return Boolean(
-      progress.value.readingConfirmed ||
-      (progress.value.pdfCurrentPage && progress.value.pdfCurrentPage >= (progress.value.pdfTotalPages || 29)) ||
-      progress.value.postTestCompleted ||
-      progress.value.activitySubmitted
-    );
+    const total = Number(progress.value.pdfTotalPages) || Number(moduleData.value?._count?.pages) || 29;
+    const count = Array.isArray(progress.value.pagesRead)
+      ? progress.value.pagesRead.length
+      : (Number(progress.value.completedPages) || 0);
+    const isFullDone = Boolean(progress.value.completedAt && progress.value.activitySubmitted && progress.value.postTestCompleted);
+    const isPostDone = Boolean(progress.value.postTestCompleted);
+    return isReadingStepCompleted(count, total, isFullDone, isPostDone);
   }
-  if (stepNum === 3) return Boolean(progress.value.postTestCompleted || postTestQuestions.value.length === 0 || progress.value.activitySubmitted);
+  if (stepNum === 3) return Boolean(progress.value.postTestCompleted || postTestQuestions.value.length === 0);
   if (stepNum === 4) return Boolean(progress.value.activitySubmitted);
   return false;
 }
@@ -1908,8 +1834,8 @@ function isStepCompleted(stepNum) {
 function isStepUnlocked(stepNum) {
   if (stepNum === 1) return true;
   if (stepNum === 2) return isStepCompleted(1);
-  if (stepNum === 3) return isStepCompleted(2);
-  if (stepNum === 4) return isStepCompleted(3);
+  if (stepNum === 3) return isStepCompleted(2) || (progress.value.highestUnlockedStep || 1) >= 3 || Boolean(progress.value.postTestCompleted);
+  if (stepNum === 4) return isStepCompleted(3) || (progress.value.highestUnlockedStep || 1) >= 4 || Boolean(progress.value.activitySubmitted);
   return false;
 }
 
@@ -1983,12 +1909,17 @@ function proceedToModuleReader() {
   progress.value.currentStep = 2;
   progress.value.readingStarted = true;
   saveProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   if (!isMock.value) {
+    const isCompleted = Boolean(
+      (progress.value.postTestCompleted || isStepCompleted(3)) &&
+      (progress.value.activitySubmitted || isStepCompleted(4))
+    );
     api.post(`/modules/${effectiveModuleId.value}/progress`, {
-      status: 'IN_PROGRESS',
+      status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
       completedPages: progress.value.pdfCurrentPage || 1,
-      totalPages: 29
+      totalPages: Number(progress.value.pdfTotalPages) || 29
     }).catch(() => {});
   }
 }
@@ -1996,33 +1927,124 @@ function proceedToModuleReader() {
 // ==========================================
 // PDF VIEWER EVENTS
 // ==========================================
-function onViewerBack() {
+let syncTimeout = null;
+let isSyncingProgress = false;
+let pendingSyncPayload = null;
+
+function syncReadingProgressToBackend() {
+  if (isMock.value) return;
+  const currentTotal = Number(progress.value.pdfTotalPages) || moduleData.value?._count?.pages || 29;
+  const currentPagesRead = progress.value.pagesRead || [];
+  const currentCompleted = currentPagesRead.length;
+  const curPage = Number(progress.value.pdfCurrentPage) || 1;
+  const isDone = Boolean(currentTotal > 0 && currentCompleted >= currentTotal);
+
+  const payload = {
+    status: isDone ? 'COMPLETED' : 'IN_PROGRESS',
+    completedPages: currentCompleted,
+    currentPage: curPage,
+    totalPages: currentTotal,
+    pagesRead: currentPagesRead,
+    viewMode: progress.value.pdfViewMode || 'long'
+  };
+
+  if (isSyncingProgress) {
+    pendingSyncPayload = payload;
+    return;
+  }
+
+  isSyncingProgress = true;
+  api.post(`/modules/${effectiveModuleId.value}/progress`, payload).then((res) => {
+    if (res.data?.pagesRead && Array.isArray(res.data.pagesRead)) {
+      const serverPages = Array.from(new Set(res.data.pagesRead.map(Number).filter(n => n > 0))).sort((a, b) => a - b);
+      const merged = Array.from(new Set([...(progress.value.pagesRead || []), ...serverPages])).sort((a, b) => a - b);
+      progress.value.pagesRead = merged;
+      progress.value.completedPages = merged.length;
+      progress.value.readingConfirmed = Boolean(currentTotal > 0 && merged.length >= currentTotal);
+      saveProgress(progress.value, false);
+    }
+  }).catch((err) => {
+    console.warn('Failed to sync reading progress to backend:', err);
+  }).finally(() => {
+    isSyncingProgress = false;
+    if (pendingSyncPayload) {
+      pendingSyncPayload = null;
+      syncReadingProgressToBackend();
+    }
+  });
+}
+
+function debounceSyncReadingProgress() {
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => {
+    syncReadingProgressToBackend();
+  }, 400);
+}
+
+function onViewerBack(payload) {
+  if (payload?.currentPage || payload?.page) {
+    progress.value.pdfCurrentPage = payload.currentPage || payload.page;
+  }
+  if (payload?.mode) {
+    progress.value.pdfViewMode = payload.mode;
+  }
+  if (payload?.totalPages) {
+    progress.value.pdfTotalPages = payload.totalPages;
+  }
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+  saveProgress();
+  syncReadingProgressToBackend();
   goToOverview();
 }
 
 function onViewerProceedToPostTest() {
-  progress.value.readingConfirmed = true;
+  const currentTotal = Number(progress.value.pdfTotalPages) || 29;
+  const currentPages = progress.value.pagesRead || [];
+  progress.value.readingConfirmed = Boolean(currentTotal > 0 && currentPages.length >= currentTotal);
   progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 3);
   currentStep.value = 3;
   progress.value.currentStep = 3;
   saveProgress();
 
-  if (!isMock.value) {
-    api.post(`/modules/${effectiveModuleId.value}/progress`, {
-      status: 'IN_PROGRESS',
-      completedPages: progress.value.pdfCurrentPage || 1,
-      totalPages: progress.value.pdfTotalPages || moduleData.value?._count?.pages || 29
-    }).catch(() => {});
+  if (syncTimeout) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
   }
+  syncReadingProgressToBackend();
 }
 
-function onViewerProgressUpdate({ page, mode, totalPages }) {
-  progress.value.pdfCurrentPage = page;
-  progress.value.pdfViewMode = mode;
-  if (totalPages) {
-    progress.value.pdfTotalPages = totalPages;
+function onViewerProgressUpdate(payload) {
+  const page = payload?.currentPage || payload?.page;
+  if (page) {
+    progress.value.pdfCurrentPage = page;
   }
+  if (payload?.mode) {
+    progress.value.pdfViewMode = payload.mode;
+  }
+  if (payload?.totalPages) {
+    progress.value.pdfTotalPages = payload.totalPages;
+  }
+  if (Array.isArray(payload?.pagesRead)) {
+    const existing = new Set(progress.value.pagesRead || []);
+    payload.pagesRead.forEach((p) => {
+      const num = Number(p);
+      if (num > 0) existing.add(num);
+    });
+    progress.value.pagesRead = Array.from(existing).sort((a, b) => a - b);
+    progress.value.completedPages = progress.value.pagesRead.length;
+  }
+  if ((progress.value.pagesRead?.length || 0) > 0 || (progress.value.pdfCurrentPage && progress.value.pdfCurrentPage > 0)) {
+    progress.value.readingStarted = true;
+  }
+
+  const total = Number(progress.value.pdfTotalPages) || 29;
+  progress.value.readingConfirmed = Boolean(total > 0 && (progress.value.pagesRead?.length || 0) >= total);
+
   saveProgress();
+  debounceSyncReadingProgress();
 }
 
 function reopenPdfViewer() {
@@ -2540,17 +2562,35 @@ async function onAddMoreFilesSelected(e) {
 }
 
 // Fetch Module Data
+let isFetchingModule = false;
+let fetchAbortController = null;
+
 async function fetchModuleData() {
   if (!effectiveModuleId.value || effectiveModuleId.value === 'ls2-mock-001') {
     router.replace('/modules');
     return;
   }
 
+  // Prevent concurrent duplicate requests
+  if (isFetchingModule) {
+    return;
+  }
+
+  if (fetchAbortController) {
+    try {
+      fetchAbortController.abort();
+    } catch (_) {}
+  }
+  fetchAbortController = new AbortController();
+
+  isFetchingModule = true;
   isLoading.value = true;
   loadError.value = '';
 
   try {
-    const res = await api.get(`/modules/${effectiveModuleId.value}`);
+    const res = await api.get(`/modules/${effectiveModuleId.value}`, {
+      signal: fetchAbortController.signal
+    });
     const mod = res.data?.data || res.data;
     moduleData.value = mod;
 
@@ -2616,30 +2656,88 @@ async function fetchModuleData() {
       progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 4);
     }
 
-    // Restore Reading Progress from backend learnerProgress
+    // Restore Reading Progress from backend learnerProgress or module payload
     const lp = mod.learnerProgress?.[0];
-    if (lp) {
-      if (lp.completedPages) {
-        progress.value.pdfCurrentPage = Math.max(progress.value.pdfCurrentPage || 1, lp.completedPages);
-        progress.value.readingStarted = true;
-      }
-      if (lp.totalPages) {
-        progress.value.pdfTotalPages = lp.totalPages;
-      }
-      if (lp.status === 'COMPLETED') {
-        progress.value.readingConfirmed = true;
-      }
+    const serverPagesRead = Array.isArray(mod.pagesRead)
+      ? mod.pagesRead
+      : (Array.isArray(lp?.pagesRead) ? lp.pagesRead : []);
+
+    const serverTotalPages = Number(mod.totalPages) || Number(lp?.totalPages) || 29;
+    if (serverTotalPages > 0) {
+      progress.value.pdfTotalPages = serverTotalPages;
     }
 
+    // Restore Current Page & View Mode
+    const serverCurrentPage = Number(mod.currentPage) || Number(lp?.currentPage) || 0;
+    const localCurrentPage = Number(local.pdfCurrentPage) || 0;
+    const restoredCurrentPage = serverCurrentPage > 0
+      ? serverCurrentPage
+      : (localCurrentPage > 0 ? localCurrentPage : 1);
+
+    progress.value.pdfCurrentPage = Math.max(1, Math.min(restoredCurrentPage, serverTotalPages));
+    progress.value.pdfViewMode = mod.viewMode || lp?.viewMode || local.pdfViewMode || 'long';
+
+    if (serverPagesRead.length > 0) {
+      // Highest page reached determines reading progress
+      const highestServer = Math.max(...serverPagesRead.map(Number).filter((n) => n > 0 && n <= serverTotalPages));
+      const localPages = Array.isArray(local.pagesRead) ? local.pagesRead.map(Number).filter(n => n > 0 && n <= serverTotalPages) : [];
+      const highestLocal = localPages.length > 0 ? Math.max(...localPages) : 0;
+      const highest = Math.min(Math.max(highestServer, highestLocal), serverTotalPages);
+      const mergedPages = Array.from({ length: highest }, (_, i) => i + 1);
+
+      progress.value.pagesRead = mergedPages;
+      progress.value.completedPages = mergedPages.length;
+      progress.value.readingStarted = mergedPages.length > 0;
+
+      // If local cache had higher progress, sync to backend quietly
+      if (highest > highestServer) {
+        api.post(`/modules/${effectiveModuleId.value}/progress`, {
+          status: mergedPages.length >= serverTotalPages ? 'COMPLETED' : 'IN_PROGRESS',
+          completedPages: mergedPages.length,
+          currentPage: progress.value.pdfCurrentPage || 1,
+          viewMode: progress.value.pdfViewMode || 'long',
+          totalPages: serverTotalPages,
+          pagesRead: mergedPages
+        }).catch(() => {});
+      }
+    } else if (mod.completed || lp?.completedAt) {
+      // Legitimate prior completion of whole module
+      progress.value.completedPages = serverTotalPages;
+      progress.value.pagesRead = Array.from({ length: serverTotalPages }, (_, i) => i + 1);
+      progress.value.readingStarted = true;
+    } else if (Array.isArray(local.pagesRead) && local.pagesRead.length > 0) {
+      const highest = Math.min(Math.max(...local.pagesRead.map(Number).filter(n => n > 0)), serverTotalPages);
+      const cleanLocal = Array.from({ length: highest }, (_, i) => i + 1);
+      progress.value.pagesRead = cleanLocal;
+      progress.value.completedPages = cleanLocal.length;
+      progress.value.readingStarted = cleanLocal.length > 0;
+      api.post(`/modules/${effectiveModuleId.value}/progress`, {
+        status: cleanLocal.length >= serverTotalPages ? 'COMPLETED' : 'IN_PROGRESS',
+        completedPages: cleanLocal.length,
+        currentPage: progress.value.pdfCurrentPage || 1,
+        viewMode: progress.value.pdfViewMode || 'long',
+        totalPages: serverTotalPages,
+        pagesRead: cleanLocal
+      }).catch(() => {});
+    } else {
+      progress.value.pagesRead = [];
+      progress.value.completedPages = 0;
+      progress.value.readingStarted = false;
+    }
+
+    const isAllPagesRead = Boolean(progress.value.pdfTotalPages > 0 && (progress.value.pagesRead?.length || 0) >= progress.value.pdfTotalPages);
+    progress.value.readingConfirmed = Boolean(isAllPagesRead || (mod.completed && progress.value.activitySubmitted));
+
     if (mod.completed) {
-      progress.value.readingConfirmed = true;
       progress.value.activitySubmitted = true;
       progress.value.highestUnlockedStep = 4;
     }
 
     // Fetch existing submissions
     try {
-      const subRes = await api.get(`/submissions?moduleId=${effectiveModuleId.value}`);
+      const subRes = await api.get(`/submissions?moduleId=${effectiveModuleId.value}`, {
+        signal: fetchAbortController?.signal
+      });
       const subs = Array.isArray(subRes.data) ? subRes.data : [];
       if (subs.length > 0) {
         submissionRecord.value = subs[0];
@@ -2672,28 +2770,46 @@ async function fetchModuleData() {
         }
       }
     } catch (subErr) {
+      if (subErr?.name === 'CanceledError' || subErr?.code === 'ERR_CANCELED' || subErr?.__CANCEL__) {
+        return;
+      }
       console.warn('Could not check submissions:', subErr);
     }
 
     currentStep.value = progress.value.currentStep !== undefined ? progress.value.currentStep : 0;
-    saveProgress();
+    // Save to local storage silently without dispatching external events
+    saveProgress(progress.value, false);
   } catch (err) {
+    if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.__CANCEL__) {
+      return;
+    }
     console.error('Failed to load module data:', err);
-    loadError.value = err.response?.data?.error || 'Failed to load module. Please try again.';
+    loadError.value = 'Unable to load the module. Please try again.';
   } finally {
     isLoading.value = false;
+    isFetchingModule = false;
   }
 }
 
 watch(
   () => effectiveModuleId.value,
   () => {
+    progress.value = loadProgress();
+    currentStep.value = progress.value.currentStep || 0;
     fetchModuleData();
   }
 );
 
 onMounted(() => {
   fetchModuleData();
+});
+
+onUnmounted(() => {
+  if (fetchAbortController) {
+    try {
+      fetchAbortController.abort();
+    } catch (_) {}
+  }
 });
 </script>
 
@@ -2766,6 +2882,48 @@ onMounted(() => {
   border-radius: 8px;
 }
 
+/* Consistent Back Navigation (Outside and above the main content card) */
+.module-back-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 0.85rem 0;
+  box-sizing: border-box;
+}
+
+.module-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2563eb;
+  background: none;
+  border: none;
+  padding: 0.45rem 0.6rem 0.45rem 0;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.4;
+  transition: color 0.15s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.module-back-btn:hover {
+  color: #1d4ed8;
+}
+
+.module-back-btn:active {
+  opacity: 0.75;
+}
+
+.module-back-btn svg {
+  flex-shrink: 0;
+}
+
 /* Subpage Navigation Bar (Steps 1, 3, 4) - Option 1: Card & Stepper Style */
 .subpage-nav-bar {
   background: #ffffff;
@@ -2779,30 +2937,6 @@ onMounted(() => {
   margin-bottom: 1.25rem;
   width: 100%;
   box-sizing: border-box;
-}
-
-.subpage-nav-row {
-  display: flex;
-  align-items: center;
-}
-
-.subpage-back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #2563eb;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: inherit;
-  transition: color 0.15s ease;
-}
-
-.subpage-back-btn:hover {
-  color: #1d4ed8;
 }
 
 .subpage-heading-group {
@@ -3671,7 +3805,7 @@ onMounted(() => {
 .submitted-actions-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 12px;
   width: 100%;
 }
 
@@ -3703,6 +3837,43 @@ onMounted(() => {
 .add-more-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.btn-bottom-go-back {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #d1d5db;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-bottom-go-back:hover {
+  background: #f8fafc;
+  border-color: #9ca3af;
+  color: #0f172a;
+}
+
+.btn-bottom-go-back:active {
+  background: #f1f5f9;
+  opacity: 0.9;
+}
+
+.btn-bottom-go-back svg {
+  flex-shrink: 0;
 }
 
 .btn-back-modules {
@@ -3977,7 +4148,7 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
-/* Section 1: Module Header Card */
+/* Section 1: Module Header / Overview Card */
 .module-header-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -3986,32 +4157,11 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   margin: 0;
-}
-
-.header-top-nav {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.back-to-modules-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #2563eb;
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.back-to-modules-link:hover {
-  color: #1d4ed8;
 }
 
 .header-titles {
@@ -4029,22 +4179,31 @@ onMounted(() => {
   word-break: break-word;
 }
 
-.module-strand-subtitle {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.4;
+.module-instructions-inline {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0.25rem 0 0;
+  white-space: pre-line;
   word-break: break-word;
+}
+
+.overview-divider {
+  width: 100%;
+  height: 1px;
+  background-color: #f1f5f9;
+  margin: 0.15rem 0;
+  border: none;
 }
 
 .header-progress-wrap {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  margin-top: 0.15rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid #f1f5f9;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .header-progress-row {
@@ -4081,11 +4240,75 @@ onMounted(() => {
   transition: width 0.3s ease;
 }
 
+/* Section: Teacher's Instructions Card */
+.module-instructions-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.instructions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.instructions-icon-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.instructions-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.instructions-body {
+  width: 100%;
+}
+
+.instructions-text {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: #334155;
+  margin: 0;
+  white-space: pre-line;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.instructions-empty-text {
+  font-size: 0.875rem;
+  font-style: italic;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* Section 2: Learning Activities Section */
 .learning-activities-section {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.85rem;
   width: 100%;
   max-width: 100%;
   margin: 0;
@@ -4093,39 +4316,57 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.activities-header {
+/* Subtle Light-Blue Information Container for Your Learning Activities */
+.activities-info-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin: 0 0 0.15rem 0;
-  padding: 0;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
   align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.04);
 }
 
-.activities-title {
-  font-size: 1.1rem;
+.activities-info-icon-wrap {
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.activities-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.activities-info-title {
+  font-size: 1.05rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
   padding: 0;
-  text-align: left;
   line-height: 1.3;
-  width: 100%;
-  box-sizing: border-box;
+  text-align: left;
 }
 
-.activities-desc {
-  font-size: 0.825rem;
-  color: #64748b;
+.activities-info-desc {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #475569;
   margin: 0;
   padding: 0;
   text-align: left;
-  line-height: 1.4;
-  width: 100%;
-  box-sizing: border-box;
+  word-break: break-word;
 }
 
 .activities-checklist {
@@ -4883,10 +5124,18 @@ onMounted(() => {
 
 /* Responsive adjustments */
 @media (min-width: 768px) {
+  .module-back-bar,
+  .subpage-nav-bar,
+  .step-content-card {
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
   .module-details-container {
     max-width: 680px;
     margin: 0 auto;
-    padding: 1.5rem 0 1rem;
+    padding: 0.5rem 0 1rem;
   }
 
   .module-header-card {
@@ -4903,25 +5152,16 @@ onMounted(() => {
     padding: 0;
   }
 
-  .activities-header {
-    width: 100%;
-    margin: 0 0 0.2rem 0;
-    padding: 0;
-    text-align: left;
-    align-items: flex-start;
+  .activities-info-card {
+    padding: 1.15rem 1.35rem;
   }
 
-  .activities-title {
-    font-size: 1.25rem;
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-title {
+    font-size: 1.15rem;
   }
 
-  .activities-desc {
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-desc {
+    font-size: 0.9rem;
   }
 
   .activities-checklist {
@@ -4977,25 +5217,17 @@ onMounted(() => {
     padding: 0;
   }
 
-  .activities-header {
-    width: 100%;
-    margin: 0 0 0.15rem 0;
-    padding: 0;
-    text-align: left;
-    align-items: flex-start;
+  .activities-info-card {
+    padding: 0.9rem 1rem;
+    gap: 0.65rem;
   }
 
-  .activities-title {
-    font-size: 1.05rem;
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-title {
+    font-size: 1rem;
   }
 
-  .activities-desc {
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-desc {
+    font-size: 0.85rem;
   }
 
   .activities-checklist {
@@ -5070,25 +5302,17 @@ onMounted(() => {
     padding: 0;
   }
 
-  .activities-header {
-    width: 100%;
-    margin: 0 0 0.15rem 0;
-    padding: 0;
-    text-align: left;
-    align-items: flex-start;
+  .activities-info-card {
+    padding: 0.85rem 0.9rem;
+    gap: 0.55rem;
   }
 
-  .activities-title {
-    font-size: 1rem;
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-title {
+    font-size: 0.95rem;
   }
 
-  .activities-desc {
-    text-align: left;
-    margin: 0;
-    padding: 0;
+  .activities-info-desc {
+    font-size: 0.825rem;
   }
 
   .activities-checklist {

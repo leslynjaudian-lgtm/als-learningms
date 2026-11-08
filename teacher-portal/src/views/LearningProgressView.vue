@@ -1,19 +1,14 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Module Progress</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Learner Module Progress &amp; Monitoring</h1>
-        <p>Cohort overview to track completed modules, ongoing work, and identify struggling learners needing F2F intervention.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Learner Module Progress & Monitoring"
+      description="Cohort overview to track completed modules, ongoing work, and identify struggling learners needing F2F intervention."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Learning Progress' },
+      ]"
+    />
 
     <!-- 4 Progress Summary Metric Chips -->
     <div class="progress-summary-grid">
@@ -237,6 +232,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 
 const searchQuery = ref('');
 const selectedLevel = ref('');

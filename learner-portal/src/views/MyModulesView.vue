@@ -146,17 +146,20 @@
       >
         <!-- Left Section: Icon + Text Details -->
         <div class="card-left-section">
-          <!-- Small Module Icon -->
-          <div class="card-icon-bubble">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            </svg>
-          </div>
+          <!-- Module Thumbnail (First page of uploaded PDF) -->
+          <ModuleThumbnail
+            :file-url="mod.fileUrl"
+            :cover-image-url="mod.coverImageUrl"
+            :title="mod.title"
+            :module-id="mod.id"
+          />
 
-          <!-- Title, Strand, Code & Status -->
+          <!-- Title, Instructions, Strand, Code & Status -->
           <div class="card-content-wrap">
             <h3 class="card-module-title">{{ mod.title }}</h3>
+            <p v-if="getModuleInstructions(mod)" class="card-module-instructions">
+              {{ getModuleInstructions(mod) }}
+            </p>
             <div class="card-module-strand">{{ getModuleStrandName(mod) }}</div>
 
             <div class="card-pills-row">
@@ -182,8 +185,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import api from '../api/axios';
+import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import {
   formatStrandCode,
   formatStrandName,
@@ -192,7 +196,7 @@ import {
 } from '../utils/formatStrand.js';
 
 // All Filters: All -> Completed -> LS1 English -> LS1 Filipino -> LS2 -> LS3 -> LS4 -> LS5 -> LS6
-const MODULE_FILTERS = ref([
+const MODULE_FILTERS = reactive([
   {
     key: 'all',
     code: 'ALL',
@@ -209,6 +213,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS1-ENG',
     code: 'LS1',
+    strandCode: 'LS1-ENG',
     shortLabel: 'LS1 English',
     fullName: 'LS1 · Communication Skills (English)',
     aliases: ['ls1-eng', 'english', 'communication skills (english)', 'ls1 english', 'ls 1 english'],
@@ -216,6 +221,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS1-FIL',
     code: 'LS1',
+    strandCode: 'LS1-FIL',
     shortLabel: 'LS1 Filipino',
     fullName: 'LS1 · Communication Skills (Filipino)',
     aliases: ['ls1-fil', 'filipino', 'communication skills (filipino)', 'ls1 filipino', 'ls 1 filipino'],
@@ -223,6 +229,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS2-SCI',
     code: 'LS2',
+    strandCode: 'LS2-SCI',
     shortLabel: 'LS2',
     fullName: 'LS2 · Scientific & Critical Thinking Skills',
     aliases: [
@@ -239,6 +246,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS3-MATH',
     code: 'LS3',
+    strandCode: 'LS3-MATH',
     shortLabel: 'LS3',
     fullName: 'LS3 · Mathematical & Problem Solving Skills',
     aliases: [
@@ -254,6 +262,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS4-LIFE',
     code: 'LS4',
+    strandCode: 'LS4-LIFE',
     shortLabel: 'LS4',
     fullName: 'LS4 · Life and Career Skills',
     aliases: [
@@ -267,6 +276,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS5-SOC',
     code: 'LS5',
+    strandCode: 'LS5-SOC',
     shortLabel: 'LS5',
     fullName: 'LS5 · Understanding Self & Society',
     aliases: [
@@ -281,6 +291,7 @@ const MODULE_FILTERS = ref([
   {
     key: 'LS6-DIGI',
     code: 'LS6',
+    strandCode: 'LS6-DIGI',
     shortLabel: 'LS6',
     fullName: 'LS6 · Digital Citizenship',
     aliases: [
@@ -293,8 +304,21 @@ const MODULE_FILTERS = ref([
   },
 ]);
 
+// Provide backward compatibility for any callers expecting .value (ref-like) or direct array
+try {
+  Object.defineProperty(MODULE_FILTERS, 'value', {
+    get() {
+      return this;
+    },
+    configurable: true,
+  });
+} catch {
+  // Ignore in case object is not extensible
+}
+
 const currentStrand = ref('all');
 const rawModules = ref([]);
+const rawStrands = ref([]);
 const loading = ref(false);
 
 const scrollContainerRef = ref(null);
@@ -302,24 +326,29 @@ const canScroll = ref(true);
 const scrollProgressRatio = ref(0);
 const thumbWidthPercent = ref(35);
 
-const availableFilters = computed(() => MODULE_FILTERS.value);
+const availableFilters = computed(() => MODULE_FILTERS);
 
 // All published and assigned teacher modules (excluding any demo/mock entries)
 const allModules = computed(() => {
-  return rawModules.value.filter(
-    (m) => m && m.code !== 'LS2-MOCK-001' && m.id !== 'ls2-mock-001'
+  const list = Array.isArray(rawModules.value) ? rawModules.value : [];
+  return list.filter(
+    (m) => m && typeof m === 'object' && m.code !== 'LS2-MOCK-001' && m.id !== 'ls2-mock-001'
   );
 });
 
 // Total count
-const allCount = computed(() => allModules.value.length);
+const allCount = computed(() => (Array.isArray(allModules.value) ? allModules.value.length : 0));
 
 // Helper to safely access a filter item by key from MODULE_FILTERS
 function getFilterByKey(key) {
-  const filters = Array.isArray(MODULE_FILTERS.value)
-    ? MODULE_FILTERS.value
-    : (Array.isArray(MODULE_FILTERS) ? MODULE_FILTERS : []);
-  return filters.find((s) => s.key === key) || null;
+  if (!key) return null;
+  const filters = Array.isArray(MODULE_FILTERS)
+    ? MODULE_FILTERS
+    : (Array.isArray(MODULE_FILTERS?.value) ? MODULE_FILTERS.value : []);
+  if (typeof filters.find === 'function') {
+    return filters.find((s) => s && s.key === key) || null;
+  }
+  return null;
 }
 
 // Full name of selected filter
@@ -330,20 +359,26 @@ const currentStrandFullName = computed(() => {
 
 // Module card strand helpers
 function getModuleStrandName(mod) {
-  if (!mod) return 'General Strand';
+  if (!mod || typeof mod !== 'object') return 'General Strand';
   const raw = mod.learningArea?.name || mod.strand || 'General Strand';
   return formatStrandName(raw, mod.learningArea?.code || mod.strandCode || mod.code);
 }
 
+function getModuleInstructions(mod) {
+  if (!mod || typeof mod !== 'object') return '';
+  const raw = mod.instructions || mod.description || '';
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
 function getModuleBadgeCode(mod) {
-  if (!mod) return '';
+  if (!mod || typeof mod !== 'object') return '';
   const raw = mod.code || mod.strandCode || mod.learningArea?.code || '';
   return formatStrandCode(raw);
 }
 
 // Check if a module is completed by the learner
 function isModuleCompleted(mod) {
-  if (!mod) return false;
+  if (!mod || typeof mod !== 'object') return false;
   return Boolean(
     mod.completed ||
     mod.progressStatus === 'COMPLETED' ||
@@ -351,60 +386,92 @@ function isModuleCompleted(mod) {
   );
 }
 
+// Resolves the definitive learning strand key for a given module (e.g. 'LS1-ENG', 'LS1-FIL', 'LS2-SCI', etc.)
+function getModuleStrandKey(mod) {
+  if (!mod || typeof mod !== 'object') return null;
+
+  // 1. Direct match by learningAreaId against loaded backend strands
+  if (mod.learningAreaId && Array.isArray(rawStrands.value) && rawStrands.value.length > 0) {
+    const matchedArea = rawStrands.value.find((a) => a && a.id === mod.learningAreaId);
+    if (matchedArea) {
+      const aCode = String(matchedArea.code || '').toUpperCase().trim();
+      const aName = String(matchedArea.name || '').toLowerCase().trim();
+      if (aCode === 'LS1-ENG' || aCode.includes('ENG') || aName.includes('english')) return 'LS1-ENG';
+      if (aCode === 'LS1-FIL' || aCode.includes('FIL') || aName.includes('filipino')) return 'LS1-FIL';
+      if (aCode === 'LS2-SCI' || aCode.startsWith('LS2') || aName.includes('scientific')) return 'LS2-SCI';
+      if (aCode === 'LS3-MATH' || aCode.startsWith('LS3') || aName.includes('math')) return 'LS3-MATH';
+      if (aCode === 'LS4-LIFE' || aCode.startsWith('LS4') || aName.includes('life') || aName.includes('career')) return 'LS4-LIFE';
+      if (aCode === 'LS5-SOC' || aCode.startsWith('LS5') || aName.includes('society') || aName.includes('self')) return 'LS5-SOC';
+      if (aCode === 'LS6-DIGI' || aCode.startsWith('LS6') || aName.includes('digital')) return 'LS6-DIGI';
+    }
+  }
+
+  // 2. Direct code checks on mod
+  const areaCode = String(mod.learningArea?.code || mod.strandCode || mod.code || '').toUpperCase().trim();
+  if (areaCode === 'LS1-ENG' || areaCode.endsWith('-ENG')) return 'LS1-ENG';
+  if (areaCode === 'LS1-FIL' || areaCode.endsWith('-FIL')) return 'LS1-FIL';
+  if (areaCode === 'LS2-SCI' || areaCode === 'LS2' || areaCode.startsWith('LS2')) return 'LS2-SCI';
+  if (areaCode === 'LS3-MATH' || areaCode === 'LS3' || areaCode.startsWith('LS3')) return 'LS3-MATH';
+  if (areaCode === 'LS4-LIFE' || areaCode.startsWith('LS4') || areaCode.startsWith('LS4')) return 'LS4-LIFE';
+  if (areaCode === 'LS5-SOC' || areaCode === 'LS5' || areaCode.startsWith('LS5')) return 'LS5-SOC';
+  if (areaCode === 'LS6-DIGI' || areaCode === 'LS6' || areaCode.startsWith('LS6')) return 'LS6-DIGI';
+
+  // 3. Resolved canonical strand name check (via formatStrandName)
+  const canonicalName = getModuleStrandName(mod).toLowerCase();
+  if (canonicalName.includes('english')) return 'LS1-ENG';
+  if (canonicalName.includes('filipino')) return 'LS1-FIL';
+  if (canonicalName.includes('scientific') || canonicalName.includes('critical thinking')) return 'LS2-SCI';
+  if (canonicalName.includes('mathematical') || canonicalName.includes('problem solving')) return 'LS3-MATH';
+  if (canonicalName.includes('life') || canonicalName.includes('career')) return 'LS4-LIFE';
+  if (canonicalName.includes('society') || canonicalName.includes('self')) return 'LS5-SOC';
+  if (canonicalName.includes('digital') || canonicalName.includes('citizenship')) return 'LS6-DIGI';
+
+  // 4. Fallback on full text
+  const fullText = `${mod.strand || ''} ${mod.learningArea?.name || ''} ${mod.title || ''}`.toLowerCase();
+  if (fullText.includes('english')) return 'LS1-ENG';
+  if (fullText.includes('filipino')) return 'LS1-FIL';
+  if (fullText.includes('scientific') || fullText.includes('science')) return 'LS2-SCI';
+  if (fullText.includes('math') || fullText.includes('problem solving')) return 'LS3-MATH';
+  if (fullText.includes('career') || fullText.includes('life')) return 'LS4-LIFE';
+  if (fullText.includes('society') || fullText.includes('understanding self')) return 'LS5-SOC';
+  if (fullText.includes('digital')) return 'LS6-DIGI';
+
+  // Fallback for generic LS1 without language distinction (defaults to English if not Filipino)
+  if (areaCode.startsWith('LS1')) return 'LS1-ENG';
+
+  return null;
+}
+
 // Strand matching function
 function matchesStrand(mod, strandKey) {
-  if (strandKey === 'all') return true;
+  if (!mod || typeof mod !== 'object') return false;
+  if (!strandKey || strandKey === 'all') return true;
   if (strandKey === 'completed') return isModuleCompleted(mod);
-
-  const targetStrand = getFilterByKey(strandKey);
-  if (!targetStrand) return false;
-
-  const areaCode = (mod.learningArea?.code || mod.strandCode || mod.code || '').toUpperCase().trim();
-  const fullText = `${mod.strand || ''} ${mod.learningArea?.name || ''} ${mod.title || ''} ${areaCode}`.toLowerCase();
-
-  if (strandKey === 'LS1-ENG') {
-    if (areaCode === 'LS1-ENG' || areaCode.includes('ENG')) return true;
-    if (fullText.includes('english') && (fullText.includes('ls1') || fullText.includes('ls 1') || fullText.includes('communication'))) return true;
-    if (fullText.includes('communication skills (english)')) return true;
-    return false;
-  }
-
-  if (strandKey === 'LS1-FIL') {
-    if (areaCode === 'LS1-FIL' || areaCode.includes('FIL')) return true;
-    if (fullText.includes('filipino') && (fullText.includes('ls1') || fullText.includes('ls 1') || fullText.includes('communication'))) return true;
-    if (fullText.includes('communication skills (filipino)')) return true;
-    return false;
-  }
-
-  if (areaCode === targetStrand.code.toUpperCase()) return true;
-  const shortCodePrefix = targetStrand.code.split('-')[0];
-  if (shortCodePrefix && (areaCode === shortCodePrefix || areaCode.startsWith(`${shortCodePrefix}-`))) {
-    return true;
-  }
-
-  return Array.isArray(targetStrand.aliases) && targetStrand.aliases.some((alias) => fullText.includes(alias));
+  return getModuleStrandKey(mod) === strandKey;
 }
 
 // Module count for filter pill badge
 function getModuleCount(strandKey) {
-  if (strandKey === 'all') {
-    return allModules.value.length;
+  const mods = Array.isArray(allModules.value) ? allModules.value : [];
+  if (!strandKey || strandKey === 'all') {
+    return mods.length;
   }
   if (strandKey === 'completed') {
-    return allModules.value.filter(isModuleCompleted).length;
+    return mods.filter(isModuleCompleted).length;
   }
-  return allModules.value.filter((m) => matchesStrand(m, strandKey)).length;
+  return mods.filter((m) => matchesStrand(m, strandKey)).length;
 }
 
 // Filtered modules list
 const filteredModules = computed(() => {
+  const list = Array.isArray(allModules.value) ? allModules.value : [];
   if (currentStrand.value === 'all') {
-    return allModules.value;
+    return list;
   }
   if (currentStrand.value === 'completed') {
-    return allModules.value.filter(isModuleCompleted);
+    return list.filter(isModuleCompleted);
   }
-  return allModules.value.filter((m) => matchesStrand(m, currentStrand.value));
+  return list.filter((m) => matchesStrand(m, currentStrand.value));
 });
 
 function selectStrand(key, event) {
@@ -568,15 +635,44 @@ async function loadModules() {
 
     if (strandRes.status === 'fulfilled') {
       const strandList = Array.isArray(strandRes.value.data) ? strandRes.value.data : [];
+      rawStrands.value = strandList;
       if (strandList.length > 0) {
-        const filters = Array.isArray(MODULE_FILTERS.value) ? MODULE_FILTERS.value : [];
+        const filters = Array.isArray(MODULE_FILTERS)
+          ? MODULE_FILTERS
+          : (Array.isArray(MODULE_FILTERS?.value) ? MODULE_FILTERS.value : []);
         strandList.forEach((area) => {
-          const key = area.code;
-          const target = filters.find(
-            (f) => f.key === key || (f.code && f.code === formatStrandCode(area.code))
-          );
-          if (target) {
-            target.fullName = formatStrandAndCode(area.code, area.name);
+          if (!area || (!area.code && !area.name)) return;
+          const areaCode = String(area.code || '').toUpperCase().trim();
+          const areaName = String(area.name || '').toLowerCase().trim();
+
+          // Match exact key or strandCode first
+          let target = filters.find((f) => f && (f.key === areaCode || f.strandCode === areaCode));
+
+          // If not matched by exact code, disambiguate by English / Filipino
+          if (!target) {
+            if (areaCode.includes('ENG') || areaName.includes('english')) {
+              target = filters.find((f) => f && f.key === 'LS1-ENG');
+            } else if (areaCode.includes('FIL') || areaName.includes('filipino')) {
+              target = filters.find((f) => f && f.key === 'LS1-FIL');
+            } else {
+              // For LS2-LS6, match by code prefix ONLY if it's not LS1
+              const cleanCode = formatStrandCode(areaCode);
+              if (cleanCode && cleanCode !== 'LS1') {
+                target = filters.find((f) => f && f.code === cleanCode);
+              }
+            }
+          }
+
+          if (target && area.name) {
+            const formatted = formatStrandAndCode(area.code, area.name);
+            // Safety guard: NEVER allow Filipino to be set on English, or English on Filipino!
+            if (target.key === 'LS1-ENG' && formatted.toLowerCase().includes('filipino')) {
+              return;
+            }
+            if (target.key === 'LS1-FIL' && formatted.toLowerCase().includes('english')) {
+              return;
+            }
+            target.fullName = formatted;
           }
         });
       }
@@ -978,10 +1074,20 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
+.card-module-instructions {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #475569;
+  line-height: 1.45;
+  margin: 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .card-module-strand {
   font-size: 0.775rem;
   font-weight: 600;
-  color: #475569;
+  color: #64748b;
   line-height: 1.25;
 }
 
@@ -1067,6 +1173,9 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .card-module-title {
     font-size: 0.9rem;
+  }
+  .card-module-instructions {
+    font-size: 0.775rem;
   }
   .card-module-strand {
     font-size: 0.75rem;

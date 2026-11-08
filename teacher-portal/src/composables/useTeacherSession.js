@@ -3,6 +3,87 @@ import { getTeacherProfile } from '../api/auth.js';
 
 const currentTeacher = ref(loadStoredTeacher());
 
+const ACTIVE_MODULE_LEVEL_STORAGE_KEY = 'als_teacher_active_module_level_slug';
+const MODULE_LEVEL_MAP_STORAGE_KEY = 'als_teacher_module_level_map';
+
+function loadStoredModuleLevelSlug() {
+  try {
+    const val = sessionStorage.getItem(ACTIVE_MODULE_LEVEL_STORAGE_KEY);
+    return val === 'elementary' || val === 'junior-high' ? val : '';
+  } catch {
+    return '';
+  }
+}
+
+function loadStoredModuleLevelMap() {
+  try {
+    const raw = sessionStorage.getItem(MODULE_LEVEL_MAP_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export const activeModuleLevelSlug = ref(loadStoredModuleLevelSlug());
+const moduleLevelByIdMap = ref(loadStoredModuleLevelMap());
+
+export function normalizeModuleLevelSlug(rawLevel) {
+  if (!rawLevel) return '';
+  const norm = String(rawLevel).toLowerCase().trim();
+  if (
+    norm === 'junior-high' ||
+    norm === 'junior' ||
+    norm.includes('junior') ||
+    norm.includes('jhs') ||
+    norm.includes('sec')
+  ) {
+    return 'junior-high';
+  }
+  if (norm === 'elementary' || norm.includes('elem')) {
+    return 'elementary';
+  }
+  return '';
+}
+
+export function cacheModuleLevel(moduleId, rawLevel) {
+  const slug = normalizeModuleLevelSlug(rawLevel);
+  if (!moduleId || !slug) return slug;
+  const key = String(moduleId);
+  if (moduleLevelByIdMap.value[key] !== slug) {
+    moduleLevelByIdMap.value = {
+      ...moduleLevelByIdMap.value,
+      [key]: slug,
+    };
+    try {
+      sessionStorage.setItem(MODULE_LEVEL_MAP_STORAGE_KEY, JSON.stringify(moduleLevelByIdMap.value));
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return slug;
+}
+
+export function getCachedModuleLevelSlug(moduleId) {
+  if (!moduleId) return '';
+  return moduleLevelByIdMap.value[String(moduleId)] || '';
+}
+
+export function setActiveModuleLevel(rawLevel, moduleId = null) {
+  const slug = normalizeModuleLevelSlug(rawLevel);
+  if (!slug) return '';
+  activeModuleLevelSlug.value = slug;
+  try {
+    sessionStorage.setItem(ACTIVE_MODULE_LEVEL_STORAGE_KEY, slug);
+  } catch {
+    // ignore storage errors
+  }
+  if (moduleId) {
+    cacheModuleLevel(moduleId, slug);
+  }
+  return slug;
+}
+
 function loadStoredTeacher() {
   try {
     const raw = localStorage.getItem('als_teacher_user');
@@ -231,6 +312,11 @@ export function useTeacherSession() {
     assignedProgramLevel,
     assignedLevels,
     assignedCenters,
+    activeModuleLevelSlug,
+    normalizeModuleLevelSlug,
+    cacheModuleLevel,
+    getCachedModuleLevelSlug,
+    setActiveModuleLevel,
     setSession,
     clearSession,
     updateTeacherProfile,

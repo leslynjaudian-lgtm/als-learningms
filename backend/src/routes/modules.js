@@ -5,6 +5,7 @@ import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { handleModuleFileUpload } from '../middleware/uploadMiddleware.js';
 import { calculateModuleProgress, syncLearnerModuleProgress } from '../utils/progressCalculator.js';
+import { getLearnerPagesRead, saveLearnerPagesRead, setLearnerPagesRead, getLearnerReadingState, saveLearnerReadingState } from '../utils/readingPagesStore.js';
 import { notifyModulePublished } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 
@@ -455,13 +456,46 @@ function formatModule(m, reqUser) {
 
   // Learner Progress details if available
   const progressRecord = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
+  const learnerId = reqUser?.profileId || progressRecord?.learnerId;
+  const readingState = learnerId ? getLearnerReadingState(learnerId, m.id) : null;
+  const storedPages = readingState ? readingState.pagesRead : (learnerId ? getLearnerPagesRead(learnerId, m.id) : []);
+  const safeTotalPages = progressRecord?.totalPages || m.pagesCount || (Array.isArray(m.pages) ? m.pages.length : 0) || 29;
+
+  let pagesRead = [];
+  let completedPages = 0;
+
+  if (storedPages && storedPages.length > 0) {
+    // Highest page reached determines module reading progress history
+    const highestPage = Math.max(...storedPages.map(Number).filter((n) => n > 0));
+    const safeHighest = Math.min(highestPage, safeTotalPages);
+    pagesRead = Array.from({ length: safeHighest }, (_, i) => i + 1);
+    completedPages = safeHighest;
+  } else if (progressRecord?.completedAt || m.completed) {
+    // Legitimate completed module from historical record
+    completedPages = safeTotalPages;
+    pagesRead = Array.from({ length: completedPages }, (_, i) => i + 1);
+  } else if ((progressRecord?.completedPages || 0) > 0) {
+    completedPages = Math.min(progressRecord.completedPages, safeTotalPages);
+    pagesRead = Array.from({ length: completedPages }, (_, i) => i + 1);
+    if (learnerId) {
+      saveLearnerPagesRead(learnerId, m.id, pagesRead);
+    }
+  } else {
+    // Incomplete module without stored unique page history:
+    // Do NOT generate a synthetic sequence from completedPages or current page.
+    pagesRead = [];
+    completedPages = 0;
+  }
+
+  const curPage = readingState?.currentPage || (completedPages > 0 ? completedPages : 1);
   const attempts = (m.assessments || []).flatMap((a) => a.attempts || []);
   const submissions = m.submissions || [];
   const progressCalc = calculateModuleProgress({
     module: m,
-    learnerProgress: progressRecord,
+    learnerProgress: progressRecord ? { ...progressRecord, completedPages, totalPages: safeTotalPages, currentPage: curPage } : (completedPages > 0 ? { completedPages, totalPages: safeTotalPages, currentPage: curPage } : null),
     attempts,
     submissions,
+    currentPage: curPage,
   });
 
   const isCompleted = progressCalc.completed;
@@ -485,6 +519,11 @@ function formatModule(m, reqUser) {
   const effectiveDeadline = dueDate || dateEndedStr;
   const isSubmissionClosed = Boolean(effectiveDeadline && isSubmissionDeadlinePassed(effectiveDeadline));
 
+  const firstPage = Array.isArray(m.pages) && m.pages.length > 0
+    ? (m.pages.find((p) => p.pageNumber === 1) || m.pages[0])
+    : null;
+  const readingInstructions = firstPage?.content ? firstPage.content.trim() : '';
+
   return {
     id: m.id,
     code: m.code || m.learningArea?.code || 'LS1',
@@ -493,6 +532,8 @@ function formatModule(m, reqUser) {
     title: m.title,
     description: m.description || '',
     instructions: m.instructions || m.description || '',
+    readingInstructions,
+    learningNotes: readingInstructions,
     activitiesRelated: m.activitiesRelated || '',
     dateStarted: m.dateStarted ? m.dateStarted.toISOString().split('T')[0] : null,
     dateEnded: dateEndedStr,
@@ -539,6 +580,13 @@ function formatModule(m, reqUser) {
     preTestScore: progressRecord?.preTestScore != null ? Number(progressRecord.preTestScore) : null,
     postTestScore: progressRecord?.postTestScore != null ? Number(progressRecord.postTestScore) : null,
     masteryStatus: progressRecord?.masteryStatus || 'NOT_EVALUATED',
+    currentPage: curPage,
+    viewMode: readingState?.viewMode || 'long',
+    highestPageReached: readingState?.highestPageReached || completedPages,
+    completedPages,
+    totalPages: progressRecord?.totalPages || m.pagesCount || (Array.isArray(m.pages) ? m.pages.length : 0) || 0,
+    pagesRead,
+    learnerProgress: m.learnerProgress || [],
     createdAt: m.createdAt,
     publishedDate: formattedPublishedDate,
     datePublished: formattedPublishedDate,
@@ -661,6 +709,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
         teacher: { select: { id: true, fullName: true } },
         learningCenter: { select: { id: true, name: true } },
         assignments: true,
+        pages: { select: { id: true, pageNumber: true, content: true } },
         learnerProgress: learnerProfileId ? {
           where: { learnerId: learnerProfileId },
         } : false,
@@ -743,6 +792,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
           },
         },
         assignments: true,
+        pages: { select: { id: true, pageNumber: true, content: true } },
         learnerProgress: learnerProfileId ? {
           where: { learnerId: learnerProfileId },
         } : false,
@@ -808,6 +858,7 @@ router.get('/:id/download', authenticate, async (req, res, next) => {
       include: {
         learningArea: true,
         assignments: true,
+        pages: { select: { id: true, pageNumber: true, content: true } },
         pages: { orderBy: { pageNumber: 'asc' }, take: 1 },
       },
     });
@@ -994,6 +1045,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       status,
       learningCenterId,
       learningNotes,
+      readingInstructions,
       preTest,
       postTest,
       teacherId: explicitTeacherId,
@@ -1128,13 +1180,14 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
     });
 
     // 1. Save Learning Material / Notes (ModulePage)
-    if (learningNotes && learningNotes.trim()) {
+    const resolvedReadingInstructions = (readingInstructions !== undefined ? readingInstructions : learningNotes)?.trim() || '';
+    if (resolvedReadingInstructions) {
       await prisma.modulePage.create({
         data: {
           moduleId: newModule.id,
           pageNumber: 1,
           title: `${title.trim()} - Notes`,
-          content: learningNotes.trim(),
+          content: resolvedReadingInstructions,
           mediaUrl: fileUrl?.trim() || null,
         },
       });
@@ -1203,6 +1256,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
           },
         },
         assignments: true,
+        pages: { select: { id: true, pageNumber: true, content: true } },
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
     });
@@ -1320,6 +1374,8 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
       assignedLearnerIds,
       preTest,
       postTest,
+      learningNotes,
+      readingInstructions,
     } = req.body;
 
     // Validate Pre-Test and Post-Test questions if provided in the update payload
@@ -1349,8 +1405,20 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
 
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
-    if (instructions !== undefined) updateData.instructions = instructions ? instructions.trim() : '';
-    if (description !== undefined) updateData.description = description ? description.trim() : '';
+    if (instructions !== undefined) {
+      const trimmedInst = instructions ? instructions.trim() : '';
+      updateData.instructions = trimmedInst;
+      if (description === undefined) {
+        updateData.description = trimmedInst;
+      }
+    }
+    if (description !== undefined) {
+      const trimmedDesc = description ? description.trim() : '';
+      updateData.description = trimmedDesc;
+      if (instructions === undefined) {
+        updateData.instructions = trimmedDesc;
+      }
+    }
     if (activitiesRelated !== undefined) updateData.activitiesRelated = activitiesRelated ? activitiesRelated.trim() : '';
     // Map strand and module code
     if (strand) {
@@ -1409,11 +1477,48 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
     if (dateStarted) updateData.dateStarted = new Date(dateStarted);
     if (dateEnded) updateData.dateEnded = new Date(dateEnded);
 
+    if (isAllLearners !== undefined) {
+      const shouldAssignToAll = isAllLearners === true || isAllLearners === 'true';
+      if (!shouldAssignToAll) {
+        const validIds = Array.isArray(assignedLearnerIds)
+          ? [...new Set(assignedLearnerIds.map((x) => parseInt(x, 10)).filter((x) => !isNaN(x)))]
+          : [];
+        if (validIds.length === 0) {
+          return res.status(400).json({ error: 'Please select at least one learner under "Assign Module To".' });
+        }
+      }
+    }
+
     // Update module record
     const updatedBaseMod = await prisma.module.update({
       where: { id },
       data: updateData,
     });
+
+    // Update Learning Material / Reading Instructions (ModulePage) if provided
+    const incomingReadingInstructions = readingInstructions !== undefined ? readingInstructions : learningNotes;
+    if (incomingReadingInstructions !== undefined) {
+      const trimmedNotes = incomingReadingInstructions ? String(incomingReadingInstructions).trim() : '';
+      const existingPage1 = await prisma.modulePage.findFirst({
+        where: { moduleId: id, pageNumber: 1 },
+      });
+      if (existingPage1) {
+        await prisma.modulePage.update({
+          where: { id: existingPage1.id },
+          data: { content: trimmedNotes },
+        });
+      } else if (trimmedNotes) {
+        await prisma.modulePage.create({
+          data: {
+            moduleId: id,
+            pageNumber: 1,
+            title: `${(updatedBaseMod.title || existingMod.title).trim()} - Notes`,
+            content: trimmedNotes,
+            mediaUrl: updatedBaseMod.fileUrl || existingMod.fileUrl || null,
+          },
+        });
+      }
+    }
 
     // Update Pre-Test and Post-Test assessments if provided, otherwise preserve existing questions
     if (normalizedPreQuestions !== null) {
@@ -1478,6 +1583,7 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           },
         },
         assignments: true,
+        pages: { select: { id: true, pageNumber: true, content: true } },
         _count: { select: { pages: true, assessments: true, assignments: true } },
       },
     });
@@ -1661,11 +1767,6 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       progressUpdate.status = 'IN_PROGRESS';
     } else if (assessment.type === 'POST_TEST') {
       progressUpdate.postTestScore = earnedPoints;
-      if (isPassed) {
-        progressUpdate.masteryStatus = 'MASTERED';
-      } else {
-        progressUpdate.masteryStatus = 'NOT_MASTERED';
-      }
     }
 
     await prisma.learnerProgress.upsert({
@@ -1711,11 +1812,42 @@ router.post('/:id/progress', authenticate, requireRole(['LEARNER']), async (req,
     const learnerId = req.user.profileId;
     if (!learnerId) return res.status(400).json({ error: 'Learner profile not found' });
 
-    const { completedPages, totalPages, status } = req.body;
-    const updateData = {};
-    if (completedPages !== undefined) updateData.completedPages = Number(completedPages);
-    if (totalPages !== undefined) updateData.totalPages = Number(totalPages);
-    if (status) updateData.status = status;
+    const { completedPages, currentPage, totalPages, status, pagesRead, viewMode } = req.body;
+
+    const existingProg = await prisma.learnerProgress.findUnique({
+      where: {
+        learnerId_moduleId: { learnerId, moduleId },
+      },
+    });
+
+    const safeTotalPages = Number(totalPages) > 0 ? Number(totalPages) : (existingProg?.totalPages || 29);
+    const curPage = Number(currentPage) > 0
+      ? Number(currentPage)
+      : (Number(completedPages) > 0 ? Number(completedPages) : 1);
+
+    const readingState = saveLearnerReadingState(learnerId, moduleId, {
+      currentPage: curPage,
+      pagesRead: Array.isArray(pagesRead) ? pagesRead : [],
+      viewMode: viewMode || 'long',
+      totalPages: safeTotalPages,
+    });
+
+    const validPagesRead = readingState ? readingState.pagesRead : [];
+    let newCompletedPages = Math.min(validPagesRead.length, safeTotalPages);
+    if (newCompletedPages === 0 && (existingProg?.completedAt || existingProg?.status === 'COMPLETED')) {
+      newCompletedPages = safeTotalPages;
+    }
+
+    const updateData = {
+      completedPages: newCompletedPages,
+      totalPages: safeTotalPages,
+    };
+
+    if (newCompletedPages >= safeTotalPages) {
+      updateData.status = status || 'IN_PROGRESS';
+    } else {
+      updateData.status = 'IN_PROGRESS';
+    }
 
     const prog = await prisma.learnerProgress.upsert({
       where: {
@@ -1728,15 +1860,23 @@ router.post('/:id/progress', authenticate, requireRole(['LEARNER']), async (req,
         learnerId,
         moduleId,
         status: status || 'IN_PROGRESS',
-        completedPages: completedPages ? Number(completedPages) : 1,
-        totalPages: totalPages ? Number(totalPages) : 4,
+        completedPages: newCompletedPages,
+        totalPages: safeTotalPages,
       },
       update: updateData,
     });
 
-    const synced = await syncLearnerModuleProgress(learnerId, moduleId);
+    const synced = await syncLearnerModuleProgress(learnerId, moduleId, { currentPage: curPage });
 
-    res.json(synced || prog);
+    res.json({
+      ...(synced || prog),
+      currentPage: curPage,
+      viewMode: readingState?.viewMode || 'long',
+      highestPageReached: readingState?.highestPageReached || newCompletedPages,
+      pagesRead: validPagesRead,
+      completedPages: newCompletedPages,
+      totalPages: safeTotalPages,
+    });
   } catch (err) {
     next(err);
   }

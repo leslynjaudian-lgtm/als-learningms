@@ -201,43 +201,91 @@ function extractPlainContent(contentVal) {
   return contentVal;
 }
 
-// Helper to format submission record (supports single row or grouped rows for a learner+module)
-function formatSubmission(s, groupedFiles = null, relatedIds = null) {
-  let displayLevel = s.learner?.level;
-  if (s.learner?.level === 'ELEMENTARY' || s.learner?.level === 'A&E Elementary') {
-    displayLevel = 'A&E Elementary';
-  } else if (
-    s.learner?.level === 'JUNIOR' ||
-    s.learner?.level === 'A&E Junior' ||
-    s.learner?.level === 'A&E Junior High' ||
-    String(s.learner?.level || '').toUpperCase().includes('JUN')
-  ) {
-    displayLevel = 'A&E Junior High';
+function formatLearnerProgramLevel(rawLevel) {
+  if (rawLevel === 'ELEMENTARY' || rawLevel === 'A&E Elementary') {
+    return 'A&E Elementary';
   }
+  if (
+    rawLevel === 'JUNIOR' ||
+    rawLevel === 'A&E Junior' ||
+    rawLevel === 'A&E Junior High' ||
+    String(rawLevel || '').toUpperCase().includes('JUN')
+  ) {
+    return 'A&E Junior High';
+  }
+  return rawLevel || 'A&E Elementary';
+}
+
+function findSavedRecordForSubmission(
+  af2Records,
+  { learnerId, moduleId, moduleTitle, submissionIds = [] }
+) {
+  const lid = Number(learnerId);
+  if (!lid || isNaN(lid)) return null;
+  const mid = moduleId != null ? Number(moduleId) : null;
+  const normTitle = moduleTitle ? String(moduleTitle).trim().toLowerCase() : '';
+  const subIdSet = new Set(
+    (Array.isArray(submissionIds) ? submissionIds : [submissionIds])
+      .map((id) => Number(id))
+      .filter((n) => !isNaN(n) && n > 0)
+  );
+
+  return (
+    (af2Records || []).find((r) => {
+      if (Number(r.learnerId) !== lid) return false;
+      if (r.submissionId && subIdSet.has(Number(r.submissionId))) return true;
+      if (mid && r.moduleId && Number(r.moduleId) === mid) return true;
+      if (
+        normTitle &&
+        r.moduleTitle &&
+        String(r.moduleTitle).trim().toLowerCase() === normTitle
+      ) {
+        return true;
+      }
+      return false;
+    }) || null
+  );
+}
+
+// Helper to format submission record (supports single row or grouped rows for a learner+module)
+function formatSubmission(s, groupedFiles = null, relatedIds = null, af2Records = null) {
+  const displayLevel = formatLearnerProgramLevel(s.learner?.level);
 
   const files = Array.isArray(groupedFiles) && groupedFiles.length > 0
     ? groupedFiles.map((f, idx) => enrichFileItem(f, idx, s.submittedAt))
     : extractFilesFromSubmissionRow(s);
 
   const primaryFile = files[0] || null;
-  const rawStatus = String(s.status || 'SUBMITTED').trim();
-  const lowerStatus = rawStatus.toLowerCase().replace(/_/g, ' ');
-  let normalizedStatus = 'Submitted';
-  if (lowerStatus === 'mastered') normalizedStatus = 'Mastered';
-  else if (lowerStatus === 'not mastered') normalizedStatus = 'Not Mastered';
-  else if (lowerStatus === 'submitted' || lowerStatus === 'not evaluated' || lowerStatus === 'pending') {
-    normalizedStatus = 'Submitted';
-  } else {
-    normalizedStatus = rawStatus;
-  }
+  const relIds = Array.isArray(relatedIds) && relatedIds.length > 0 ? relatedIds : [s.id];
+  const allAf2 = Array.isArray(af2Records) ? af2Records : readAf2Records();
+  const savedRecord = findSavedRecordForSubmission(allAf2, {
+    learnerId: s.learnerId,
+    moduleId: s.moduleId,
+    moduleTitle: s.module?.title,
+    submissionIds: relIds,
+  });
 
-  const isReviewFinalized = lowerStatus === 'mastered' || lowerStatus === 'not mastered' || lowerStatus === 'graded' || s.grade != null;
+  const isRecorded = Boolean(savedRecord);
+  const recordTrackingStatus = isRecorded ? 'Recorded' : 'Not Recorded';
+  const evaluationStatus = savedRecord
+    ? savedRecord.assessment || savedRecord.moduleStatus || ''
+    : '';
+  const savedRemarks = savedRecord?.remarks
+    ? String(savedRecord.remarks).trim()
+    : s.feedback || '';
+
   const moduleDateEnded = s.module?.dateEnded ? s.module.dateEnded.toISOString().split('T')[0] : null;
   const isSubmissionClosed = Boolean(moduleDateEnded && isSubmissionDeadlinePassed(moduleDateEnded));
 
   return {
     id: s.id,
-    relatedSubmissionIds: Array.isArray(relatedIds) && relatedIds.length > 0 ? relatedIds : [s.id],
+    submissionId: s.id,
+    hasSubmitted: true,
+    isRecorded,
+    existingRecordId: savedRecord?.id || null,
+    evaluationStatus,
+    otherActivities: savedRecord?.otherActivities || '',
+    relatedSubmissionIds: relIds,
     moduleId: s.moduleId,
     moduleTitle: s.module?.title || 'Learning Module',
     dateEnded: moduleDateEnded,
@@ -245,7 +293,7 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null) {
     learnerId: s.learnerId,
     learnerName: s.learner?.fullName || 'Learner',
     lrn: s.learner?.lrn || '—',
-    programLevel: displayLevel || 'A&E Elementary',
+    programLevel: displayLevel,
     activity: s.title || s.module?.title || 'Module Activity Output',
     title: s.title || 'Module Activity Output',
     fileUrl: primaryFile?.fileUrl || s.fileUrl || '',
@@ -256,11 +304,11 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null) {
     fileCount: files.length,
     content: extractPlainContent(s.content),
     grade: s.grade ? Number(s.grade) : null,
-    feedback: s.feedback || '',
-    teacherRemarks: s.feedback || '',
-    remarks: s.feedback || '',
-    status: normalizedStatus,
-    isReviewFinalized,
+    feedback: savedRemarks,
+    teacherRemarks: savedRemarks,
+    remarks: savedRemarks,
+    status: recordTrackingStatus,
+    isReviewFinalized: isRecorded,
     dateSubmitted: s.submittedAt ? s.submittedAt.toISOString().split('T')[0] : '',
     submittedAt: s.submittedAt,
     updatedAt: s.updatedAt,
@@ -269,8 +317,9 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null) {
 
 // Group raw submission rows by (moduleId, learnerId) so each learner has exactly ONE submission per module
 // while preserving all uploaded files in chronological upload order.
-function groupSubmissionsByLearnerAndModule(rows) {
+function groupSubmissionsByLearnerAndModule(rows, af2Records = null) {
   const groups = new Map();
+  const resolvedAf2 = Array.isArray(af2Records) ? af2Records : readAf2Records();
 
   // Sort oldest-first when collecting files so Activity 1, Activity 2, Activity 3 stay in upload order
   const chronological = [...(rows || [])].sort(
@@ -313,11 +362,6 @@ function groupSubmissionsByLearnerAndModule(rows) {
         grp.primaryRow.updatedAt = row.updatedAt;
       }
 
-      // Prefer reviewed status (Mastered / Not Mastered) and non-empty teacher feedback if present on any row
-      const rowStatusLower = String(row.status || '').toLowerCase().replace(/_/g, ' ');
-      if (rowStatusLower === 'mastered' || rowStatusLower === 'not mastered') {
-        grp.primaryRow.status = row.status;
-      }
       if (row.feedback && String(row.feedback).trim()) {
         grp.primaryRow.feedback = row.feedback;
       }
@@ -334,7 +378,7 @@ function groupSubmissionsByLearnerAndModule(rows) {
         new Date(b.primaryRow.submittedAt || 0).getTime() -
         new Date(a.primaryRow.submittedAt || 0).getTime()
     )
-    .map((grp) => formatSubmission(grp.primaryRow, grp.files, grp.relatedIds));
+    .map((grp) => formatSubmission(grp.primaryRow, grp.files, grp.relatedIds, resolvedAf2));
 }
 
 // Helper to retrieve actual Pre-Test and Post-Test scores for a specific learner & module
@@ -526,10 +570,142 @@ router.get('/', optionalAuth, async (req, res, next) => {
       orderBy: { submittedAt: 'desc' },
     });
 
-    const grouped = groupSubmissionsByLearnerAndModule(submissions);
+    const af2Records = readAf2Records();
+    const grouped = groupSubmissionsByLearnerAndModule(submissions, af2Records);
+
+    // If querying for a specific module in the Teacher/Admin Portal, also include eligible learners without submissions
+    // with status 'In Progress' (before deadline) or 'Overdue' (after deadline).
+    const isTeacherOrAdminRequest =
+      Boolean(teacherId) ||
+      (req.user && (req.user.role === 'TEACHER' || req.user.role === 'ADMIN')) ||
+      req.query.includeEligible === '1';
+
+    const combinedRows = [...grouped];
+
+    if (moduleId && isTeacherOrAdminRequest && !(req.user && req.user.role === 'LEARNER')) {
+      const mid = parseInt(moduleId, 10);
+      if (!isNaN(mid)) {
+        const moduleObj = await prisma.module.findUnique({
+          where: { id: mid },
+          include: {
+            assignments: {
+              include: {
+                learner: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    lrn: true,
+                    level: true,
+                    status: true,
+                    assignedTeacherId: true,
+                    learningCenterId: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (moduleObj) {
+          const submittedLearnerIds = new Set(grouped.map((g) => Number(g.learnerId)));
+          const requestedLearnerId = learnerId ? parseInt(learnerId, 10) : null;
+          const eligibleCandidates = [];
+
+          if (Array.isArray(moduleObj.assignments) && moduleObj.assignments.length > 0) {
+            for (const assign of moduleObj.assignments) {
+              if (!assign.learner) continue;
+              if (requestedLearnerId && !isNaN(requestedLearnerId) && assign.learner.id !== requestedLearnerId) {
+                continue;
+              }
+              eligibleCandidates.push({
+                learner: assign.learner,
+                dueDate: assign.dueDate || moduleObj.dateEnded || null,
+              });
+            }
+          } else {
+            const eligibleLearners = await prisma.learner.findMany({
+              where: {
+                status: { notIn: ['Inactive', 'INACTIVE', 'Archived', 'ARCHIVED'] },
+                ...(moduleObj.teacherId ? { assignedTeacherId: moduleObj.teacherId } : {}),
+                ...(moduleObj.learningCenterId ? { learningCenterId: moduleObj.learningCenterId } : {}),
+                ...(moduleObj.targetLevel ? { level: moduleObj.targetLevel } : {}),
+                ...(requestedLearnerId && !isNaN(requestedLearnerId) ? { id: requestedLearnerId } : {}),
+              },
+              select: {
+                id: true,
+                fullName: true,
+                lrn: true,
+                level: true,
+                status: true,
+                assignedTeacherId: true,
+                learningCenterId: true,
+              },
+              orderBy: { fullName: 'asc' },
+            });
+
+            for (const lrnObj of eligibleLearners) {
+              eligibleCandidates.push({
+                learner: lrnObj,
+                dueDate: moduleObj.dateEnded || null,
+              });
+            }
+          }
+
+          for (const candidate of eligibleCandidates) {
+            const lrnObj = candidate.learner;
+            if (!lrnObj || submittedLearnerIds.has(Number(lrnObj.id))) continue;
+            submittedLearnerIds.add(Number(lrnObj.id));
+
+            const effectiveDeadline = candidate.dueDate || moduleObj.dateEnded || null;
+            const isOverdue = Boolean(effectiveDeadline && isSubmissionDeadlinePassed(effectiveDeadline));
+            const nonSubmittedStatus = isOverdue ? 'Overdue' : 'In Progress';
+            const deadlineYmd = effectiveDeadline
+              ? new Date(effectiveDeadline).toISOString().split('T')[0]
+              : null;
+
+            combinedRows.push({
+              id: `pending_${moduleObj.id}_${lrnObj.id}`,
+              submissionId: null,
+              hasSubmitted: false,
+              isRecorded: false,
+              existingRecordId: null,
+              evaluationStatus: '',
+              otherActivities: '',
+              relatedSubmissionIds: [],
+              moduleId: moduleObj.id,
+              moduleTitle: moduleObj.title || 'Learning Module',
+              dateEnded: deadlineYmd,
+              isSubmissionClosed: isOverdue,
+              learnerId: lrnObj.id,
+              learnerName: lrnObj.fullName || 'Learner',
+              lrn: lrnObj.lrn || '—',
+              programLevel: formatLearnerProgramLevel(lrnObj.level || moduleObj.targetLevel),
+              activity: moduleObj.title || 'Module Activity Output',
+              title: moduleObj.title || 'Module Activity Output',
+              fileUrl: '',
+              fileName: '',
+              fileType: '',
+              fileSize: null,
+              files: [],
+              fileCount: 0,
+              content: '',
+              grade: null,
+              feedback: '',
+              teacherRemarks: '',
+              remarks: '',
+              status: nonSubmittedStatus,
+              isReviewFinalized: false,
+              dateSubmitted: '',
+              submittedAt: null,
+              updatedAt: null,
+            });
+          }
+        }
+      }
+    }
 
     const enriched = await Promise.all(
-      grouped.map(async (item) => {
+      combinedRows.map(async (item) => {
         const scores = await getLearnerAssessmentScores(item.learnerId, item.moduleId);
         return {
           ...item,

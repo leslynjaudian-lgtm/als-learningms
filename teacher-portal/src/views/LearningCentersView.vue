@@ -1,12 +1,13 @@
 <template>
   <div class="learning-centers-page">
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>My Learning Centers</h1>
-        <p>View the learning centers assigned to you.</p>
-      </div>
-    </div>
+    <PageHeader
+      title="My Learning Centers"
+      description="View the learning centers assigned to you."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Learning Centers' },
+      ]"
+    />
 
     <!-- Loading State -->
     <div v-if="loading" class="state-container">
@@ -103,6 +104,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherProfile } from '../api/auth.js';
 import { getAssignedLearners } from '../api/learners.js';

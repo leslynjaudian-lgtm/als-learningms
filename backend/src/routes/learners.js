@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { calculateModuleProgress } from '../utils/progressCalculator.js';
+import { getLearnerPagesRead, getLearnerReadingState } from '../utils/readingPagesStore.js';
+import { notifyNewLearnerRegistered, notifyLearnerAssigned } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -284,12 +286,20 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
       const prog = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
       const attempts = (m.assessments || []).flatMap((a) => a.attempts || []);
       const submissions = m.submissions || [];
+      const readingState = getLearnerReadingState(learner.id, m.id);
+      const storedPages = readingState.pagesRead;
+      const highestStored = readingState.highestPageReached || (storedPages && storedPages.length > 0 ? Math.max(...storedPages.map(Number).filter((n) => n > 0)) : 0);
+      const safeCompletedPages = highestStored > 0 ? highestStored : (prog?.completedPages || 0);
+      const curPage = readingState.currentPage || (safeCompletedPages > 0 ? safeCompletedPages : 1);
 
       const calc = calculateModuleProgress({
         module: m,
-        learnerProgress: prog,
+        learnerProgress: prog
+          ? { ...prog, completedPages: safeCompletedPages, currentPage: curPage }
+          : (safeCompletedPages > 0 ? { completedPages: safeCompletedPages, currentPage: curPage } : null),
         attempts,
         submissions,
+        currentPage: curPage,
       });
 
       if (calc.completed) {
@@ -552,9 +562,9 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 
 // ---------------------
 // POST /api/learners
-// Register a new learner (Admin only)
+// Register a new learner
 // ---------------------
-router.post('/', async (req, res, next) => {
+router.post('/', optionalAuth, async (req, res, next) => {
   try {
     let {
       lrn,
@@ -748,6 +758,25 @@ router.post('/', async (req, res, next) => {
       return newLearner;
     });
 
+    // Notify District Coordinator (Admin) if a teacher registered the learner
+    const isTeacher = req.user?.role === 'TEACHER' || req.body?.createdByRole === 'TEACHER';
+    if (isTeacher) {
+      notifyNewLearnerRegistered({
+        learner: result,
+        teacherId: req.user?.teacherProfile?.id || parsedTeacherId,
+        teacherName: req.user?.teacherProfile?.fullName || req.user?.username,
+      }).catch((e) => console.error('[Learners] notifyNewLearnerRegistered error:', e));
+    }
+
+    // Notify the assigned teacher if a teacher was assigned to the new learner
+    if (parsedTeacherId) {
+      notifyLearnerAssigned({
+        learnerId: result.id,
+        teacherId: parsedTeacherId,
+        assignedByName: req.user?.adminProfile?.fullName || 'District Coordinator',
+      }).catch((e) => console.error('[Learners] notifyLearnerAssigned error:', e));
+    }
+
     res.status(201).json(formatLearner(result));
   } catch (err) {
     if (err.code === 'P2002') {
@@ -761,7 +790,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/learners/:id
 // Update a learner (Admin only)
 // ---------------------
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', optionalAuth, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -875,6 +904,18 @@ router.put('/:id', async (req, res, next) => {
         },
       });
     });
+
+    // Notify assigned teacher if teacher assignment was changed
+    if (
+      updateData.assignedTeacherId &&
+      updateData.assignedTeacherId !== existing.assignedTeacherId
+    ) {
+      notifyLearnerAssigned({
+        learnerId: id,
+        teacherId: updateData.assignedTeacherId,
+        assignedByName: req.user?.adminProfile?.fullName || 'District Coordinator',
+      }).catch((e) => console.error('[Learners] notifyLearnerAssigned error:', e));
+    }
 
     res.json(formatLearner(updated));
   } catch (err) {

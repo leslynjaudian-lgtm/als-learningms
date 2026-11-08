@@ -392,7 +392,10 @@
             </div>
 
             <div class="field-item" style="margin-top: 1.5rem;">
-              <label class="field-lbl">Teacher Facilitator Notes / Reading Instructions</label>
+              <label class="field-lbl">Teacher Reading Instructions</label>
+              <p class="field-helper-text">
+                Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
+              </p>
               <textarea
                 v-model="newModule.learningNotes"
                 rows="3"
@@ -645,6 +648,8 @@ const internalStrands = [
   { slug: 'entrepreneurship', name: '7. Entrepreneurship' },
 ];
 
+const DEFAULT_READING_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
+
 const newModule = reactive({
   title: '',
   strand: '1. Communication Skills (English)',
@@ -668,7 +673,7 @@ const newModule = reactive({
   fileName: 'LS1_Oral_Communication_Module.pdf',
   fileType: 'PDF',
   fileSize: '3.4 MB',
-  learningNotes: 'Learners must complete the diagnostic Pre-Test before reading Sections 1 to 4.',
+  learningNotes: DEFAULT_READING_INSTRUCTIONS,
   postTest: [
     {
       prompt: 'In a workplace setting, what is the most appropriate way to resolve a misunderstanding?',
@@ -1323,6 +1328,13 @@ function publishCompleteModule() {
   font-weight: 600;
   color: #334155;
   margin-bottom: 0.4rem;
+}
+
+.field-helper-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -0.15rem 0 0.45rem 0;
+  line-height: 1.4;
 }
 
 .req {

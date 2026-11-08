@@ -1,22 +1,15 @@
 <template>
   <div class="page-container">
-    <!-- Breadcrumb / Back Link -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard/learners" class="back-link">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-        </svg>
-        <span>Back to Learners</span>
-      </router-link>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Record Assessment Score</h1>
-        <p>Encode scores from face-to-face or paper-based assessments.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Record Assessment Score"
+      description="Encode scores from face-to-face or paper-based assessments."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Assessments', to: '/dashboard/assessments' },
+        { label: 'Record Assessment Score' },
+      ]"
+    />
 
     <!-- Form Card -->
     <div class="form-card" style="max-width: 680px;">
@@ -136,6 +129,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 
 const route = useRoute();
 const router = useRouter();

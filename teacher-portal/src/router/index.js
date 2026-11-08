@@ -18,6 +18,7 @@ import AlsAf2ReportView from '../views/AlsAf2ReportView.vue';
 import ModuleProgressReportView from '../views/ModuleProgressReportView.vue';
 import AttendanceSummaryReportView from '../views/AttendanceSummaryReportView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
+import NotificationsView from '../views/NotificationsView.vue';
 import ScheduleView from '../views/ScheduleView.vue';
 import ProfileView from '../views/ProfileView.vue';
 import LoginView from '../views/LoginView.vue';
@@ -56,6 +57,14 @@ const routes = [
   {
     path: '/reports/attendance',
     redirect: '/dashboard/reports/attendance-summary',
+  },
+  {
+    path: '/announcements',
+    redirect: '/dashboard/announcements',
+  },
+  {
+    path: '/notifications',
+    redirect: '/dashboard/notifications',
   },
   {
     path: '/dashboard',
@@ -257,6 +266,12 @@ const routes = [
         name: 'Announcements',
         component: AnnouncementsView,
         meta: { title: 'Announcements', requiresAuth: true },
+      },
+      {
+        path: 'notifications',
+        name: 'Notifications',
+        component: NotificationsView,
+        meta: { title: 'Notifications', requiresAuth: true },
       },
       {
         path: 'profile',

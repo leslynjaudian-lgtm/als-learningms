@@ -12,27 +12,25 @@
       </div>
     </div>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Schedule</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Schedule</h1>
-        <p>Create, view, and manage your schedules in one place.</p>
-      </div>
-      <button type="button" class="btn btn-primary" @click="openAddModal">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        <span>Add Schedule</span>
-      </button>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Schedule"
+      description="Create, view, and manage your schedules in one place."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Schedule' },
+      ]"
+    >
+      <template #actions>
+        <button type="button" class="btn btn-primary" @click="openAddModal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add Schedule</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Filter Section -->
     <div class="filter-card schedule-filter-card">
@@ -540,6 +538,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { getSchedules, createSchedule, updateSchedule, deleteSchedule } from '../api/schedules.js';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import {
@@ -1042,12 +1042,30 @@ function onDayCellClick(cell) {
   }
 }
 
-onMounted(() => {
+const route = useRoute();
+const router = useRouter();
+
+onMounted(async () => {
   // Keep "today" accurate (e.g. across midnight) without moving the user's selected month
   todayTimer = setInterval(() => {
     todayKey.value = getManilaTodayKey();
   }, 60 * 1000);
-  loadSchedules();
+  await loadSchedules();
+
+  if (route.query.id) {
+    const targetId = Number(route.query.id);
+    const found = enrichedSchedules.value.find((s) => Number(s.id) === targetId);
+    if (found) {
+      const dateKey = toDateKey(found.startDate || found.date);
+      if (dateKey && /^\d{4}-\d{2}/.test(dateKey)) {
+        selectedMonthKey.value = dateKey.slice(0, 7);
+      }
+      openViewModal(found);
+    } else {
+      showToast('The requested schedule was not found or is no longer available.', 'error');
+    }
+    router.replace({ path: route.path, query: {} });
+  }
 });
 
 onBeforeUnmount(() => {

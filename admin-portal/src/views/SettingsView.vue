@@ -12,20 +12,15 @@
       </div>
     </div>
 
-    <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <router-link to="/dashboard">Dashboard</router-link>
-      <span class="breadcrumb-separator">/</span>
-      <span class="breadcrumb-current">Settings</span>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Settings</h1>
-        <p>Manage your profile and account settings.</p>
-      </div>
-    </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Settings"
+      description="Manage your profile and account settings."
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Settings' },
+      ]"
+    />
 
     <!-- Section Navigation Tabs -->
     <div class="tab-bar-card">
@@ -129,12 +124,15 @@
 
             <div class="form-group">
               <label class="form-label">Role</label>
-              <input
-                v-model="profile.role"
-                type="text"
-                class="form-input input-readonly"
-                readonly
-              />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  :value="profile.role"
+                  type="text"
+                  class="form-input input-readonly"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
               <span class="field-hint">Role assignment is governed by system administrative policies.</span>
             </div>
 
@@ -254,9 +252,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+import PageHeader from '../components/PageHeader.vue';
 import api from '../api/axios.js';
 import { useAdminSession } from '../composables/useAdminSession.js';
 import PasswordInputField from '../components/PasswordInputField.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 
 const activeSection = ref('profile');
 
@@ -696,36 +696,9 @@ onMounted(() => {
 .settings-page {
   width: 100%;
   max-width: 100%;
-  padding-top: 0.25rem;
   position: relative;
   z-index: 1;
   scroll-margin-top: calc(var(--header-height, 64px) + 1rem);
-}
-
-.settings-page .breadcrumb {
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-}
-
-.settings-page .page-header-row {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  padding-top: 0.15rem;
-}
-
-.settings-page .page-title-group h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text, #0f172a);
-  line-height: 1.25;
-  margin: 0;
-}
-
-.settings-page .page-title-group p {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary, #475569);
-  margin: 0.25rem 0 0;
-  line-height: 1.45;
 }
 
 /* Tab Bar Navigation */

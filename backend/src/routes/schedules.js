@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
-import { runReminderChecks } from '../services/notificationService.js';
+import {
+  runReminderChecks,
+  notifyScheduleCreated,
+  notifyScheduleUpdated,
+  notifyScheduleCanceled,
+} from '../services/notificationService.js';
 
 const router = Router();
 
@@ -469,6 +474,12 @@ router.post('/', authenticate, async (req, res, next) => {
       newSchedule.id
     );
 
+    notifyScheduleCreated({
+      scheduleId: newSchedule.id,
+      creatorRole: req.user?.role,
+      creatorUserId: req.user?.id,
+    }).catch((e) => console.error('[Schedules] notifyScheduleCreated error:', e));
+
     res.status(201).json(formatSchedule(newSchedule));
   } catch (err) {
     next(err);
@@ -607,6 +618,12 @@ router.put('/:id', authenticate, async (req, res, next) => {
       );
     }
 
+    notifyScheduleUpdated({
+      scheduleId: id,
+      updaterRole: req.user?.role,
+      updaterUserId: req.user?.id,
+    }).catch((e) => console.error('[Schedules] notifyScheduleUpdated error:', e));
+
     res.json(formatSchedule(updated));
   } catch (err) {
     next(err);
@@ -655,6 +672,12 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     await prisma.schedule.delete({
       where: { id },
     });
+
+    notifyScheduleCanceled({
+      schedule: existing,
+      cancelerRole: req.user?.role,
+      cancelerUserId: req.user?.id,
+    }).catch((e) => console.error('[Schedules] notifyScheduleCanceled error:', e));
 
     res.json({ message: 'Schedule deleted successfully' });
   } catch (err) {

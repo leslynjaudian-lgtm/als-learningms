@@ -1,13 +1,19 @@
 <template>
   <div class="page-container modules-page">
-    <!-- Page Header with Upper-Right Action Button -->
-    <div class="page-header-row">
-      <div class="page-title-group">
-        <h1>Modules</h1>
-        <p>View and manage learning modules for <strong>{{ activeLevel }}</strong>.</p>
-      </div>
+    <!-- Standardized Page Header -->
+    <PageHeader
+      title="Modules"
+      :breadcrumbs="[
+        { label: 'Dashboard', to: '/dashboard' },
+        { label: 'Modules', to: '/dashboard/modules' },
+        { label: activeLevel },
+      ]"
+    >
+      <template #description>
+        View and manage learning modules for <strong>{{ activeLevel }}</strong>.
+      </template>
 
-      <div class="header-action-group">
+      <template #actions>
         <button
           v-if="!isCreatingModule"
           type="button"
@@ -29,8 +35,8 @@
         >
           Cancel
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <!-- VIEW 1: LEARNING FEED (Main Content when not creating) -->
     <div v-if="!isCreatingModule" class="learning-feed-container">
@@ -72,24 +78,79 @@
 
       <!-- Learning Feed List -->
       <div v-else class="modules-feed-wrapper">
-        <div class="feed-header-info">
-          <span class="feed-count-text">Showing <strong>{{ modules.length }}</strong> published {{ modules.length === 1 ? 'module' : 'modules' }} ({{ activeLevel }})</span>
+        <!-- Module Filters: All / Recent / Older (Right-aligned directly below Upload Module button) -->
+        <div class="modules-filter-row">
+          <div class="modules-filter-tabs">
+            <button
+              type="button"
+              class="module-filter-btn"
+              :class="{ active: activeFilter === 'all' }"
+              @click="activeFilter = 'all'"
+            >
+              <span>All</span>
+              <span class="tab-count">{{ filterCounts.all }}</span>
+            </button>
+            <button
+              type="button"
+              class="module-filter-btn"
+              :class="{ active: activeFilter === 'recent' }"
+              @click="activeFilter = 'recent'"
+            >
+              <span>Recent</span>
+              <span class="tab-count">{{ filterCounts.recent }}</span>
+            </button>
+            <button
+              type="button"
+              class="module-filter-btn"
+              :class="{ active: activeFilter === 'older' }"
+              @click="activeFilter = 'older'"
+            >
+              <span>Older</span>
+              <span class="tab-count">{{ filterCounts.older }}</span>
+            </button>
+          </div>
         </div>
 
-        <div class="learning-feed-list">
+        <div class="feed-header-info">
+          <span class="feed-count-text">Showing <strong>{{ filteredModules.length }}</strong> published {{ filteredModules.length === 1 ? 'module' : 'modules' }} ({{ activeLevel }})</span>
+        </div>
+
+        <!-- Empty Filter State when no modules match the active filter -->
+        <div v-if="filteredModules.length === 0" class="state-container empty-feed-card empty-filter-state">
+          <div class="empty-graphic-wrapper">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <h3 class="empty-title">
+            {{ activeFilter === 'recent' ? 'No recent modules found' : 'No older modules found' }}
+          </h3>
+          <p class="empty-desc">
+            {{ activeFilter === 'recent'
+              ? 'There are no modules uploaded within the last 2 days for ' + activeLevel + '.'
+              : 'There are no modules uploaded 3 or more days ago for ' + activeLevel + '.' }}
+          </p>
+          <button type="button" class="btn btn-secondary" style="margin-top: 1rem;" @click="activeFilter = 'all'">
+            Show All Modules
+          </button>
+        </div>
+
+        <div v-else class="learning-feed-list">
           <div
-            v-for="item in modules"
+            v-for="item in filteredModules"
             :key="item.id"
             class="feed-card-item is-clickable"
+            title="Click this to open the uploaded module."
             @click="openModuleDetails(item.id)"
           >
-            <!-- Module Icon -->
-            <div class="feed-icon-box">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
-            </div>
+            <!-- Module Thumbnail (First page of uploaded PDF) -->
+            <ModuleThumbnail
+              :file-url="item.fileUrl"
+              :cover-image-url="item.coverImageUrl"
+              :title="item.title"
+              :module-id="item.id"
+            />
 
             <!-- Feed Content -->
             <div class="feed-info-content">
@@ -142,6 +203,18 @@
                 </svg>
                 <span>Material</span>
               </a>
+
+              <button
+                type="button"
+                class="btn-module-chevron"
+                title="Open Module Details"
+                aria-label="Open Module Details"
+                @click.stop="openModuleDetails(item.id)"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -223,27 +296,31 @@
 
             <div class="field-item">
               <label class="field-lbl">Module Code <span class="req">*</span></label>
-              <input
-                type="text"
-                :value="newModule.code"
-                class="field-input-box is-readonly"
-                placeholder="Auto-populated based on Learning Strand"
-                readonly
-                disabled
-              />
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  type="text"
+                  :value="newModule.code"
+                  class="field-input-box is-readonly"
+                  placeholder="Auto-populated based on Learning Strand"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
             </div>
 
             <!-- ROW 4 — TWO COLUMNS: ALS Level * | Learning Center * -->
             <div class="field-item">
               <label class="field-lbl">ALS Level <span class="req">*</span></label>
               <div class="locked-level-box">
-                <input
-                  type="text"
-                  :value="activeLevel"
-                  class="field-input-box is-locked"
-                  readonly
-                  disabled
-                />
+                <LockedFieldTooltip message="This field cannot be edited.">
+                  <input
+                    type="text"
+                    :value="activeLevel"
+                    class="field-input-box is-locked"
+                    readonly
+                    title="This field cannot be edited."
+                  />
+                </LockedFieldTooltip>
                 <span class="locked-level-badge">Locked to {{ activeLevel }}</span>
               </div>
             </div>
@@ -259,56 +336,14 @@
             </div>
 
             <!-- ROW 5 — FULL WIDTH: Assign Module To * -->
-            <div class="field-item full-width assign-module-dropdown-group">
-              <label class="field-lbl" id="assign-module-label">Assign Module To <span class="req">*</span></label>
-
-              <!-- Custom Dropdown Trigger -->
-              <div
-                ref="assignDropdownTriggerRef"
-                class="custom-dropdown-trigger"
-                :class="{
-                  'is-open': isAssignDropdownOpen,
-                  'is-disabled': eligibleLearners.length === 0,
-                  'has-error': !newModule.isAllLearners && (!newModule.selectedLearnerIds || newModule.selectedLearnerIds.length === 0)
-                }"
-                tabindex="0"
-                role="combobox"
-                aria-labelledby="assign-module-label"
-                aria-haspopup="listbox"
-                :aria-expanded="isAssignDropdownOpen"
-                @click="toggleAssignDropdown"
-                @keydown.enter.prevent="toggleAssignDropdown"
-                @keydown.space.prevent="toggleAssignDropdown"
-                @keydown.down.prevent="openAssignDropdown"
-                @keydown.up.prevent="openAssignDropdown"
-              >
-                <span class="dropdown-trigger-text" :title="assignDropdownTooltipText">
-                  {{ assignDropdownDisplayText }}
-                </span>
-                <svg
-                  class="dropdown-chevron"
-                  :class="{ 'is-rotated': isAssignDropdownOpen }"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </div>
-
-              <!-- Helper warning when no learners available in selected center/level -->
-              <div v-if="eligibleLearners.length === 0" class="field-helper-warning">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span>No eligible {{ activeLevel }} learners found for {{ currentSelectedCenterName }}.</span>
-              </div>
-            </div>
+            <AssignModuleToDropdown
+              v-model:is-all-learners="newModule.isAllLearners"
+              v-model:selected-learner-ids="newModule.selectedLearnerIds"
+              :eligible-learners="eligibleLearners"
+              :active-level="activeLevel"
+              :center-name="currentSelectedCenterName"
+              label-id="assign-module-label"
+            />
 
             <!-- ROW 5 — TWO COLUMNS: Date Started * | Date Ended * -->
             <div class="field-item">
@@ -334,17 +369,6 @@
                 {{ dateRangeError }}
               </span>
             </div>
-
-            <!-- ROW 6 — FULL WIDTH: Activities Related -->
-            <div class="field-item full-width">
-              <label class="field-lbl">Activities Related</label>
-              <textarea
-                v-model="newModule.activitiesRelated"
-                rows="3"
-                class="field-textarea-box"
-                placeholder="Describe the activities related to this module..."
-              ></textarea>
-            </div>
           </div>
         </div>
 
@@ -352,7 +376,7 @@
         <div v-else-if="currentStepIndex === 1" class="step-form-pane">
           <div class="pane-header-info">
             <h3>Step 2: Pre-Test (Assessment)</h3>
-            <p>Add multiple choice questions to assess learners' prior knowledge before the module.</p>
+            <p>Add multiple-choice questions to assess learners' prior knowledge before the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
           </div>
 
           <!-- Step 2 Validation Warning Message -->
@@ -385,24 +409,6 @@
                 />
               </div>
 
-              <!-- Answer Key Selection Banner (when Answer Key is toggled active) -->
-              <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
-                <div class="gf-ak-banner-text">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                  </svg>
-                  <span>Select the correct option below using the radio button:</span>
-                </div>
-                <button
-                  type="button"
-                  class="gf-ak-done-btn"
-                  @click="q.answerKeyMode = false"
-                >
-                  Done
-                </button>
-              </div>
-
               <!-- Vertical Multiple-Choice Options List -->
               <div class="gf-options-list">
                 <div
@@ -410,8 +416,7 @@
                   :key="cIdx"
                   class="gf-option-row"
                   :class="{
-                    'is-correct-choice': q.correctAnswer === cIdx,
-                    'is-ak-mode': q.answerKeyMode
+                    'is-correct-choice': q.correctAnswer === cIdx
                   }"
                 >
                   <input
@@ -420,10 +425,12 @@
                     :name="`pretest-correct-${q.uid || qIdx}`"
                     :value="cIdx"
                     :checked="q.correctAnswer === cIdx"
-                    title="Select as correct answer"
+                    title="Click circle to select as correct answer"
                     @change="selectCorrectAnswer(q, cIdx, 'preTest')"
                   />
                   <input
+                    :id="`option-input-preTest-${q.uid || qIdx}-${cIdx}`"
+                    :ref="(el) => setOptionInputRef(`preTest-${q.uid || qIdx}-${cIdx}`, el)"
                     v-model="q.choices[cIdx]"
                     type="text"
                     class="gf-option-input"
@@ -466,67 +473,78 @@
                 </button>
               </div>
 
-              <!-- Saved Feedback Summary (if feedback has been added) -->
+              <!-- Inline Feedback Section (Correct Answer & Incorrect Answer Feedback) -->
               <div
-                v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
-                class="gf-saved-feedback-box"
+                v-if="isFeedbackVisible(q)"
+                class="gf-inline-feedback-container"
               >
-                <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
-                  <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
-                  <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                <div class="gf-inline-feedback-header">
+                  <span class="gf-inline-feedback-title">Question Feedback</span>
+                  <button
+                    type="button"
+                    class="gf-feedback-collapse-btn"
+                    title="Hide feedback fields"
+                    @click="q.showFeedback = false"
+                  >
+                    Hide
+                  </button>
                 </div>
-                <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
-                  <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
-                  <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+
+                <div class="gf-feedback-field">
+                  <div class="gf-feedback-field-header">
+                    <label class="gf-feedback-label">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon correct">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>Correct Answer Feedback</span>
+                    </label>
+                    <span class="gf-feedback-helper-text">Feedback displayed when the learner selects the correct answer.</span>
+                  </div>
+                  <textarea
+                    v-model="q.correctFeedback"
+                    rows="2"
+                    class="gf-feedback-input"
+                    placeholder="e.g. Great job! That's correct."
+                  ></textarea>
+                </div>
+
+                <div class="gf-feedback-field">
+                  <div class="gf-feedback-field-header">
+                    <label class="gf-feedback-label">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon incorrect">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                      <span>Incorrect Answer Feedback</span>
+                    </label>
+                    <span class="gf-feedback-helper-text">Feedback displayed when the learner selects an incorrect answer.</span>
+                  </div>
+                  <textarea
+                    v-model="q.incorrectFeedback"
+                    rows="2"
+                    class="gf-feedback-input"
+                    placeholder="e.g. Review page 5 of the module for the correct explanation."
+                  ></textarea>
                 </div>
               </div>
 
-              <!-- Question Card Footer: Answer Key, Add feedback answer & Delete -->
+              <!-- Question Card Footer: Add feedback answer & Delete -->
               <div class="gf-card-footer">
                 <div class="gf-footer-left">
                   <button
                     type="button"
-                    class="gf-answer-key-btn"
-                    :class="{
-                      'is-active': q.answerKeyMode,
-                      'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
-                    }"
-                    @click="toggleAnswerKeyMode(q)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M9 11l3 3L22 4"/>
-                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                    </svg>
-                    <span>Answer Key</span>
-                  </button>
-
-                  <button
-                    type="button"
                     class="gf-add-feedback-btn"
-                    :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
-                    @click="openFeedbackModal('preTest', qIdx)"
+                    :class="{
+                      'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim(),
+                      'is-open': isFeedbackVisible(q)
+                    }"
+                    @click="toggleQuestionFeedback(q)"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
                     <span>Add feedback answer</span>
                   </button>
-
-                  <span
-                    v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
-                    class="gf-ak-status is-set"
-                  >
-                    Correct: {{ q.choices[q.correctAnswer] }}
-                  </span>
-                  <span
-                    v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
-                    class="gf-ak-status is-set"
-                  >
-                    Option {{ q.correctAnswer + 1 }} selected
-                  </span>
-                  <span v-else class="gf-ak-status is-empty">
-                    Select correct answer
-                  </span>
                 </div>
 
                 <div class="gf-footer-right">
@@ -547,8 +565,11 @@
             </div>
           </div>
 
-          <!-- Bottom Bar: + Add Question & Total Questions -->
+          <!-- Bottom Bar: Total Questions on Left, + Add Question on Right -->
           <div class="gf-questions-bottom-bar">
+            <div class="gf-total-questions">
+              Total Questions: <strong>{{ newModule.preTest.length }}</strong>
+            </div>
             <button
               type="button"
               class="gf-btn-add-question"
@@ -556,9 +577,6 @@
             >
               + Add Question
             </button>
-            <div class="gf-total-questions">
-              Total Questions: <strong>{{ newModule.preTest.length }}</strong>
-            </div>
           </div>
         </div>
 
@@ -618,7 +636,10 @@
           </div>
 
           <div class="field-item" style="margin-top: 1.5rem;">
-            <label class="field-lbl">Teacher Facilitator Notes / Reading Instructions</label>
+            <label class="field-lbl">Teacher Reading Instructions</label>
+            <p class="field-helper-text">
+              Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
+            </p>
             <textarea
               v-model="newModule.learningNotes"
               rows="3"
@@ -631,8 +652,23 @@
         <!-- STEP 4: POST-TEST -->
         <div v-else-if="currentStepIndex === 3" class="step-form-pane">
           <div class="pane-header-info">
-            <h3>Step 4: Post-Test</h3>
-            <p>Add multiple choice questions to assess what learners have learned after completing the module.</p>
+            <div class="pane-header-title-bar">
+              <h3>Step 4: Post-Test</h3>
+              <button
+                type="button"
+                class="btn-duplicate-pretest"
+                :disabled="!hasValidPreTestQuestions"
+                :title="!hasValidPreTestQuestions ? 'No Pre-Test questions available to duplicate.' : 'Duplicate all questions created in Step 2: Pre-Test'"
+                @click="handleDuplicateClick"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>Duplicate from Pre-Test</span>
+              </button>
+            </div>
+            <p>Add multiple-choice questions to assess what learners have learned after completing the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
           </div>
 
           <!-- Step 4 Validation Warning Message -->
@@ -665,24 +701,6 @@
                 />
               </div>
 
-              <!-- Answer Key Selection Banner (when Answer Key is toggled active) -->
-              <div v-if="q.answerKeyMode" class="gf-answer-key-banner">
-                <div class="gf-ak-banner-text">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                  </svg>
-                  <span>Select the correct option below using the radio button:</span>
-                </div>
-                <button
-                  type="button"
-                  class="gf-ak-done-btn"
-                  @click="q.answerKeyMode = false"
-                >
-                  Done
-                </button>
-              </div>
-
               <!-- Vertical Multiple-Choice Options List -->
               <div class="gf-options-list">
                 <div
@@ -690,8 +708,7 @@
                   :key="cIdx"
                   class="gf-option-row"
                   :class="{
-                    'is-correct-choice': q.correctAnswer === cIdx,
-                    'is-ak-mode': q.answerKeyMode
+                    'is-correct-choice': q.correctAnswer === cIdx
                   }"
                 >
                   <input
@@ -700,10 +717,12 @@
                     :name="`posttest-correct-${q.uid || qIdx}`"
                     :value="cIdx"
                     :checked="q.correctAnswer === cIdx"
-                    title="Select as correct answer"
+                    title="Click circle to select as correct answer"
                     @change="selectCorrectAnswer(q, cIdx, 'postTest')"
                   />
                   <input
+                    :id="`option-input-postTest-${q.uid || qIdx}-${cIdx}`"
+                    :ref="(el) => setOptionInputRef(`postTest-${q.uid || qIdx}-${cIdx}`, el)"
                     v-model="q.choices[cIdx]"
                     type="text"
                     class="gf-option-input"
@@ -746,67 +765,78 @@
                 </button>
               </div>
 
-              <!-- Saved Feedback Summary (if feedback has been added) -->
+              <!-- Inline Feedback Section (Correct Answer & Incorrect Answer Feedback) -->
               <div
-                v-if="q.correctFeedback?.trim() || q.incorrectFeedback?.trim()"
-                class="gf-saved-feedback-box"
+                v-if="isFeedbackVisible(q)"
+                class="gf-inline-feedback-container"
               >
-                <div v-if="q.incorrectFeedback?.trim()" class="gf-saved-feedback-item is-incorrect">
-                  <span class="gf-saved-feedback-label">Feedback for incorrect answers:</span>
-                  <span class="gf-saved-feedback-text">{{ q.incorrectFeedback }}</span>
+                <div class="gf-inline-feedback-header">
+                  <span class="gf-inline-feedback-title">Question Feedback</span>
+                  <button
+                    type="button"
+                    class="gf-feedback-collapse-btn"
+                    title="Hide feedback fields"
+                    @click="q.showFeedback = false"
+                  >
+                    Hide
+                  </button>
                 </div>
-                <div v-if="q.correctFeedback?.trim()" class="gf-saved-feedback-item is-correct">
-                  <span class="gf-saved-feedback-label">Feedback for correct answers:</span>
-                  <span class="gf-saved-feedback-text">{{ q.correctFeedback }}</span>
+
+                <div class="gf-feedback-field">
+                  <div class="gf-feedback-field-header">
+                    <label class="gf-feedback-label">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon correct">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>Correct Answer Feedback</span>
+                    </label>
+                    <span class="gf-feedback-helper-text">Feedback displayed when the learner selects the correct answer.</span>
+                  </div>
+                  <textarea
+                    v-model="q.correctFeedback"
+                    rows="2"
+                    class="gf-feedback-input"
+                    placeholder="e.g. Great job! That's correct."
+                  ></textarea>
+                </div>
+
+                <div class="gf-feedback-field">
+                  <div class="gf-feedback-field-header">
+                    <label class="gf-feedback-label">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="gf-feedback-icon incorrect">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                      <span>Incorrect Answer Feedback</span>
+                    </label>
+                    <span class="gf-feedback-helper-text">Feedback displayed when the learner selects an incorrect answer.</span>
+                  </div>
+                  <textarea
+                    v-model="q.incorrectFeedback"
+                    rows="2"
+                    class="gf-feedback-input"
+                    placeholder="e.g. Review page 5 of the module for the correct explanation."
+                  ></textarea>
                 </div>
               </div>
 
-              <!-- Question Card Footer: Answer Key, Add feedback answer & Delete -->
+              <!-- Question Card Footer: Add feedback answer & Delete -->
               <div class="gf-card-footer">
                 <div class="gf-footer-left">
                   <button
                     type="button"
-                    class="gf-answer-key-btn"
-                    :class="{
-                      'is-active': q.answerKeyMode,
-                      'has-selected': q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined
-                    }"
-                    @click="toggleAnswerKeyMode(q)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M9 11l3 3L22 4"/>
-                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                    </svg>
-                    <span>Answer Key</span>
-                  </button>
-
-                  <button
-                    type="button"
                     class="gf-add-feedback-btn"
-                    :class="{ 'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim() }"
-                    @click="openFeedbackModal('postTest', qIdx)"
+                    :class="{
+                      'has-feedback': q.correctFeedback?.trim() || q.incorrectFeedback?.trim(),
+                      'is-open': isFeedbackVisible(q)
+                    }"
+                    @click="toggleQuestionFeedback(q)"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
                     <span>Add feedback answer</span>
                   </button>
-
-                  <span
-                    v-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer]?.trim()"
-                    class="gf-ak-status is-set"
-                  >
-                    Correct: {{ q.choices[q.correctAnswer] }}
-                  </span>
-                  <span
-                    v-else-if="q.correctAnswer !== null && q.correctAnswer !== undefined && q.choices[q.correctAnswer] !== undefined"
-                    class="gf-ak-status is-set"
-                  >
-                    Option {{ q.correctAnswer + 1 }} selected
-                  </span>
-                  <span v-else class="gf-ak-status is-empty">
-                    Select correct answer
-                  </span>
                 </div>
 
                 <div class="gf-footer-right">
@@ -827,8 +857,11 @@
             </div>
           </div>
 
-          <!-- Bottom Bar: + Add Question & Total Questions -->
+          <!-- Bottom Bar: Total Questions on Left, + Add Question on Right -->
           <div class="gf-questions-bottom-bar">
+            <div class="gf-total-questions">
+              Total Questions: <strong>{{ newModule.postTest.length }}</strong>
+            </div>
             <button
               type="button"
               class="gf-btn-add-question"
@@ -836,9 +869,6 @@
             >
               + Add Question
             </button>
-            <div class="gf-total-questions">
-              Total Questions: <strong>{{ newModule.postTest.length }}</strong>
-            </div>
           </div>
         </div>
       </div>
@@ -880,190 +910,66 @@
       </div>
     </div>
 
-    <!-- Teleport for Assign Module To Dropdown Menu -->
+    <!-- Confirmation Dialog: Duplicate from Pre-Test -->
     <Teleport to="body">
       <div
-        v-if="isAssignDropdownOpen"
-        class="assign-dropdown-backdrop"
-        @click="closeAssignDropdown"
-      ></div>
-
-      <div
-        v-if="isAssignDropdownOpen"
-        ref="assignDropdownMenuRef"
-        class="custom-dropdown-menu"
-        :class="[`placement-${assignDropdownPlacement}`]"
-        :style="assignDropdownStyle"
-        @click.stop
+        v-if="showDuplicateConfirmModal"
+        class="modal-overlay"
+        @click.self="showDuplicateConfirmModal = false"
       >
-        <!-- Search Input Header -->
-        <div class="dropdown-search-wrap">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            ref="assignDropdownSearchInputRef"
-            v-model="assignSearchQuery"
-            type="text"
-            class="dropdown-search-input"
-            placeholder="Search learners by name..."
-            @click.stop
-            @keydown.esc.stop="closeAssignDropdown"
-          />
-          <button
-            v-if="assignSearchQuery"
-            type="button"
-            class="dropdown-search-clear"
-            @click.stop="assignSearchQuery = ''"
-            aria-label="Clear search"
-          >
-            &times;
-          </button>
-        </div>
-
-        <!-- Dropdown Options List -->
-        <div class="dropdown-options-list">
-          <!-- All Learners Option (Always First) -->
-          <div
-            v-if="!assignSearchQuery || 'all learners'.includes(assignSearchQuery.toLowerCase())"
-            class="dropdown-option-item all-learners-item"
-            :class="{ 'is-selected': newModule.isAllLearners }"
-            @click.stop="selectAllLearners"
-          >
-            <div class="custom-checkbox" :class="{ 'is-checked': newModule.isAllLearners }">
-              <svg v-if="newModule.isAllLearners" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
+        <div
+          class="modal-box duplicate-confirm-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dup-confirm-title"
+        >
+          <div class="dup-modal-header">
+            <div class="dup-modal-icon-circle">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
             </div>
-            <span class="option-name">All Learners</span>
-            <span class="option-badge">
-              {{ eligibleLearners.length }} {{ eligibleLearners.length === 1 ? 'learner' : 'learners' }}
-            </span>
-          </div>
-
-          <div v-if="eligibleLearners.length > 0 && (!assignSearchQuery || 'all learners'.includes(assignSearchQuery.toLowerCase()))" class="dropdown-divider"></div>
-
-          <!-- Individual Learner Options -->
-          <div
-            v-for="learner in searchedEligibleLearners"
-            :key="learner.id"
-            class="dropdown-option-item"
-            :class="{ 'is-selected': isLearnerSelected(learner.id) }"
-            @click.stop="toggleLearner(learner.id)"
-          >
-            <div class="custom-checkbox" :class="{ 'is-checked': isLearnerSelected(learner.id) }">
-              <svg v-if="isLearnerSelected(learner.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
+            <div class="dup-modal-title-group">
+              <h3 id="dup-confirm-title" class="dup-modal-title">Duplicate Pre-Test Questions?</h3>
+              <p class="dup-modal-desc">
+                This will replace your current Post-Test questions with copies of your Pre-Test questions. Any unsaved Post-Test questions will be removed.
+              </p>
             </div>
-            <span class="option-name">{{ learner.name }}</span>
           </div>
-
-          <!-- Empty State inside Dropdown -->
-          <div v-if="eligibleLearners.length === 0" class="dropdown-empty">
-            No active learners found for selected Learning Center and ALS Level.
-          </div>
-          <div v-else-if="searchedEligibleLearners.length === 0" class="dropdown-empty">
-            No learners match "{{ assignSearchQuery }}".
+          <div class="dup-modal-actions">
+            <button
+              type="button"
+              class="btn-dup-cancel"
+              @click="showDuplicateConfirmModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn-dup-confirm"
+              @click="confirmDuplicate"
+            >
+              Duplicate Questions
+            </button>
           </div>
         </div>
       </div>
     </Teleport>
-
-    <!-- ADD FEEDBACK MODAL -->
-    <div
-      v-if="feedbackModal.open"
-      class="gf-feedback-modal-backdrop"
-      @click.self="closeFeedbackModal"
-    >
-      <div class="gf-feedback-modal-card" role="dialog" aria-modal="true" aria-labelledby="gf-feedback-modal-title">
-        <!-- Modal Header -->
-        <div class="gf-feedback-modal-header">
-          <h3 id="gf-feedback-modal-title" class="gf-feedback-modal-title">Add feedback</h3>
-          <button
-            type="button"
-            class="gf-feedback-modal-close"
-            title="Close"
-            aria-label="Close"
-            @click="closeFeedbackModal"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Modal Tabs: Incorrect answers | Correct answers -->
-        <div class="gf-feedback-modal-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            class="gf-feedback-tab-btn"
-            :class="{ 'is-active': feedbackModal.activeTab === 'incorrect' }"
-            :aria-selected="feedbackModal.activeTab === 'incorrect'"
-            @click="feedbackModal.activeTab = 'incorrect'"
-          >
-            Incorrect answers
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="gf-feedback-tab-btn"
-            :class="{ 'is-active': feedbackModal.activeTab === 'correct' }"
-            :aria-selected="feedbackModal.activeTab === 'correct'"
-            @click="feedbackModal.activeTab = 'correct'"
-          >
-            Correct answers
-          </button>
-        </div>
-
-        <!-- Modal Body: Separate Multiline Textarea per Tab -->
-        <div class="gf-feedback-modal-body">
-          <textarea
-            v-if="feedbackModal.activeTab === 'incorrect'"
-            v-model="feedbackModal.incorrectFeedback"
-            rows="4"
-            class="gf-feedback-textarea"
-            placeholder="Enter feedback here..."
-          ></textarea>
-          <textarea
-            v-else
-            v-model="feedbackModal.correctFeedback"
-            rows="4"
-            class="gf-feedback-textarea"
-            placeholder="Enter feedback here..."
-          ></textarea>
-        </div>
-
-        <!-- Modal Footer: Cancel & Save -->
-        <div class="gf-feedback-modal-footer">
-          <button
-            type="button"
-            class="gf-feedback-cancel-btn"
-            @click="closeFeedbackModal"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="gf-feedback-save-btn"
-            @click="saveFeedbackModal"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
+import AssignModuleToDropdown from '../components/AssignModuleToDropdown.vue';
+import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
+import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import { getModules, createModule, uploadModuleFile } from '../api/modules.js';
 import { getAssignedLearners } from '../api/learners.js';
+import { getManilaTodayKey, toDateKey } from '../utils/manilaTime.js';
 
 const props = defineProps({
   defaultLevelSlug: {
@@ -1078,7 +984,15 @@ const props = defineProps({
 
 const route = useRoute();
 const router = useRouter();
-const { teacherName, teacherId, currentTeacher, assignedCenters, assignedProgramLevel } = useTeacherSession();
+const {
+  teacherName,
+  teacherId,
+  currentTeacher,
+  assignedCenters,
+  assignedProgramLevel,
+  setActiveModuleLevel,
+  cacheModuleLevel,
+} = useTeacherSession();
 
 // Resolve the stable database AlsLevel enum ('ELEMENTARY' or 'JUNIOR') directly from the active route
 const activeTargetLevel = computed(() => {
@@ -1116,6 +1030,11 @@ const activeLevel = computed(() => {
 
 function openModuleDetails(moduleId) {
   if (!moduleId) return;
+  const matched = (modules.value || []).find((m) => Number(m.id) === Number(moduleId));
+  setActiveModuleLevel(
+    matched?.targetLevel || matched?.level || matched?.programLevel || activeTargetLevel.value,
+    moduleId
+  );
   router.push(`/dashboard/modules/${moduleId}`);
 }
 
@@ -1123,6 +1042,59 @@ function openModuleDetails(moduleId) {
 const modules = ref([]);
 const loading = ref(true);
 const isSubmitting = ref(false);
+
+// Module Upload Age Filter: 'all' | 'recent' (0–2 days old) | 'older' (3+ days old)
+const activeFilter = ref('all');
+
+function getModuleAgeInDays(createdAt, now = new Date()) {
+  if (!createdAt) return 999999;
+  const todayKey = getManilaTodayKey(now);
+  const createdKey = toDateKey(createdAt);
+  if (!createdKey || createdKey.length < 10) return 999999;
+
+  const [tY, tM, tD] = todayKey.split('-').map(Number);
+  const [cY, cM, cD] = createdKey.split('-').map(Number);
+
+  const todayUtc = Date.UTC(tY, tM - 1, tD);
+  const createdUtc = Date.UTC(cY, cM - 1, cD);
+
+  const diffMs = todayUtc - createdUtc;
+  const diffDays = Math.floor(diffMs / (24 * 3600 * 1000));
+  return Math.max(0, diffDays);
+}
+
+const filterCounts = computed(() => {
+  const list = modules.value || [];
+  let recent = 0;
+  let older = 0;
+  for (const m of list) {
+    const age = getModuleAgeInDays(m.createdAt);
+    if (age <= 2) {
+      recent++;
+    } else {
+      older++;
+    }
+  }
+  return {
+    all: list.length,
+    recent,
+    older,
+  };
+});
+
+const filteredModules = computed(() => {
+  const list = modules.value || [];
+  if (activeFilter.value === 'recent') {
+    return list.filter((m) => getModuleAgeInDays(m.createdAt) <= 2);
+  }
+  if (activeFilter.value === 'older') {
+    return list
+      .filter((m) => getModuleAgeInDays(m.createdAt) >= 3)
+      .slice()
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }
+  return list;
+});
 
 // Teacher's assigned learners list
 const teacherLearners = ref([]);
@@ -1146,47 +1118,19 @@ function createBlankQuestion() {
     choices: [''],
     optionIds: [null],
     correctAnswer: null,
-    answerKeyMode: false,
     correctFeedback: '',
     incorrectFeedback: '',
+    showFeedback: false,
   };
 }
 
-// Feedback Modal State
-const feedbackModal = reactive({
-  open: false,
-  targetKey: 'preTest',
-  questionIndex: -1,
-  activeTab: 'incorrect',
-  incorrectFeedback: '',
-  correctFeedback: '',
-});
-
-function openFeedbackModal(targetKey, qIdx) {
-  const list = newModule[targetKey];
-  if (!Array.isArray(list) || !list[qIdx]) return;
-  const q = list[qIdx];
-  feedbackModal.targetKey = targetKey;
-  feedbackModal.questionIndex = qIdx;
-  feedbackModal.activeTab = 'incorrect';
-  feedbackModal.incorrectFeedback = q.incorrectFeedback || '';
-  feedbackModal.correctFeedback = q.correctFeedback || '';
-  feedbackModal.open = true;
+function isFeedbackVisible(q) {
+  if (q.showFeedback !== undefined) return !!q.showFeedback;
+  return !!(q.correctFeedback?.trim() || q.incorrectFeedback?.trim());
 }
 
-function closeFeedbackModal() {
-  feedbackModal.open = false;
-  feedbackModal.questionIndex = -1;
-}
-
-function saveFeedbackModal() {
-  const list = newModule[feedbackModal.targetKey];
-  if (Array.isArray(list) && list[feedbackModal.questionIndex]) {
-    const q = list[feedbackModal.questionIndex];
-    q.incorrectFeedback = (feedbackModal.incorrectFeedback || '').trim();
-    q.correctFeedback = (feedbackModal.correctFeedback || '').trim();
-  }
-  closeFeedbackModal();
+function toggleQuestionFeedback(q) {
+  q.showFeedback = !isFeedbackVisible(q);
 }
 
 const wizardSteps = [
@@ -1236,6 +1180,8 @@ function resolveModuleCodeFromStrand(strandName) {
   return '';
 }
 
+const DEFAULT_READING_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
+
 const newModule = reactive({
   title: '',
   strand: 'Communication Skills (English)',
@@ -1245,7 +1191,6 @@ const newModule = reactive({
   dateStarted: '',
   dateEnded: '',
   instructions: '',
-  activitiesRelated: '',
   description: '',
   isAllLearners: true,
   selectedLearnerIds: [],
@@ -1254,7 +1199,8 @@ const newModule = reactive({
   fileName: '',
   fileType: 'PDF',
   fileSize: '',
-  learningNotes: '',
+  learningNotes: DEFAULT_READING_INSTRUCTIONS,
+  readingInstructions: DEFAULT_READING_INSTRUCTIONS,
   postTest: [createBlankQuestion()],
 });
 
@@ -1631,7 +1577,7 @@ function validateAssessmentQuestions(questionsArray, label) {
     ) {
       return {
         valid: false,
-        error: `${label} Question ${qNum}: Please select 1 correct answer using the Answer Key or radio button.`,
+        error: `${label} Question ${qNum}: Please select 1 correct answer by clicking the circle beside the option.`,
       };
     }
   }
@@ -1655,6 +1601,9 @@ async function loadModules() {
     if (Array.isArray(res.data)) {
       // Filter strictly by the actual stored ALS Level (m.targetLevel)
       modules.value = res.data.filter((m) => {
+        if (m.id) {
+          cacheModuleLevel(m.id, m.targetLevel || m.level || m.programLevel);
+        }
         const modTarget = String(m.targetLevel || '').toUpperCase().trim();
         if (modTarget === 'ELEMENTARY' || modTarget === 'JUNIOR') {
           return modTarget === targetEnum;
@@ -1783,16 +1732,47 @@ function removeQuestion(targetKey, index) {
   newModule[targetKey].splice(index, 1);
 }
 
+// Template refs map for autofocusing newly created option inputs
+const optionInputRefs = new Map();
+
+function setOptionInputRef(key, el) {
+  if (el) {
+    optionInputRefs.set(key, el);
+  } else {
+    optionInputRefs.delete(key);
+  }
+}
+
 function addOptionToQuestion(q, targetKey) {
   if (targetKey === 'preTest') step2ErrorMessage.value = '';
   if (targetKey === 'postTest') step4ErrorMessage.value = '';
   if (!Array.isArray(q.choices)) {
     q.choices = [];
   }
+  const newIdx = q.choices.length;
   q.choices.push('');
   if (Array.isArray(q.optionIds)) {
     q.optionIds.push(null);
   }
+
+  if (!q.uid) {
+    questionUidCounter += 1;
+    q.uid = `q-${questionUidCounter}-${Date.now()}`;
+  }
+  const qKey = q.uid;
+  const targetId = `option-input-${targetKey}-${qKey}-${newIdx}`;
+  const refKey = `${targetKey}-${qKey}-${newIdx}`;
+
+  nextTick(() => {
+    const el = optionInputRefs.get(refKey) || document.getElementById(targetId);
+    if (el && typeof el.focus === 'function') {
+      el.focus();
+      if (typeof el.setSelectionRange === 'function') {
+        const len = (el.value || '').length;
+        el.setSelectionRange(len, len);
+      }
+    }
+  });
 }
 
 function removeOptionFromQuestion(q, cIdx, targetKey) {
@@ -1819,8 +1799,69 @@ function selectCorrectAnswer(q, cIdx, targetKey) {
   q.correctAnswer = cIdx;
 }
 
-function toggleAnswerKeyMode(q) {
-  q.answerKeyMode = !q.answerKeyMode;
+// --- DUPLICATE PRE-TEST TO POST-TEST ---
+const showDuplicateConfirmModal = ref(false);
+
+function isQuestionEmpty(q) {
+  if (!q) return true;
+  const hasPrompt = !!(q.prompt && String(q.prompt).trim());
+  const hasChoices = Array.isArray(q.choices) && q.choices.some((c) => c && String(c).trim());
+  const hasFeedback = !!(q.correctFeedback?.trim() || q.incorrectFeedback?.trim());
+  return !hasPrompt && !hasChoices && !hasFeedback;
+}
+
+const hasValidPreTestQuestions = computed(() => {
+  if (!Array.isArray(newModule.preTest) || newModule.preTest.length === 0) return false;
+  return newModule.preTest.some((q) => !isQuestionEmpty(q));
+});
+
+function hasExistingPostTestQuestions() {
+  if (!Array.isArray(newModule.postTest) || newModule.postTest.length === 0) {
+    return false;
+  }
+  if (newModule.postTest.length > 1) {
+    return true;
+  }
+  return !isQuestionEmpty(newModule.postTest[0]);
+}
+
+function duplicatePreTestQuestions() {
+  if (!Array.isArray(newModule.preTest)) return;
+  const sourceQuestions = newModule.preTest.filter((q) => !isQuestionEmpty(q));
+  if (sourceQuestions.length === 0) return;
+
+  const copied = sourceQuestions.map((q) => {
+    questionUidCounter += 1;
+    const choices = Array.isArray(q.choices) && q.choices.length > 0 ? [...q.choices] : [''];
+    return {
+      uid: `q-${questionUidCounter}-${Date.now()}`,
+      id: null,
+      prompt: q.prompt ? String(q.prompt) : '',
+      choices: choices,
+      optionIds: choices.map(() => null),
+      correctAnswer: q.correctAnswer !== null && q.correctAnswer !== undefined ? q.correctAnswer : null,
+      correctFeedback: q.correctFeedback ? String(q.correctFeedback) : '',
+      incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback) : '',
+      showFeedback: !!(q.showFeedback || q.correctFeedback?.trim() || q.incorrectFeedback?.trim()),
+    };
+  });
+
+  newModule.postTest = copied;
+  step4ErrorMessage.value = '';
+}
+
+function handleDuplicateClick() {
+  if (!hasValidPreTestQuestions.value) return;
+  if (hasExistingPostTestQuestions()) {
+    showDuplicateConfirmModal.value = true;
+  } else {
+    duplicatePreTestQuestions();
+  }
+}
+
+function confirmDuplicate() {
+  duplicatePreTestQuestions();
+  showDuplicateConfirmModal.value = false;
 }
 
 function triggerFileInput() {
@@ -1877,7 +1918,6 @@ function resetWizard() {
   newModule.dateStarted = '';
   newModule.dateEnded = '';
   newModule.instructions = '';
-  newModule.activitiesRelated = '';
   newModule.description = '';
   newModule.isAllLearners = true;
   newModule.selectedLearnerIds = [];
@@ -1887,7 +1927,8 @@ function resetWizard() {
   newModule.fileName = '';
   newModule.fileType = 'PDF';
   newModule.fileSize = '';
-  newModule.learningNotes = '';
+  newModule.learningNotes = DEFAULT_READING_INSTRUCTIONS;
+  newModule.readingInstructions = DEFAULT_READING_INSTRUCTIONS;
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
@@ -1938,7 +1979,6 @@ async function publishCompleteModule() {
       dateStarted: newModule.dateStarted,
       dateEnded: newModule.dateEnded,
       instructions: newModule.instructions ? newModule.instructions.trim() : '',
-      activitiesRelated: newModule.activitiesRelated ? newModule.activitiesRelated.trim() : '',
       description: newModule.instructions ? newModule.instructions.trim() : (newModule.description ? newModule.description.trim() : ''),
       strand: newModule.strand,
       level: newModule.level,
@@ -1948,6 +1988,7 @@ async function publishCompleteModule() {
       fileUrl: uploadedFileUrl,
       fileName: newModule.fileName || null,
       learningNotes: newModule.learningNotes ? newModule.learningNotes.trim() : '',
+      readingInstructions: newModule.learningNotes ? newModule.learningNotes.trim() : '',
       preTest: newModule.preTest.map((q, idx) => ({
         questionText: q.prompt.trim(),
         options: q.choices.map((c, cIdx) => ({
@@ -2016,6 +2057,7 @@ watch(
   () => route.path,
   async (newPath, oldPath) => {
     if (newPath !== oldPath) {
+      activeFilter.value = 'all';
       newModule.level = activeLevel.value;
       await loadModules();
       await loadTeacherLearners();
@@ -2027,6 +2069,8 @@ watch(
   () => activeTargetLevel.value,
   async (newTarget) => {
     if (newTarget) {
+      activeFilter.value = 'all';
+      setActiveModuleLevel(newTarget);
       newModule.level = activeLevel.value;
       await loadModules();
       await loadTeacherLearners();
@@ -2035,6 +2079,7 @@ watch(
 );
 
 onMounted(async () => {
+  setActiveModuleLevel(activeTargetLevel.value);
   newModule.level = activeLevel.value;
   window.addEventListener('resize', updateAssignDropdownPosition);
   window.addEventListener('scroll', handleGlobalDropdownScroll, true);
@@ -2110,6 +2155,80 @@ onBeforeUnmount(() => {
 /* Learning Feed Container */
 .learning-feed-container {
   width: 100%;
+}
+
+/* Module Upload Age Filter Row (Right-aligned directly below Upload Module button) */
+.modules-filter-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: -0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.modules-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.module-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.module-filter-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.module-filter-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.module-filter-btn .tab-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+.module-filter-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.empty-filter-state {
+  margin-top: 1rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .modules-filter-row {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .feed-header-info {
@@ -2267,11 +2386,15 @@ onBeforeUnmount(() => {
 .feed-card-actions {
   flex-shrink: 0;
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .btn-view-material {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   padding: 0.5rem 0.85rem;
   background: #ffffff;
@@ -2282,12 +2405,41 @@ onBeforeUnmount(() => {
   color: #2563eb;
   text-decoration: none;
   transition: all 0.15s ease;
+  height: 36px;
+  box-sizing: border-box;
 }
 
 .btn-view-material:hover {
   background: #eff6ff;
   border-color: #2563eb;
   color: #1d4ed8;
+}
+
+.btn-module-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0 6px;
+  min-width: 28px;
+  height: 36px;
+  transition: color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.btn-module-chevron:hover {
+  background: transparent;
+  color: #2563eb;
+}
+
+.btn-module-chevron:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Creation Wizard Card */
@@ -2396,6 +2548,147 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
   color: #64748b;
   margin: 0;
+}
+
+.pane-header-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.pane-header-title-bar h3 {
+  margin: 0;
+}
+
+.btn-duplicate-pretest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2563eb;
+  background-color: #ffffff;
+  border: 1.5px solid #2563eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  line-height: 1.25;
+}
+
+.btn-duplicate-pretest:hover:not(:disabled) {
+  background-color: #eff6ff;
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+.btn-duplicate-pretest:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+/* Modal: Duplicate Questions Confirmation */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.duplicate-confirm-modal {
+  max-width: 480px;
+  width: 90%;
+  padding: 1.6rem;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dup-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dup-modal-icon-circle {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dup-modal-title-group {
+  flex: 1;
+}
+
+.dup-modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.45rem 0;
+}
+
+.dup-modal-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dup-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.btn-dup-cancel {
+  padding: 0.55rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-dup-cancel:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.btn-dup-confirm {
+  padding: 0.55rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-dup-confirm:hover {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 .form-grid-2 {
@@ -2617,10 +2910,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.gf-ak-done-btn:hover {
-  background: #1d4ed8;
-}
-
 .gf-options-list {
   display: flex;
   flex-direction: column;
@@ -2638,7 +2927,7 @@ onBeforeUnmount(() => {
 }
 
 .gf-option-row.is-correct-choice {
-  background: #f0fdf4;
+  background: #eff6ff;
 }
 
 .gf-option-radio {
@@ -2646,7 +2935,7 @@ onBeforeUnmount(() => {
   height: 18px;
   margin: 0;
   cursor: pointer;
-  accent-color: #16a34a;
+  accent-color: #2563eb;
   flex-shrink: 0;
 }
 
@@ -2674,7 +2963,7 @@ onBeforeUnmount(() => {
 }
 
 .gf-option-row.is-correct-choice .gf-option-input {
-  border-color: #86efac;
+  border-color: #93c5fd;
   background: #ffffff;
 }
 
@@ -2684,8 +2973,8 @@ onBeforeUnmount(() => {
   gap: 0.25rem;
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: #dcfce7;
-  color: #15803d;
+  background: #dbeafe;
+  color: #1d4ed8;
   font-size: 0.725rem;
   font-weight: 700;
   flex-shrink: 0;
@@ -2747,43 +3036,106 @@ onBeforeUnmount(() => {
   color: #1d4ed8;
 }
 
-.gf-saved-feedback-box {
+/* Inline Feedback Container */
+.gf-inline-feedback-container {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.65rem 0.85rem;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.85rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
 
-.gf-saved-feedback-item {
+.gf-inline-feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.1rem;
+}
+
+.gf-inline-feedback-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.gf-feedback-collapse-btn {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gf-feedback-collapse-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.gf-feedback-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gf-feedback-field-header {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+.gf-feedback-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.8125rem;
-  line-height: 1.4;
-}
-
-.gf-saved-feedback-label {
   font-weight: 700;
-  color: #334155;
+  color: #1e293b;
+}
+
+.gf-feedback-icon.correct {
+  color: #16a34a;
+}
+
+.gf-feedback-icon.incorrect {
+  color: #dc2626;
+}
+
+.gf-feedback-helper-text {
   font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
 }
 
-.gf-saved-feedback-item.is-correct .gf-saved-feedback-label {
-  color: #15803d;
+.gf-feedback-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+  min-height: 52px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.gf-saved-feedback-item.is-incorrect .gf-saved-feedback-label {
-  color: #b91c1c;
-}
-
-.gf-saved-feedback-text {
-  color: #475569;
-  white-space: pre-wrap;
-  word-break: break-word;
+.gf-feedback-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .gf-card-footer {
@@ -2803,39 +3155,6 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.gf-answer-key-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.42rem 0.85rem;
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  border-radius: 7px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-answer-key-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-}
-
-.gf-answer-key-btn.has-selected {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
-}
-
-.gf-answer-key-btn.is-active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #ffffff;
-}
-
 .gf-add-feedback-btn {
   display: inline-flex;
   align-items: center;
@@ -2849,6 +3168,7 @@ onBeforeUnmount(() => {
   color: #2563eb;
   cursor: pointer;
   font-family: inherit;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .gf-add-feedback-btn:hover {
@@ -2857,23 +3177,11 @@ onBeforeUnmount(() => {
   color: #1d4ed8;
 }
 
-.gf-add-feedback-btn.has-feedback {
+.gf-add-feedback-btn.has-feedback,
+.gf-add-feedback-btn.is-open {
   background: #eff6ff;
   border-color: #93c5fd;
   color: #1d4ed8;
-}
-
-.gf-ak-status {
-  font-size: 0.775rem;
-  font-weight: 600;
-}
-
-.gf-ak-status.is-set {
-  color: #15803d;
-}
-
-.gf-ak-status.is-empty {
-  color: #64748b;
 }
 
 .gf-footer-right {
@@ -2904,163 +3212,6 @@ onBeforeUnmount(() => {
   background: #fef2f2;
   border-color: #fecaca;
   color: #b91c1c;
-}
-
-/* Add Feedback Modal Styles */
-.gf-feedback-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  z-index: 1200;
-}
-
-.gf-feedback-modal-card {
-  width: 100%;
-  max-width: 520px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.gf-feedback-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.1rem 1.35rem 0.85rem 1.35rem;
-}
-
-.gf-feedback-modal-title {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.gf-feedback-modal-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-}
-
-.gf-feedback-modal-close:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.gf-feedback-modal-tabs {
-  display: flex;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0 1.35rem;
-  gap: 1.5rem;
-}
-
-.gf-feedback-tab-btn {
-  padding: 0.65rem 0.15rem;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: -1px;
-}
-
-.gf-feedback-tab-btn:hover {
-  color: #0f172a;
-}
-
-.gf-feedback-tab-btn.is-active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-}
-
-.gf-feedback-modal-body {
-  padding: 1.25rem 1.35rem;
-}
-
-.gf-feedback-textarea {
-  width: 100%;
-  min-height: 115px;
-  padding: 0.75rem 0.85rem;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  outline: none;
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.gf-feedback-textarea::placeholder {
-  color: #94a3b8;
-}
-
-.gf-feedback-textarea:focus {
-  background: #ffffff;
-  border-color: #2563eb;
-}
-
-.gf-feedback-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.65rem;
-  padding: 0.85rem 1.35rem 1.15rem 1.35rem;
-  border-top: 1px solid #f1f5f9;
-}
-
-.gf-feedback-cancel-btn {
-  padding: 0.48rem 1rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-feedback-cancel-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.gf-feedback-save-btn {
-  padding: 0.48rem 1.15rem;
-  background: #2563eb;
-  border: 1px solid #2563eb;
-  border-radius: 7px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #ffffff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.gf-feedback-save-btn:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
 }
 
 .gf-questions-bottom-bar {
@@ -3626,6 +3777,13 @@ onBeforeUnmount(() => {
   line-height: 1.4;
 }
 
+.field-helper-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -0.15rem 0 0.45rem 0;
+  line-height: 1.4;
+}
+
 .field-helper-warning {
   display: flex;
   align-items: center;
@@ -3637,5 +3795,23 @@ onBeforeUnmount(() => {
 
 .field-helper-warning svg {
   flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .feed-card-item {
+    padding: 1.15rem 1.25rem;
+    gap: 1.15rem;
+  }
+}
+
+@media (max-width: 580px) {
+  .feed-card-item {
+    align-items: flex-start;
+  }
+  .feed-card-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>
