@@ -31,6 +31,11 @@
           <p class="score-summary-subtitle">
             You answered {{ score }} out of {{ total }} questions correctly.
           </p>
+          <div class="score-breakdown-pills">
+            <span class="breakdown-pill pill-total">Total: {{ total }}</span>
+            <span class="breakdown-pill pill-correct">Correct: {{ score }}</span>
+            <span class="breakdown-pill pill-incorrect">Incorrect: {{ incorrectCount }}</span>
+          </div>
         </div>
       </div>
 
@@ -278,6 +283,12 @@ const proceedButtonLabel = computed(() => {
   return isPostTest.value ? 'Proceed to Submit Activity' : 'Proceed to Read Module';
 });
 
+const incorrectCount = computed(() => {
+  const tot = Number(props.total || 0);
+  const cor = Number(props.score || 0);
+  return Math.max(0, tot - cor);
+});
+
 function getUserAnswer(q) {
   if (!props.answers || !q) return null;
   return props.answers[q.id];
@@ -426,6 +437,38 @@ function resolveFeedback(q) {
   color: #64748b;
   line-height: 1.4;
   font-weight: 500;
+}
+
+.score-breakdown-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.breakdown-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.breakdown-pill.pill-total {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.breakdown-pill.pill-correct {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.breakdown-pill.pill-incorrect {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 /* Primary Action Buttons */

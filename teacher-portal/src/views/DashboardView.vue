@@ -122,21 +122,13 @@
             </select>
           </div>
 
-          <!-- Reset Button -->
+          <!-- Clear Filters Button -->
           <div class="filter-action-item">
-            <button
-              type="button"
-              class="btn-reset-filters"
+            <ClearFiltersButton
               :disabled="!hasActiveFilters || loading"
+              aria-label="Clear all filters to view all assigned learners"
               @click="resetFilters"
-              title="Reset all filters to view all assigned learners"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-              <span>Reset Filters</span>
-            </button>
+            />
           </div>
         </div>
       </div>
@@ -1706,6 +1698,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getTeacherDashboardData } from '../api/dashboard.js';
 import { getModuleProgressReport } from '../api/reports.js';
@@ -2972,42 +2965,6 @@ onMounted(fetchDashboardData);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
-.btn-reset-filters {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  height: 42px;
-  min-height: 42px;
-  box-sizing: border-box;
-  padding: 0 1rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #475569;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.btn-reset-filters:hover:not(:disabled) {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
-}
-
-.btn-reset-filters:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
-.btn-reset-filters:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Error Banner */
 .dashboard-error-banner {
   display: flex;
@@ -3983,7 +3940,7 @@ onMounted(fetchDashboardData);
     grid-template-columns: 1fr;
     gap: 0.85rem;
   }
-  .filter-action-item .btn-reset-filters {
+  .filter-action-item .btn-clear-filters {
     width: 100%;
   }
   .summary-cards-grid {

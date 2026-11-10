@@ -22,9 +22,9 @@ export async function getModuleProgressReport(params = {}) {
 /**
  * Fetch individual learner module progress details for modal
  */
-export async function getLearnerModuleProgressDetails(learnerId) {
+export async function getLearnerModuleProgressDetails(learnerId, params = {}) {
   try {
-    const res = await api.get(`/reports/module-progress/learner/${learnerId}`);
+    const res = await api.get(`/reports/module-progress/learner/${learnerId}`, { params });
     return res.data;
   } catch (err) {
     console.error('Could not load learner module progress details:', err);

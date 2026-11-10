@@ -146,21 +146,26 @@
               :module-id="mod.id"
             />
             <div class="active-module-info">
-              <h3 class="active-module-title">
-                {{ mod.title }}
-              </h3>
-              <p v-if="getModuleInstructions(mod)" class="active-module-instructions">
-                {{ getModuleInstructions(mod) }}
-              </p>
-              <div class="active-module-strand">
-                {{ getModuleStrand(mod) }}
+              <div class="active-module-text-top">
+                <h3 class="active-module-title">
+                  {{ mod.title }}
+                </h3>
+                <p v-if="getModuleInstructions(mod)" class="active-module-instructions">
+                  {{ getModuleInstructions(mod) }}
+                </p>
               </div>
 
-              <!-- Progress Percentage & Progress Bar directly below Learning Strand -->
-              <div class="active-module-progress-wrap">
-                <div class="active-module-progress-text">
-                  {{ mod.progress || 0 }}%
+              <!-- Learning Strand & Progress grouped near bottom edge of thumbnail -->
+              <div class="active-module-meta-bottom">
+                <div class="active-module-strand-row">
+                  <div class="active-module-strand">
+                    {{ getModuleStrand(mod) }}
+                  </div>
+                  <div class="active-module-progress-text">
+                    {{ mod.progress || 0 }}%
+                  </div>
                 </div>
+
                 <div class="progress-bar-track">
                   <div class="progress-bar-fill" :style="{ width: `${mod.progress || 0}%` }"></div>
                 </div>
@@ -182,9 +187,13 @@
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
         </div>
-        <p class="empty-module-main-text">No new learning modules</p>
+        <p class="empty-module-main-text">No new learning modules.</p>
         <p class="empty-module-sub-text">
-          Your teacher hasn't added any new modules yet.
+          {{
+            assignedModules.length > 0
+              ? "You're all caught up! Check My Modules to review your completed lessons."
+              : "Your teacher hasn't added any new modules yet."
+          }}
         </p>
       </div>
     </div>
@@ -197,6 +206,7 @@ import api from '../api/axios';
 import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import { useNotifications } from '../composables/useNotifications.js';
 import { formatStrandName } from '../utils/formatStrand.js';
+import { stripRichTextToPlain } from '../utils/sanitizeRichText.js';
 
 const { notifications, fetchNotifications } = useNotifications();
 
@@ -250,9 +260,13 @@ const latestAnnouncement = ref(null);
 function isModuleCompleted(mod) {
   if (!mod) return false;
   const pct = Number(mod.progress ?? 0);
+  const hasSavedCompletedRecord = Array.isArray(mod.learnerProgress) &&
+    mod.learnerProgress.some((lp) => lp && (lp.status === 'COMPLETED' || Boolean(lp.completedAt)));
   return Boolean(
     mod.completed === true ||
     mod.progressStatus === 'COMPLETED' ||
+    Boolean(mod.completedAt) ||
+    hasSavedCompletedRecord ||
     pct >= 100
   );
 }
@@ -304,7 +318,7 @@ function getModuleStrand(mod) {
 function getModuleInstructions(mod) {
   if (!mod) return '';
   const raw = mod.instructions || mod.description || '';
-  return typeof raw === 'string' ? raw.trim() : '';
+  return stripRichTextToPlain(raw);
 }
 
 // Published/assigned modules excluding mock dummy records
@@ -314,9 +328,9 @@ const assignedModules = computed(() => {
   );
 });
 
-// New Learning Modules section shows assigned modules
+// New Learning Modules section shows only Not Started or In Progress modules (hides Completed)
 const newLearningModules = computed(() => {
-  return assignedModules.value;
+  return assignedModules.value.filter((mod) => !isModuleCompleted(mod));
 });
 
 async function loadLearnerData() {
@@ -718,14 +732,28 @@ onUnmounted(() => {
 .active-module-header {
   display: flex;
   gap: 0.85rem;
-  align-items: flex-start;
+  align-items: stretch;
+  width: 100%;
+}
+
+.active-module-header :deep(.module-thumb-box) {
+  align-self: flex-start;
 }
 
 .active-module-info {
   flex: 1;
   min-width: 0;
+  min-height: 110px;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.active-module-text-top {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .active-module-title {
@@ -741,34 +769,68 @@ onUnmounted(() => {
   font-weight: 400;
   color: #475569;
   line-height: 1.45;
-  margin-top: 0.35rem;
-  word-break: break-word;
-  white-space: normal;
+  margin: 0.25rem 0 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+
+.active-module-meta-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+.active-module-strand-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
 }
 
 .active-module-strand {
+  flex: 1;
+  min-width: 0;
   font-size: 0.775rem;
   font-weight: 600;
   color: #64748b;
-  margin-top: 0.35rem;
-  line-height: 1.35;
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-.active-module-progress-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 14px;
+.active-module-meta-bottom .progress-bar-track {
+  width: 100%;
+  margin-top: 0;
+}
+
+@media (max-width: 480px) {
+  .active-module-info {
+    min-height: 94px;
+  }
 }
 
 .active-module-progress-text {
-  display: flex;
-  justify-content: flex-end;
+  flex-shrink: 0;
   font-size: 0.75rem;
   font-weight: 700;
   color: #165dfc;
   line-height: 1.2;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
 }
 
 .continue-btn {

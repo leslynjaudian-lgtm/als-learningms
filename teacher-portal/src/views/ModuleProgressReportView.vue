@@ -53,16 +53,9 @@
           />
         </div>
 
-        <!-- 5. Reset Filters (White background, border, same height) -->
+        <!-- 5. Clear Filters -->
         <div class="filter-btn-col col-reset">
-          <button
-            type="button"
-            class="filter-reset-btn"
-            @click="resetFilters"
-            title="Reset Filters"
-          >
-            Reset Filters
-          </button>
+          <ClearFiltersButton @click="resetFilters" />
         </div>
 
         <!-- 6. Generate Report (ALS LMS blue button, same height) -->
@@ -422,6 +415,10 @@
                     <span class="sub-item-name">Overdue:</span>
                     <span class="sub-item-count font-mono text-red-bold">{{ modalSummary.overdue }}</span>
                   </div>
+                  <div v-if="modalSummary.notStarted > 0" class="sub-item-row">
+                    <span class="sub-item-name">Not Started:</span>
+                    <span class="sub-item-count font-mono">{{ modalSummary.notStarted }}</span>
+                  </div>
                 </div>
               </div>
 
@@ -463,6 +460,7 @@
                     <th>Pre-Test</th>
                     <th>Post-Test</th>
                     <th>Status</th>
+                    <th class="col-modal-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -485,9 +483,19 @@
                         {{ mod.status }}
                       </span>
                     </td>
+                    <td class="col-modal-actions">
+                      <button
+                        type="button"
+                        class="btn-modal-action"
+                        :disabled="!getModuleActionMeta(mod).enabled"
+                        @click="handleModuleAction(mod)"
+                      >
+                        {{ getModuleActionMeta(mod).label }}
+                      </button>
+                    </td>
                   </tr>
                   <tr v-if="!selectedLearnerDetails.modules || selectedLearnerDetails.modules.length === 0">
-                    <td colspan="5" class="text-muted-center">No module records recorded for this learner.</td>
+                    <td colspan="6" class="text-muted-center">No module records recorded for this learner.</td>
                   </tr>
                 </tbody>
               </table>
@@ -592,8 +600,9 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getModuleProgressReport, getLearnerModuleProgressDetails } from '../api/reports.js';
 import { getLearner } from '../api/learners.js';
@@ -660,6 +669,7 @@ const modalSummary = computed(() => {
   let notRecorded = 0;
   let inProgress = 0;
   let overdue = 0;
+  let notStarted = 0;
 
   for (const m of mods) {
     const st = String(m.status || '').trim().toLowerCase();
@@ -671,6 +681,8 @@ const modalSummary = computed(() => {
       overdue++;
     } else if (st === 'in progress' || st === 'in_progress' || st === 'started') {
       inProgress++;
+    } else if (st === 'not started' || st === 'not_started') {
+      notStarted++;
     } else {
       notRecorded++;
     }
@@ -684,10 +696,11 @@ const modalSummary = computed(() => {
     notRecorded = Number(bSummary.notRecorded || 0);
     inProgress = Number(bSummary.inProgress || 0);
     overdue = Number(bSummary.overdue || 0);
+    notStarted = Number(bSummary.notStarted || 0);
   }
 
   const recorded = mastered + notMastered;
-  const pending = notRecorded + inProgress + overdue;
+  const pending = notRecorded + inProgress + overdue + notStarted;
   const totalModules = recorded + pending;
   const progress = totalModules > 0 ? Math.round((recorded / totalModules) * 100) : 0;
 
@@ -699,6 +712,7 @@ const modalSummary = computed(() => {
     notRecorded,
     inProgress,
     overdue,
+    notStarted,
     totalModules,
     progress,
   };
@@ -711,6 +725,101 @@ function getModuleStatusBadgeClass(status) {
   if (s === 'in progress' || s === 'in_progress' || s === 'started') return 'badge-blue';
   if (s === 'overdue') return 'badge-red';
   return 'badge-gray';
+}
+
+function getNumericModuleId(mod) {
+  const raw = mod?.moduleId ?? mod?.id;
+  if (raw == null || raw === '') return null;
+  const num = Number(raw);
+  return !isNaN(num) && num > 0 ? num : null;
+}
+
+function getModuleActionMeta(mod) {
+  const s = String(mod?.status || '').trim().toLowerCase();
+  const hasModuleId = Boolean(getNumericModuleId(mod));
+
+  if (s === 'mastered' || s === 'not mastered') {
+    return { label: 'View Record', type: 'record', enabled: true };
+  }
+  if (s === 'not recorded') {
+    return { label: 'View Submission', type: 'submission', enabled: hasModuleId };
+  }
+  if (s === 'overdue') {
+    return { label: 'View Submission', type: 'overdue-submission', enabled: hasModuleId };
+  }
+  return { label: 'View Progress', type: 'progress', enabled: hasModuleId };
+}
+
+function buildReturnToReportUrl() {
+  const params = new URLSearchParams();
+  if (lastGeneratedFilters.value.center) params.set('learningCenter', lastGeneratedFilters.value.center);
+  if (lastGeneratedFilters.value.level) params.set('level', lastGeneratedFilters.value.level);
+  if (lastGeneratedFilters.value.fromDate) params.set('fromDate', lastGeneratedFilters.value.fromDate);
+  if (lastGeneratedFilters.value.toDate) params.set('toDate', lastGeneratedFilters.value.toDate);
+  params.set('autoGenerate', '1');
+  return `/dashboard/reports/module-progress?${params.toString()}`;
+}
+
+function handleModuleAction(mod) {
+  const learnerId = selectedLearnerDetails.value?.learner?.id;
+  if (!learnerId || !mod) return;
+
+  const meta = getModuleActionMeta(mod);
+  if (!meta.enabled) return;
+
+  const numericModId = getNumericModuleId(mod);
+  const returnTo = buildReturnToReportUrl();
+  closeDetailsModal();
+
+  if (meta.type === 'record') {
+    router.push({
+      path: `/dashboard/records/${learnerId}`,
+      query: {
+        mode: 'view',
+        moduleId: numericModId ? String(numericModId) : undefined,
+        recordId: mod.recordId ? String(mod.recordId) : undefined,
+        moduleTitle: mod.title || undefined,
+        returnTo,
+      },
+    });
+    return;
+  }
+
+  if (!numericModId) return;
+  const subTargetId = mod.submissionId || `pending_${numericModId}_${learnerId}`;
+
+  if (meta.type === 'submission') {
+    router.push({
+      path: `/dashboard/modules/${numericModId}/submissions/${subTargetId}`,
+      query: {
+        learnerId: String(learnerId),
+        status: 'not-recorded',
+        returnTo,
+      },
+    });
+    return;
+  }
+
+  if (meta.type === 'overdue-submission') {
+    router.push({
+      path: `/dashboard/modules/${numericModId}/submissions/${subTargetId}`,
+      query: {
+        learnerId: String(learnerId),
+        status: 'overdue',
+        returnTo,
+      },
+    });
+    return;
+  }
+
+  router.push({
+    path: `/dashboard/modules/${numericModId}/submissions/${subTargetId}`,
+    query: {
+      learnerId: String(learnerId),
+      view: 'progress',
+      returnTo,
+    },
+  });
 }
 
 // Modal State (Learner Information)
@@ -735,6 +844,7 @@ const availableCenters = computed(() => {
 });
 
 const route = useRoute();
+const router = useRouter();
 
 onMounted(async () => {
   try {
@@ -751,8 +861,8 @@ onMounted(async () => {
   if (q.learningCenter || q.learningCenterId) {
     selectedCenter.value = String(q.learningCenter || q.learningCenterId);
   }
-  if (q.fromDate && q.toDate) {
-    handleGenerateReport();
+  if (q.autoGenerate === '1' || (q.fromDate && q.toDate)) {
+    await handleGenerateReport();
   }
 });
 
@@ -865,7 +975,10 @@ async function openDetailsModal(learner) {
   loadingDetails.value = true;
   selectedLearnerDetails.value = null;
   try {
-    const details = await getLearnerModuleProgressDetails(learner.id);
+    const params = {};
+    if (lastGeneratedFilters.value.fromDate) params.fromDate = lastGeneratedFilters.value.fromDate;
+    if (lastGeneratedFilters.value.toDate) params.toDate = lastGeneratedFilters.value.toDate;
+    const details = await getLearnerModuleProgressDetails(learner.id, params);
     selectedLearnerDetails.value = details;
   } catch (err) {
     console.error('Error fetching learner details:', err);
@@ -1084,38 +1197,6 @@ function closeLearnerModal() {
   align-items: flex-end;
 }
 
-/* Reset Filters: Secondary, white background, border, same 42px height */
-.filter-reset-btn {
-  height: 42px;
-  min-height: 42px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 8px;
-  background-color: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.filter-reset-btn:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
-}
-
-.filter-reset-btn:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
 /* Generate Report Button: ALS LMS Blue, white text, same 42px height */
 .generate-report-btn {
   height: 42px;
@@ -1217,7 +1298,7 @@ function closeLearnerModal() {
   .col-generate {
     flex: 1 1 auto;
   }
-  .filter-reset-btn,
+  .btn-clear-filters,
   .generate-report-btn {
     width: 100%;
   }
@@ -1803,7 +1884,8 @@ function closeLearnerModal() {
 .modal-table-responsive {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .modal-detail-table {
@@ -1819,12 +1901,45 @@ function closeLearnerModal() {
   text-align: left;
   padding: 8px 12px;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 .modal-detail-table td {
   padding: 8px 12px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
+}
+
+.col-modal-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.btn-modal-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.34rem 0.72rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-modal-action:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.btn-modal-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .badge {

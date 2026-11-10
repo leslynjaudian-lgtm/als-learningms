@@ -9,6 +9,8 @@ import { getLearnerPagesRead, saveLearnerPagesRead, setLearnerPagesRead, getLear
 import { notifyModulePublished } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
+import { formatLearningArea, normalizeLearningAreaStatus } from './learningAreas.js';
+import { sanitizeInstructionsHtml } from '../utils/sanitizeInstructions.js';
 
 const router = Router();
 
@@ -20,13 +22,10 @@ function buildReadablePdfFilename(m) {
     .replace(/[^a-zA-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
-  const rawStrand = String(m?.learningArea?.code || m?.code || '')
+  const rawStrand = String(m?.code || m?.learningArea?.code || '')
     .trim()
     .toUpperCase();
-  const lsMatch = rawStrand.match(/^LS\d+/i);
-  const cleanStrand = lsMatch
-    ? lsMatch[0].toUpperCase()
-    : rawStrand.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const cleanStrand = rawStrand.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
   const baseTitle = rawTitle || 'Learning_Module';
   if (
@@ -154,7 +153,7 @@ function validateAndNormalizeAssessmentQuestions(rawQuestions, label = 'Assessme
 
 // Synchronize Pre-Test or Post-Test questions for a module without creating duplicate assessments/questions
 // and while preserving existing learner attempts and scores.
-async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, questions }) {
+async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, questions, instructions }) {
   const existingAssessments = await prisma.assessment.findMany({
     where: { moduleId, type },
     include: {
@@ -185,13 +184,19 @@ async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, qu
   }
 
   const assessmentTitle = `${moduleTitle} - ${type === 'PRE_TEST' ? 'Pre-Test' : 'Post-Test'}`;
-  const assessmentDesc =
-    type === 'PRE_TEST'
-      ? `Pre-Test (Assessment) for ${moduleTitle}`
-      : `Post-Test for ${moduleTitle}`;
+  const hasExplicitInstructions = instructions !== undefined;
+  const resolvedInstructions = hasExplicitInstructions
+    ? (instructions != null && String(instructions).trim() ? String(instructions).trim() : null)
+    : undefined;
 
   if (!questions || questions.length === 0) {
     if (assessment) {
+      if (hasExplicitInstructions) {
+        await prisma.assessment.update({
+          where: { id: assessment.id },
+          data: { title: assessmentTitle, description: resolvedInstructions },
+        });
+      }
       const existingQIds = (assessment.questions || []).map((q) => q.id);
       if (existingQIds.length > 0) {
         await prisma.answerOption.deleteMany({ where: { questionId: { in: existingQIds } } });
@@ -208,7 +213,7 @@ async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, qu
         teacherId,
         title: assessmentTitle,
         type,
-        description: assessmentDesc,
+        description: resolvedInstructions ?? null,
       },
       include: {
         questions: {
@@ -218,12 +223,13 @@ async function syncModuleAssessment({ moduleId, teacherId, moduleTitle, type, qu
       },
     });
   } else {
+    const updateData = { title: assessmentTitle };
+    if (hasExplicitInstructions) {
+      updateData.description = resolvedInstructions;
+    }
     await prisma.assessment.update({
       where: { id: assessment.id },
-      data: {
-        title: assessmentTitle,
-        description: assessmentDesc,
-      },
+      data: updateData,
     });
   }
 
@@ -384,11 +390,17 @@ function formatModule(m, reqUser) {
               (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.id ?? 0) - (b.id ?? 0)
             )
           : [];
+        const rawDesc = ass.description ? String(ass.description).trim() : '';
+        const isLegacyPlaceholder =
+          rawDesc === `Pre-Test (Assessment) for ${m.title}` ||
+          rawDesc === `Post-Test for ${m.title}`;
+        const assessmentInstructions = isLegacyPlaceholder ? '' : rawDesc;
         return {
           id: ass.id,
           title: ass.title,
           type: ass.type,
-          description: ass.description || '',
+          description: assessmentInstructions,
+          instructions: assessmentInstructions,
           questionsCount: sortedQuestions.length,
           attempts: ass.attempts || [],
           questions: sortedQuestions.map((q) => {
@@ -545,14 +557,18 @@ function formatModule(m, reqUser) {
     : null;
   const readingInstructions = firstPage?.content ? firstPage.content.trim() : '';
 
+  const savedCode = m.code ? String(m.code).trim() : '';
+  const areaCode = m.learningArea?.code ? String(m.learningArea.code).trim() : '';
+  const resolvedCode = savedCode || areaCode || '';
+
   return {
     id: m.id,
-    code: m.code || m.learningArea?.code || 'LS1',
-    moduleCode: m.code || m.learningArea?.code || `MOD-${m.id}`,
+    code: resolvedCode,
+    moduleCode: resolvedCode || `MOD-${m.id}`,
     moduleNumber: extractedModuleNumber,
     title: m.title,
-    description: m.description || '',
-    instructions: m.instructions || m.description || '',
+    description: sanitizeInstructionsHtml(m.description) || '',
+    instructions: sanitizeInstructionsHtml(m.instructions || m.description) || '',
     readingInstructions,
     learningNotes: readingInstructions,
     activitiesRelated: m.activitiesRelated || '',
@@ -562,13 +578,14 @@ function formatModule(m, reqUser) {
     submissionDeadline: effectiveDeadline,
     isSubmissionClosed,
     strand: m.learningArea?.name || 'General Curriculum',
-    strandCode: m.learningArea?.code || m.code || 'LS1',
+    strandCode: resolvedCode,
     learningAreaId: m.learningAreaId,
     learningArea: m.learningArea
       ? {
           id: m.learningArea.id,
-          code: m.learningArea.code,
-          name: m.learningArea.name,
+          code: String(m.learningArea.code || '').trim(),
+          name: String(m.learningArea.name || '').trim(),
+          status: normalizeLearningAreaStatus(m.learningArea.status),
         }
       : null,
     level: displayLevel,
@@ -595,6 +612,8 @@ function formatModule(m, reqUser) {
     assessments: formattedAssessments,
     preTest,
     postTest,
+    preTestInstructions: preTest?.instructions || '',
+    postTestInstructions: postTest?.instructions || '',
     progress: progressPct,
     completed: isCompleted,
     progressStatus: isCompleted ? 'COMPLETED' : (isInProgress ? 'IN_PROGRESS' : 'NOT_STARTED'),
@@ -766,11 +785,12 @@ router.get('/', optionalAuth, async (req, res, next) => {
 // ---------------------
 router.get('/strands', async (req, res, next) => {
   try {
+    const includeInactive = String(req.query.includeInactive || '').toLowerCase() === 'true';
     const areas = await prisma.learningArea.findMany({
-      where: { status: 'active' },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
-    res.json(areas);
+    const formatted = areas.map(formatLearningArea);
+    res.json(includeInactive ? formatted : formatted.filter((a) => a.status === 'Active'));
   } catch (err) {
     next(err);
   }
@@ -828,6 +848,16 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 
     if (!mod) {
       return res.status(404).json({ error: 'Module not found' });
+    }
+
+    // Role check: Teacher can ONLY view modules assigned/owned by that teacher
+    if (req.user && req.user.role === 'TEACHER') {
+      const allowedTeacherIds = [req.user.profileId, req.user.userId, req.user.id]
+        .filter((v) => v != null && !isNaN(Number(v)))
+        .map(Number);
+      if (!allowedTeacherIds.includes(Number(mod.teacherId))) {
+        return res.status(403).json({ error: 'Access denied. You can only view modules assigned to your classes.' });
+      }
     }
 
     // Role check: If learner, verify module is published, matches learning center and program level, and assignments
@@ -1026,19 +1056,30 @@ router.post('/upload', optionalAuth, handleModuleFileUpload, (req, res) => {
   });
 });
 
-export function getExpectedModuleCodeForStrand(strandName, areaCode) {
-  if (areaCode) {
-    const m = String(areaCode).match(/^LS\s*(\d+)/i);
-    if (m) return `LS${m[1]}`;
+export function getExpectedModuleCodeForStrand(_strandName, areaCode) {
+  const trimmed = String(areaCode || '').trim();
+  return trimmed || null;
+}
+
+// Resolve a LearningArea record strictly by database ID or exact name (never by code alone)
+async function resolveLearningAreaRecord({ learningAreaId, strand, strandName }) {
+  if (learningAreaId !== undefined && learningAreaId !== null && learningAreaId !== '') {
+    const parsedAreaId = parseInt(learningAreaId, 10);
+    if (isNaN(parsedAreaId)) {
+      return { error: 'Invalid Learning Strand ID.' };
+    }
+    const area = await prisma.learningArea.findUnique({ where: { id: parsedAreaId } });
+    return { area };
   }
-  const s = String(strandName || '').toLowerCase();
-  if (s.includes('english') || s.includes('filipino') || s.includes('communication')) return 'LS1';
-  if (s.includes('scient') || s.includes('science')) return 'LS2';
-  if (s.includes('math') || s.includes('problem solving')) return 'LS3';
-  if (s.includes('life') || s.includes('career')) return 'LS4';
-  if (s.includes('self') || s.includes('society')) return 'LS5';
-  if (s.includes('digital') || s.includes('citizenship')) return 'LS6';
-  return null;
+  const rawName = String(strand || strandName || '').trim();
+  if (rawName) {
+    const areas = await prisma.learningArea.findMany();
+    const matched = areas.find(
+      (a) => String(a.name || '').trim().toLowerCase() === rawName.toLowerCase()
+    );
+    return { area: matched || null };
+  }
+  return { area: null };
 }
 
 // ---------------------
@@ -1070,6 +1111,8 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       readingInstructions,
       preTest,
       postTest,
+      preTestInstructions,
+      postTestInstructions,
       teacherId: explicitTeacherId,
       isAllLearners,
       assignedLearnerIds,
@@ -1079,29 +1122,34 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       return res.status(400).json({ error: 'Module title is required' });
     }
 
-    // Resolve Learning Area (Strand)
-    let resolvedAreaId = learningAreaId ? parseInt(learningAreaId, 10) : null;
-    if (!resolvedAreaId && (strand || strandName)) {
-      const strandStr = String(strand || strandName).toLowerCase();
-      const areas = await prisma.learningArea.findMany();
-      const matched = areas.find((a) =>
-        strandStr.includes(a.name.toLowerCase()) ||
-        a.name.toLowerCase().includes(strandStr) ||
-        (a.code && strandStr.includes(a.code.toLowerCase()))
-      );
-      if (matched) resolvedAreaId = matched.id;
+    // Resolve Learning Area (Strand) strictly from Admin-registered database records
+    const { area: areaObj, error: areaResolveError } = await resolveLearningAreaRecord({
+      learningAreaId,
+      strand,
+      strandName,
+    });
+    if (areaResolveError) {
+      return res.status(400).json({ error: areaResolveError });
     }
-
-    if (!resolvedAreaId) {
-      const defaultArea = await prisma.learningArea.findFirst();
-      resolvedAreaId = defaultArea ? defaultArea.id : null;
-      if (!resolvedAreaId) {
-        const created = await prisma.learningArea.create({
-          data: { code: 'LS1-ENG', name: 'Communication Skills (English)' },
-        });
-        resolvedAreaId = created.id;
-      }
+    if (!areaObj) {
+      return res.status(400).json({ error: 'Please select a valid Learning Strand registered by the Admin.' });
     }
+    if (normalizeLearningAreaStatus(areaObj.status) !== 'Active') {
+      return res.status(400).json({
+        error: `The Learning Strand "${areaObj.name}" is inactive and cannot be selected for new modules.`,
+      });
+    }
+    const officialCode = String(areaObj.code || '').trim();
+    if (!officialCode) {
+      return res.status(400).json({ error: 'No valid Learning Strand Code is configured for the selected Learning Area.' });
+    }
+    const submittedCode = String(moduleCode ?? code ?? '').trim();
+    if (submittedCode && submittedCode !== officialCode) {
+      return res.status(400).json({
+        error: `Module Code (${submittedCode}) does not match the registered Learning Strand Code (${officialCode}).`,
+      });
+    }
+    const resolvedAreaId = areaObj.id;
 
     // Resolve Teacher
     let resolvedTeacherId = null;
@@ -1172,16 +1220,11 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       normalizedPostQuestions = postCheck.questions;
     }
 
-    // Validate Module Code against Learning Strand
-    const areaObj = await prisma.learningArea.findUnique({ where: { id: resolvedAreaId } });
-    const expectedModuleCode = getExpectedModuleCodeForStrand(strand || strandName || areaObj?.name, areaObj?.code);
-    if (!expectedModuleCode) {
-      return res.status(400).json({ error: 'No valid Module Code is configured for the selected Learning Strand.' });
-    }
-    const finalModuleCode = expectedModuleCode;
+    // Official Module Code comes directly from the validated LearningArea record
+    const finalModuleCode = officialCode;
 
-    // Create the Module record
-    const resolvedInstructions = (instructions || description)?.trim() || null;
+    // Create the Module record (sanitize rich-text instructions)
+    const resolvedInstructions = sanitizeInstructionsHtml(instructions !== undefined ? instructions : description);
     const newModule = await prisma.module.create({
       data: {
         title: title.trim(),
@@ -1223,6 +1266,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         moduleTitle: title.trim(),
         type: 'PRE_TEST',
         questions: normalizedPreQuestions,
+        instructions: preTestInstructions,
       });
     }
 
@@ -1234,6 +1278,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         moduleTitle: title.trim(),
         type: 'POST_TEST',
         questions: normalizedPostQuestions,
+        instructions: postTestInstructions,
       });
     }
 
@@ -1398,16 +1443,21 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
       instructions,
       description,
       activitiesRelated,
+      learningAreaId,
       strand,
+      strandName,
       level,
       learningCenterId,
       code,
+      moduleCode,
       dateStarted,
       dateEnded,
       isAllLearners,
       assignedLearnerIds,
       preTest,
       postTest,
+      preTestInstructions,
+      postTestInstructions,
       learningNotes,
       readingInstructions,
     } = req.body;
@@ -1440,40 +1490,82 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
     if (instructions !== undefined) {
-      const trimmedInst = instructions ? instructions.trim() : '';
-      updateData.instructions = trimmedInst;
+      const sanitizedInst = sanitizeInstructionsHtml(instructions) || '';
+      updateData.instructions = sanitizedInst;
       if (description === undefined) {
-        updateData.description = trimmedInst;
+        updateData.description = sanitizedInst;
       }
     }
     if (description !== undefined) {
-      const trimmedDesc = description ? description.trim() : '';
-      updateData.description = trimmedDesc;
+      const sanitizedDesc = sanitizeInstructionsHtml(description) || '';
+      updateData.description = sanitizedDesc;
       if (instructions === undefined) {
-        updateData.instructions = trimmedDesc;
+        updateData.instructions = sanitizedDesc;
       }
     }
     if (activitiesRelated !== undefined) updateData.activitiesRelated = activitiesRelated ? activitiesRelated.trim() : '';
-    // Map strand and module code
-    if (strand) {
-      const strandStr = strand.trim();
-      const matchedArea = await prisma.learningArea.findFirst({
-        where: {
-          OR: [
-            { name: { contains: strandStr } },
-            { code: { contains: strandStr } },
-          ],
-        },
+    // Validate and map Learning Strand and Module Code strictly from database LearningArea
+    const hasAreaInput =
+      (learningAreaId !== undefined && learningAreaId !== null && learningAreaId !== '') ||
+      Boolean(strand && String(strand).trim()) ||
+      Boolean(strandName && String(strandName).trim());
+    const submittedCode = String((moduleCode ?? code) ?? '').trim();
+
+    if (hasAreaInput) {
+      const { area: targetAreaObj, error: areaResolveError } = await resolveLearningAreaRecord({
+        learningAreaId,
+        strand,
+        strandName,
       });
-      if (matchedArea) {
-        updateData.learningAreaId = matchedArea.id;
+      if (areaResolveError) {
+        return res.status(400).json({ error: areaResolveError });
       }
-      const expectedCode = getExpectedModuleCodeForStrand(strandStr, matchedArea?.code);
-      if (expectedCode) {
-        updateData.code = expectedCode;
+      if (!targetAreaObj) {
+        return res.status(400).json({ error: 'Selected Learning Strand was not found.' });
       }
-    } else if (code !== undefined) {
-      updateData.code = code.trim();
+
+      const isChangingArea = targetAreaObj.id !== existingMod.learningAreaId;
+      if (isChangingArea && normalizeLearningAreaStatus(targetAreaObj.status) !== 'Active') {
+        return res.status(400).json({
+          error: `The Learning Strand "${targetAreaObj.name}" is inactive and cannot be selected.`,
+        });
+      }
+
+      const officialAreaCode = String(targetAreaObj.code || '').trim();
+      if (!officialAreaCode) {
+        return res.status(400).json({ error: 'The selected Learning Strand does not have a registered code.' });
+      }
+
+      if (isChangingArea) {
+        if (submittedCode && submittedCode !== officialAreaCode) {
+          return res.status(400).json({
+            error: `Module Code (${submittedCode}) does not match the registered Learning Strand Code (${officialAreaCode}).`,
+          });
+        }
+        updateData.learningAreaId = targetAreaObj.id;
+        updateData.code = officialAreaCode;
+      } else {
+        const existingCode = String(existingMod.code || '').trim();
+        if (submittedCode && submittedCode !== officialAreaCode && submittedCode !== existingCode) {
+          return res.status(400).json({
+            error: `Module Code (${submittedCode}) does not match the Learning Strand Code (${officialAreaCode}).`,
+          });
+        }
+        if (submittedCode) {
+          updateData.code = submittedCode;
+        }
+      }
+    } else if (submittedCode) {
+      const currentArea = await prisma.learningArea.findUnique({
+        where: { id: existingMod.learningAreaId },
+      });
+      const officialAreaCode = String(currentArea?.code || '').trim();
+      const existingCode = String(existingMod.code || '').trim();
+      if (submittedCode !== officialAreaCode && submittedCode !== existingCode) {
+        return res.status(400).json({
+          error: `Module Code (${submittedCode}) does not match the registered Learning Strand Code (${officialAreaCode}).`,
+        });
+      }
     }
 
     // Map level
@@ -1562,7 +1654,16 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         moduleTitle: updatedBaseMod.title || existingMod.title,
         type: 'PRE_TEST',
         questions: normalizedPreQuestions,
+        instructions: preTestInstructions,
       });
+    } else if (preTestInstructions !== undefined) {
+      const existingPreAss = await prisma.assessment.findFirst({ where: { moduleId: id, type: 'PRE_TEST' } });
+      if (existingPreAss) {
+        await prisma.assessment.update({
+          where: { id: existingPreAss.id },
+          data: { description: preTestInstructions != null && String(preTestInstructions).trim() ? String(preTestInstructions).trim() : null },
+        });
+      }
     }
 
     if (normalizedPostQuestions !== null) {
@@ -1572,7 +1673,16 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
         moduleTitle: updatedBaseMod.title || existingMod.title,
         type: 'POST_TEST',
         questions: normalizedPostQuestions,
+        instructions: postTestInstructions,
       });
+    } else if (postTestInstructions !== undefined) {
+      const existingPostAss = await prisma.assessment.findFirst({ where: { moduleId: id, type: 'POST_TEST' } });
+      if (existingPostAss) {
+        await prisma.assessment.update({
+          where: { id: existingPostAss.id },
+          data: { description: postTestInstructions != null && String(postTestInstructions).trim() ? String(postTestInstructions).trim() : null },
+        });
+      }
     }
 
     // Update learner assignments if provided
@@ -1727,8 +1837,8 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       return res.status(404).json({ error: 'Assessment not found for this module' });
     }
 
-    // Pre-test is a diagnostic assessment: once submitted, prevent retakes
-    if (assessment.type === 'PRE_TEST') {
+    // Prevent duplicate assessment submissions for both Pre-Test and Post-Test
+    if (assessment.type === 'PRE_TEST' || assessment.type === 'POST_TEST') {
       const existingAttempt = await prisma.assessmentAttempt.findFirst({
         where: {
           assessmentId: parsedAssessmentId,
@@ -1742,9 +1852,10 @@ router.post('/:id/attempt', authenticate, requireRole(['LEARNER']), async (req, 
       });
 
       if (existingAttempt) {
+        const testLabel = assessment.type === 'PRE_TEST' ? 'Pre-Test' : 'Post-Test';
         return res.status(400).json({
-          error: 'Pre-Test Completed. You have already submitted your answers. You can review your results, but you cannot answer again.',
-          code: 'PRE_TEST_ALREADY_COMPLETED',
+          error: `${testLabel} Completed. You have already submitted your answers. You can review your results, but you cannot answer again.`,
+          code: assessment.type === 'PRE_TEST' ? 'PRE_TEST_ALREADY_COMPLETED' : 'POST_TEST_ALREADY_COMPLETED',
           alreadyCompleted: true,
           attemptId: existingAttempt.id,
           score: Number(existingAttempt.score),

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
+import { buildLearnerModuleProgressSummary } from '../utils/moduleProgressStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -272,79 +273,138 @@ router.get('/module-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), 
       ],
     });
 
-    // 3. Load authoritative saved performance records
+    // 3. Load authoritative saved performance records and database module/progress records
     const allSavedRecords = readAf2Records();
+    const learnerIds = learners.map((l) => l.id);
 
-    // Fetch modules to map real codes when missing from saved records without generating artificial fallbacks
-    const dbModules = await prisma.module.findMany({ select: { id: true, code: true } });
-    const moduleMap = new Map();
-    for (const m of dbModules) {
-      if (m.id) moduleMap.set(Number(m.id), m);
+    const moduleWhere = {};
+    if (userRole === 'TEACHER') {
+      const tIds = [req.user.profileId, req.user.userId, req.user.id].filter((v) => v != null && !isNaN(Number(v))).map(Number);
+      if (tIds.length > 0) {
+        moduleWhere.teacherId = { in: tIds };
+      }
     }
 
-    // 4. Process each learner's module usage and progress calculation from saved records ONLY
-    // Include all enrolled learners even if they have 0 saved records
+    const [dbModules, allAssignments, allProgress, allSubmissions, allAttempts] = await Promise.all([
+      prisma.module.findMany({
+        where: moduleWhere,
+        include: {
+          learningArea: { select: { id: true, name: true, code: true } },
+          assessments: {
+            select: {
+              id: true,
+              type: true,
+              _count: { select: { questions: true } },
+            },
+          },
+          assignments: { select: { id: true, learnerId: true } },
+          _count: { select: { pages: true } },
+        },
+      }).catch(() => []),
+      learnerIds.length > 0
+        ? prisma.moduleAssignment.findMany({
+            where: {
+              learnerId: { in: learnerIds },
+              ...(userRole === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+            },
+            include: {
+              module: {
+                include: {
+                  learningArea: true,
+                  assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+                  _count: { select: { pages: true } },
+                },
+              },
+            },
+          }).catch(() => [])
+        : Promise.resolve([]),
+      learnerIds.length > 0
+        ? prisma.learnerProgress.findMany({
+            where: {
+              learnerId: { in: learnerIds },
+              ...(userRole === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+            },
+            include: {
+              module: {
+                include: {
+                  learningArea: true,
+                  assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+                  _count: { select: { pages: true } },
+                },
+              },
+            },
+          }).catch(() => [])
+        : Promise.resolve([]),
+      learnerIds.length > 0
+        ? prisma.submission.findMany({
+            where: {
+              learnerId: { in: learnerIds },
+              ...(userRole === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+            },
+            include: {
+              module: {
+                include: {
+                  learningArea: true,
+                  assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+                  _count: { select: { pages: true } },
+                },
+              },
+            },
+          }).catch(() => [])
+        : Promise.resolve([]),
+      learnerIds.length > 0
+        ? prisma.assessmentAttempt.findMany({
+            where: {
+              learnerId: { in: learnerIds },
+              ...(userRole === 'TEACHER' && moduleWhere.teacherId ? { assessment: { module: moduleWhere } } : {}),
+            },
+            include: {
+              assessment: {
+                select: {
+                  id: true,
+                  moduleId: true,
+                  type: true,
+                  _count: { select: { questions: true } },
+                },
+              },
+            },
+            orderBy: { submittedAt: 'desc' },
+          }).catch(() => [])
+        : Promise.resolve([]),
+    ]);
+
+    // 4. Process each learner's module usage and progress using shared classification logic
+    // Include all enrolled learners even if they have 0 module records
     const processedLearners = learners.map((learner) => {
-      const learnerSavedRecords = allSavedRecords.filter((r) => {
-        const rLid = r.learnerId != null ? Number(r.learnerId) : null;
-        if (rLid && rLid === learner.id) return true;
-        if (r.lrn && learner.lrn && String(r.lrn).trim() === String(learner.lrn).trim()) return true;
-        if (!rLid && !r.lrn && r.learnerName && learner.fullName && r.learnerName.trim().toLowerCase() === learner.fullName.trim().toLowerCase()) return true;
-        return false;
+      const lAssigns = allAssignments.filter((a) => a.learnerId === learner.id);
+      const lProgs = allProgress.filter((p) => p.learnerId === learner.id);
+      const lSubs = allSubmissions.filter((s) => s.learnerId === learner.id);
+      const lAtts = allAttempts.filter((a) => a.learnerId === learner.id);
+
+      const { modules: moduleItems, summary } = buildLearnerModuleProgressSummary({
+        learner,
+        af2Records: allSavedRecords,
+        dbModules,
+        dbAssignments: lAssigns,
+        dbProgress: lProgs,
+        dbSubmissions: lSubs,
+        dbAttempts: lAtts,
+        fromDate: fromDate || null,
+        toDate: toDate || null,
       });
 
-      // Filter saved records by date range if specified (using finished date, completed date, started date, or created date)
-      const filteredRecords = learnerSavedRecords.filter((r) => {
-        const d = (r.dateFinished || r.dateCompleted || r.dateStarted || r.createdAt || '').trim().split('T')[0];
-        if (!d) {
-          return !fromDate && !toDate;
-        }
-        if (fromDate && d < fromDate) return false;
-        if (toDate && d > toDate) return false;
-        return true;
-      });
-
-      let masteredCount = 0;
-      let notMasteredCount = 0;
-      let pendingCount = 0;
-
-      const moduleDetails = [];
-
-      for (const r of filteredRecords) {
-        const isMastered = r.assessment === 'Mastered' || r.moduleStatus === 'Mastered';
-        const isNotMastered = r.assessment === 'Not Mastered' || r.moduleStatus === 'Not Mastered';
-        let status = 'In Progress';
-        if (isMastered) {
-          status = 'Mastered';
-          masteredCount++;
-        } else if (isNotMastered) {
-          status = 'Not Mastered';
-          notMasteredCount++;
-        } else {
-          status = r.assessment || r.moduleStatus || 'In Progress';
-          pendingCount++;
-        }
-
-        const matchedMod = r.moduleId ? moduleMap.get(Number(r.moduleId)) : null;
-        const realCode = r.moduleCode || matchedMod?.code || '';
-
-        moduleDetails.push({
-          moduleId: r.moduleId || r.id,
-          title: r.moduleTitle || 'Learning Module',
-          code: realCode,
-          strand: r.strandName || 'General',
-          status,
-          preTestScore: r.preTestScore != null && r.preTestScore !== '' ? Number(r.preTestScore) : null,
-          postTestScore: r.postTestScore != null && r.postTestScore !== '' ? Number(r.postTestScore) : null,
-          completedPages: 0,
-          totalPages: 0,
-          dateCompleted: r.dateFinished || r.dateCompleted || null,
-        });
-      }
-
-      const recordedCount = masteredCount + notMasteredCount;
-      const totalModules = filteredRecords.length;
-      const progressPct = totalModules > 0 ? Math.round((recordedCount / totalModules) * 100) : 0;
+      const moduleDetails = moduleItems.map((m) => ({
+        moduleId: m.moduleId || m.id,
+        title: m.title,
+        code: m.code,
+        strand: m.strand,
+        status: m.status,
+        preTestScore: m.preTest?.score ?? null,
+        postTestScore: m.postTest?.score ?? null,
+        completedPages: m.completedPages || 0,
+        totalPages: m.totalPages || 0,
+        dateCompleted: m.completedAt || null,
+      }));
 
       // Clean gender categorization
       const rawGender = (learner.gender || '').trim().toUpperCase();
@@ -375,11 +435,11 @@ router.get('/module-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), 
         contactNumber: learner.contactNo || '—',
         address: learner.address || '—',
         dateRegistered: learner.createdAt ? learner.createdAt.toISOString().split('T')[0] : '—',
-        modulesCount: totalModules,
-        mastered: masteredCount,
-        notMastered: notMasteredCount,
-        pending: pendingCount,
-        progress: progressPct,
+        modulesCount: summary.totalModules,
+        mastered: summary.mastered,
+        notMastered: summary.notMastered,
+        pending: summary.pending,
+        progress: summary.progress,
         moduleDetails,
       };
     });
@@ -472,213 +532,107 @@ router.get('/module-progress/learner/:id', authenticate, requireRole(['ADMIN', '
 
     // Load saved records strictly for this learner from authoritative saved AF2 records
     const allSavedRecords = readAf2Records();
-
-    // Fetch modules to map real codes and titles when missing from saved records without generating artificial fallbacks
-    const dbModules = await prisma.module.findMany({
-      select: {
-        id: true,
-        code: true,
-        title: true,
-        targetLevel: true,
-        dateEnded: true,
-        learningArea: { select: { name: true } },
-      },
-    }).catch(() => []);
-    const moduleMap = new Map();
-    for (const m of dbModules) {
-      if (m.id) moduleMap.set(Number(m.id), m);
-    }
-
-    const learnerSaved = allSavedRecords.filter((r) => {
-      const rLid = r.learnerId != null ? Number(r.learnerId) : null;
-      if (rLid && rLid === learner.id) return true;
-      if (r.lrn && learner.lrn && String(r.lrn).trim() === String(learner.lrn).trim()) return true;
-      if (!rLid && !r.lrn && r.learnerName && learner.fullName && r.learnerName.trim().toLowerCase() === learner.fullName.trim().toLowerCase()) return true;
-      return false;
-    });
-
     const { fromDate, toDate } = req.query;
-    const filteredRecords = learnerSaved.filter((r) => {
-      const d = (r.dateFinished || r.dateCompleted || r.dateStarted || r.createdAt || '').trim().split('T')[0];
-      if (!d) return true;
-      if (fromDate && d < fromDate) return false;
-      if (toDate && d > toDate) return false;
-      return true;
+
+    const moduleWhere = {};
+    if (req.user.role === 'TEACHER') {
+      const tIds = [req.user.profileId, req.user.userId, req.user.id].filter((v) => v != null && !isNaN(Number(v))).map(Number);
+      if (tIds.length > 0) {
+        moduleWhere.teacherId = { in: tIds };
+      }
+    }
+
+    const [dbModules, dbAssignments, dbProgress, dbSubmissions, dbAttempts] = await Promise.all([
+      prisma.module.findMany({
+        where: moduleWhere,
+        include: {
+          learningArea: { select: { id: true, name: true, code: true } },
+          assessments: {
+            select: {
+              id: true,
+              type: true,
+              _count: { select: { questions: true } },
+            },
+          },
+          assignments: { select: { id: true, learnerId: true } },
+          _count: { select: { pages: true } },
+        },
+      }).catch(() => []),
+      prisma.moduleAssignment.findMany({
+        where: {
+          learnerId: learner.id,
+          ...(req.user.role === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+        },
+        include: {
+          module: {
+            include: {
+              learningArea: true,
+              assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+              _count: { select: { pages: true } },
+            },
+          },
+        },
+      }).catch(() => []),
+      prisma.learnerProgress.findMany({
+        where: {
+          learnerId: learner.id,
+          ...(req.user.role === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+        },
+        include: {
+          module: {
+            include: {
+              learningArea: true,
+              assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+              _count: { select: { pages: true } },
+            },
+          },
+        },
+      }).catch(() => []),
+      prisma.submission.findMany({
+        where: {
+          learnerId: learner.id,
+          ...(req.user.role === 'TEACHER' && moduleWhere.teacherId ? { module: moduleWhere } : {}),
+        },
+        include: {
+          module: {
+            include: {
+              learningArea: true,
+              assessments: { select: { id: true, type: true, _count: { select: { questions: true } } } },
+              _count: { select: { pages: true } },
+            },
+          },
+        },
+      }).catch(() => []),
+      prisma.assessmentAttempt.findMany({
+        where: {
+          learnerId: learner.id,
+          ...(req.user.role === 'TEACHER' && moduleWhere.teacherId ? { assessment: { module: moduleWhere } } : {}),
+        },
+        include: {
+          assessment: {
+            select: {
+              id: true,
+              moduleId: true,
+              type: true,
+              _count: { select: { questions: true } },
+            },
+          },
+        },
+        orderBy: { submittedAt: 'desc' },
+      }).catch(() => []),
+    ]);
+
+    const { modules: moduleItems, summary } = buildLearnerModuleProgressSummary({
+      learner,
+      af2Records: allSavedRecords,
+      dbModules,
+      dbAssignments,
+      dbProgress,
+      dbSubmissions,
+      dbAttempts,
+      fromDate: fromDate || null,
+      toDate: toDate || null,
     });
-
-    // Also fetch any explicit module assignments and progress records in database for this learner
-    const dbAssignments = await prisma.moduleAssignment.findMany({
-      where: { learnerId: learner.id },
-      include: {
-        module: {
-          include: {
-            learningArea: true,
-          },
-        },
-      },
-    }).catch(() => []);
-
-    const dbProgress = await prisma.learnerProgress.findMany({
-      where: { learnerId: learner.id },
-      include: {
-        module: {
-          include: {
-            learningArea: true,
-          },
-        },
-      },
-    }).catch(() => []);
-
-    const moduleItemsMap = new Map();
-    const existingModuleIds = new Set();
-
-    // 1. Process saved AF2 performance records
-    for (const r of filteredRecords) {
-      const isMastered = r.assessment === 'Mastered' || r.moduleStatus === 'Mastered';
-      const isNotMastered = r.assessment === 'Not Mastered' || r.moduleStatus === 'Not Mastered';
-
-      let status = 'Not Recorded';
-      if (isMastered) {
-        status = 'Mastered';
-      } else if (isNotMastered) {
-        status = 'Not Mastered';
-      } else {
-        const hasDueDate = r.dueDate && !isNaN(new Date(r.dueDate).getTime());
-        const isOverdue = hasDueDate && new Date(r.dueDate) < new Date();
-        const hasStarted = Boolean(r.dateStarted || (r.preTestScore != null && r.preTestScore !== '') || (r.moduleStatus && r.moduleStatus.toLowerCase().includes('progress')));
-
-        if (isOverdue) {
-          status = 'Overdue';
-        } else if (hasStarted) {
-          status = 'In Progress';
-        } else {
-          status = 'Not Recorded';
-        }
-      }
-
-      const preScore = r.preTestScore != null && r.preTestScore !== '' ? Number(r.preTestScore) : null;
-      const preMax = r.preTestTotal != null && r.preTestTotal !== '' ? Number(r.preTestTotal) : (preScore != null ? 10 : null);
-      const prePct = preScore != null && preMax > 0 ? Math.round((preScore / preMax) * 100) : null;
-
-      const postScore = r.postTestScore != null && r.postTestScore !== '' ? Number(r.postTestScore) : null;
-      const postMax = r.postTestTotal != null && r.postTestTotal !== '' ? Number(r.postTestTotal) : (postScore != null ? 10 : null);
-      const postPct = postScore != null && postMax > 0 ? Math.round((postScore / postMax) * 100) : null;
-
-      const matchedMod = r.moduleId ? moduleMap.get(Number(r.moduleId)) : null;
-      const realCode = r.moduleCode || matchedMod?.code || '';
-      const mId = r.moduleId ? Number(r.moduleId) : (r.id || `mod_${moduleItemsMap.size + 1}`);
-
-      existingModuleIds.add(String(mId));
-      if (r.moduleTitle) existingModuleIds.add(r.moduleTitle.trim().toLowerCase());
-
-      moduleItemsMap.set(String(mId), {
-        id: mId,
-        code: realCode,
-        title: r.moduleTitle || matchedMod?.title || 'Learning Module',
-        strand: r.strandName || matchedMod?.learningArea?.name || 'General',
-        status,
-        preTest: {
-          score: preScore,
-          max: preMax,
-          percentage: prePct,
-        },
-        postTest: {
-          score: postScore,
-          max: postMax,
-          percentage: postPct,
-          isPassed: isMastered,
-        },
-        submission: null,
-        completedPages: 0,
-        totalPages: 0,
-        completedAt: r.dateFinished || r.dateCompleted || null,
-        dateStarted: r.dateStarted || null,
-      });
-    }
-
-    // 2. Process database assignments if not already in AF2 records
-    for (const assign of dbAssignments) {
-      const mod = assign.module;
-      if (!mod) continue;
-      const keyId = String(mod.id);
-      const keyTitle = (mod.title || '').trim().toLowerCase();
-      if (existingModuleIds.has(keyId) || existingModuleIds.has(keyTitle)) continue;
-
-      const prog = dbProgress.find((p) => p.moduleId === mod.id);
-      let status = 'Not Recorded';
-      const isMastered = prog?.masteryStatus === 'MASTERED';
-      const isNotMastered = prog?.masteryStatus === 'NOT_MASTERED';
-
-      if (isMastered) {
-        status = 'Mastered';
-      } else if (isNotMastered) {
-        status = 'Not Mastered';
-      } else {
-        const dueDate = assign.dueDate || mod.dateEnded;
-        const hasDueDate = dueDate && !isNaN(new Date(dueDate).getTime());
-        const isOverdue = hasDueDate && new Date(dueDate) < new Date();
-        const hasStarted = Boolean(prog && (prog.status === 'IN_PROGRESS' || prog.completedPages > 0 || prog.preTestScore != null));
-
-        if (isOverdue) {
-          status = 'Overdue';
-        } else if (hasStarted) {
-          status = 'In Progress';
-        } else {
-          status = 'Not Recorded';
-        }
-      }
-
-      const preScore = prog?.preTestScore != null ? Number(prog.preTestScore) : null;
-      const postScore = prog?.postTestScore != null ? Number(prog.postTestScore) : null;
-
-      existingModuleIds.add(keyId);
-      if (keyTitle) existingModuleIds.add(keyTitle);
-
-      moduleItemsMap.set(keyId, {
-        id: mod.id,
-        code: mod.code || '',
-        title: mod.title,
-        strand: mod.learningArea?.name || 'General',
-        status,
-        preTest: {
-          score: preScore,
-          max: preScore != null ? 10 : null,
-          percentage: preScore != null ? Math.round((preScore / 10) * 100) : null,
-        },
-        postTest: {
-          score: postScore,
-          max: postScore != null ? 10 : null,
-          percentage: postScore != null ? Math.round((postScore / 10) * 100) : null,
-          isPassed: isMastered,
-        },
-        submission: null,
-        completedPages: prog?.completedPages || 0,
-        totalPages: prog?.totalPages || 0,
-        completedAt: prog?.completedAt || null,
-        dateStarted: prog?.createdAt || null,
-      });
-    }
-
-    const moduleItems = Array.from(moduleItemsMap.values());
-
-    let masteredCount = 0;
-    let notMasteredCount = 0;
-    let notRecordedCount = 0;
-    let inProgressCount = 0;
-    let overdueCount = 0;
-
-    for (const m of moduleItems) {
-      if (m.status === 'Mastered') masteredCount++;
-      else if (m.status === 'Not Mastered') notMasteredCount++;
-      else if (m.status === 'Overdue') overdueCount++;
-      else if (m.status === 'In Progress') inProgressCount++;
-      else notRecordedCount++;
-    }
-
-    const recordedCount = masteredCount + notMasteredCount;
-    const pendingCount = notRecordedCount + inProgressCount + overdueCount;
-    const totalModules = recordedCount + pendingCount;
-    const progressPct = totalModules > 0 ? Math.round((recordedCount / totalModules) * 100) : 0;
 
     res.json({
       learner: {
@@ -698,17 +652,7 @@ router.get('/module-progress/learner/:id', authenticate, requireRole(['ADMIN', '
         learningCenterCode: learner.learningCenter?.code || '',
         assignedTeacher: learner.assignedTeacher?.fullName || '—',
       },
-      summary: {
-        recorded: recordedCount,
-        mastered: masteredCount,
-        notMastered: notMasteredCount,
-        pending: pendingCount,
-        notRecorded: notRecordedCount,
-        inProgress: inProgressCount,
-        overdue: overdueCount,
-        totalModules,
-        progress: progressPct,
-      },
+      summary,
       modules: moduleItems,
     });
   } catch (err) {

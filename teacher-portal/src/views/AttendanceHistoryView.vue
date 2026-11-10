@@ -35,18 +35,7 @@
             </svg>
             <span class="filter-card-title">Filter Attendance Records</span>
           </div>
-          <button
-            type="button"
-            class="btn-clear-filters"
-            :class="{ 'is-active': hasActiveFilters }"
-            @click="resetFilters"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-            <span>Clear Filters</span>
-          </button>
+          <ClearFiltersButton @click="resetFilters" />
         </div>
 
         <div class="filters-grid">
@@ -165,14 +154,10 @@
               : 'No learners match your selected filter criteria. Try adjusting or clearing your filters.'
             }}
           </p>
-          <button
+          <ClearFiltersButton
             v-if="hasActiveFilters"
-            type="button"
-            class="btn-primary-empty"
             @click="resetFilters"
-          >
-            Clear Filters
-          </button>
+          />
         </div>
 
         <div v-else class="table-responsive">
@@ -523,6 +508,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import PageHeader from '../components/PageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/attendance.js';
@@ -1136,32 +1122,13 @@ watch(
   color: #1e293b;
 }
 
-.btn-clear-filters {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+.filter-card-header .btn-clear-filters {
   margin-left: auto;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  color: #64748b;
-  padding: 0.375rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  width: auto;
 }
 
-.btn-clear-filters:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.btn-clear-filters.is-active {
-  background: #ffffff;
-  color: #2563eb;
-  border-color: #93c5fd;
+.empty-state-box .btn-clear-filters {
+  width: auto;
 }
 
 .filters-grid {

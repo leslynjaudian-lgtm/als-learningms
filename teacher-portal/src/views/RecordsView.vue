@@ -94,17 +94,7 @@
 
           <!-- 4. Clear Filters Button -->
           <div class="filter-action-cell">
-            <button
-              type="button"
-              class="btn-clear-filters"
-              :class="{ 'is-active': isAnyLearnerFilterActive }"
-              @click="clearFilters"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-              <span>Clear Filters</span>
-            </button>
+            <ClearFiltersButton @click="clearFilters" />
           </div>
         </div>
       </div>
@@ -251,17 +241,32 @@
           </ol>
         </nav>
 
-        <button
-          type="button"
-          class="btn-back-to-records"
-          @click="backToRecordsList"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-          <span>Back to Records</span>
-        </button>
+        <div class="records-topbar-actions">
+          <button
+            v-if="reportReturnPath"
+            type="button"
+            class="btn-back-to-records"
+            @click="backToPreviousReport"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>Back to Report</span>
+          </button>
+
+          <button
+            type="button"
+            class="btn-back-to-records"
+            @click="backToRecordsList"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>Back to Records</span>
+          </button>
+        </div>
       </div>
 
       <!-- Learner Information Card with + Add Record at upper-right -->
@@ -471,16 +476,16 @@
     </template>
 
     <!-- ============================================================ -->
-    <!-- MODAL: VIEW COMPLETE LEARNER RECORD                          -->
+    <!-- MODAL: VIEW LEARNER RECORD (READ-ONLY)                       -->
     <!-- ============================================================ -->
-    <div v-if="viewingRecord" class="modal-overlay" @click.self="viewingRecord = null">
+    <div v-if="viewingRecord" class="modal-overlay record-view-overlay" @click.self="viewingRecord = null">
       <div class="modal-box record-details-modal">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title-text">Complete Learner Record</h2>
+            <h2 class="modal-title-text">Learner Record</h2>
             <p class="modal-sub-text">{{ viewingRecord.learnerName }} &bull; {{ viewingRecord.lrn }}</p>
           </div>
-          <button type="button" class="modal-close-btn" @click="viewingRecord = null">&times;</button>
+          <button type="button" class="modal-close-btn" aria-label="Close" @click="viewingRecord = null">&times;</button>
         </div>
 
         <div class="record-modal-body">
@@ -596,9 +601,6 @@
         <div class="modal-actions-footer">
           <button type="button" class="btn btn-secondary" @click="viewingRecord = null">
             Close
-          </button>
-          <button type="button" class="btn btn-primary" @click="openEditRecordModal(viewingRecord); viewingRecord = null;">
-            Edit Record
           </button>
         </div>
       </div>
@@ -818,6 +820,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { useClcData } from '../composables/useClcData.js';
 import PageHeader from '../components/PageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 import AddLearnerRecordModal from '../components/AddLearnerRecordModal.vue';
 import { getAssignedLearners } from '../api/learners.js';
@@ -1255,13 +1258,42 @@ async function loadTeacherLearners() {
   }
 }
 
+const reportReturnPath = computed(() => {
+  const raw = route.query.returnTo;
+  if (!raw || typeof raw !== 'string') return '';
+  return raw.startsWith('/dashboard/reports') ? raw : '';
+});
+
+function backToPreviousReport() {
+  if (reportReturnPath.value) {
+    router.push(reportReturnPath.value).catch(() => {});
+  }
+}
+
 async function handleRouteContextAndOpenModal() {
   const lid = route.params.learnerId ? Number(route.params.learnerId) : null;
   if (!lid || isNaN(lid)) return;
 
+  const mode = String(route.query.mode || '').toLowerCase();
   const qModId = route.query.moduleId ? Number(route.query.moduleId) : null;
   const qSubId = route.query.submissionId ? Number(route.query.submissionId) : null;
-  const fromReview = route.query.fromReview === '1' || Boolean(qModId || qSubId);
+  const qRecordId = route.query.recordId ? String(route.query.recordId) : '';
+  const qModuleTitle = route.query.moduleTitle ? String(route.query.moduleTitle).trim().toLowerCase() : '';
+
+  if (mode === 'view') {
+    const matchedRecord = (records.value || []).find((r) => {
+      if (qRecordId && String(r.id) === qRecordId) return true;
+      if (qModId && r.moduleId && Number(r.moduleId) === qModId) return true;
+      if (qModuleTitle && r.moduleTitle && String(r.moduleTitle).trim().toLowerCase() === qModuleTitle) return true;
+      return false;
+    });
+    if (matchedRecord) {
+      openViewRecordModal(matchedRecord);
+    }
+    return;
+  }
+
+  const fromReview = route.query.fromReview === '1' || Boolean(qSubId || (qModId && mode !== 'view'));
 
   if (fromReview) {
     await populateAndOpenAddRecordModal({
@@ -1356,7 +1388,9 @@ const newRecord = reactive({
 
 function clearReviewQueryParams() {
   if (route.query.moduleId || route.query.submissionId || route.query.fromReview) {
-    router.replace({ path: route.path, query: {} }).catch(() => {});
+    const preserved = {};
+    if (route.query.returnTo) preserved.returnTo = route.query.returnTo;
+    router.replace({ path: route.path, query: preserved }).catch(() => {});
   }
 }
 
@@ -1737,45 +1771,6 @@ async function saveNewRecord() {
   align-items: center;
 }
 
-.btn-clear-filters {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  height: 42px;
-  min-height: 42px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  font-size: 0.875rem;
-  font-weight: 500;
-  padding: 0 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-  box-sizing: border-box;
-}
-
-.btn-clear-filters:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
-}
-
-.btn-clear-filters.is-active {
-  background: #ffffff;
-  color: #2563eb;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.btn-clear-filters.is-active:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #1d4ed8;
-}
-
 /* Error Banner */
 .records-error-banner {
   display: flex;
@@ -2080,6 +2075,13 @@ async function saveNewRecord() {
 .breadcrumb-current {
   font-weight: 700;
   color: #0f172a;
+}
+
+.records-topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .btn-back-to-records {
@@ -2406,6 +2408,87 @@ async function saveNewRecord() {
 .record-details-modal,
 .record-edit-modal {
   max-width: 620px;
+}
+
+.modal-overlay.record-view-overlay {
+  align-items: center;
+  overflow: hidden;
+}
+
+.record-details-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.record-details-modal .modal-header {
+  flex-shrink: 0;
+}
+
+.record-details-modal .record-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.record-details-modal .record-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.record-details-modal .record-modal-body::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 9999px;
+}
+
+.record-details-modal .record-modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid #f8fafc;
+}
+
+.record-details-modal .record-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.record-details-modal .modal-section-card:last-child {
+  margin-bottom: 0;
+}
+
+.record-details-modal .modal-actions-footer {
+  flex-shrink: 0;
+  justify-content: flex-end;
+  padding: 1rem 1.75rem 1.25rem;
+  background: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .record-details-modal {
+    max-height: 90vh;
+  }
+
+  .record-details-modal .modal-header {
+    padding: 1rem 1.25rem 0.75rem;
+  }
+
+  .record-details-modal .record-modal-body {
+    padding: 1rem 1.25rem;
+  }
+
+  .record-details-modal .modal-actions-footer {
+    padding: 0.85rem 1.25rem 1rem;
+  }
+
+  .record-details-modal .info-two-col,
+  .record-details-modal .scores-highlight-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal-header {

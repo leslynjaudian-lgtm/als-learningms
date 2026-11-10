@@ -190,136 +190,15 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
 import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import {
   formatStrandCode,
   formatStrandName,
   formatStrandAndCode,
-  formatStrandDisplay,
 } from '../utils/formatStrand.js';
-
-// All Filters: All -> Completed -> LS1 English -> LS1 Filipino -> LS2 -> LS3 -> LS4 -> LS5 -> LS6
-const MODULE_FILTERS = reactive([
-  {
-    key: 'all',
-    code: 'ALL',
-    shortLabel: 'All',
-    fullName: 'All Modules',
-  },
-  {
-    key: 'completed',
-    code: 'COMPLETED',
-    shortLabel: 'Completed',
-    fullName: 'Completed Modules',
-    isCompleted: true,
-  },
-  {
-    key: 'LS1-ENG',
-    code: 'LS1',
-    strandCode: 'LS1-ENG',
-    shortLabel: 'LS1 English',
-    fullName: 'LS1 · Communication Skills (English)',
-    aliases: ['ls1-eng', 'english', 'communication skills (english)', 'ls1 english', 'ls 1 english'],
-  },
-  {
-    key: 'LS1-FIL',
-    code: 'LS1',
-    strandCode: 'LS1-FIL',
-    shortLabel: 'LS1 Filipino',
-    fullName: 'LS1 · Communication Skills (Filipino)',
-    aliases: ['ls1-fil', 'filipino', 'communication skills (filipino)', 'ls1 filipino', 'ls 1 filipino'],
-  },
-  {
-    key: 'LS2-SCI',
-    code: 'LS2',
-    strandCode: 'LS2-SCI',
-    shortLabel: 'LS2',
-    fullName: 'LS2 · Scientific & Critical Thinking Skills',
-    aliases: [
-      'ls2-sci',
-      'ls2',
-      'scientific',
-      'science',
-      'scientific literacy and critical thinking skills',
-      'scientific & critical thinking skills',
-      'scientific and critical thinking skills',
-      'scientific literacy and critical thinking',
-    ],
-  },
-  {
-    key: 'LS3-MATH',
-    code: 'LS3',
-    strandCode: 'LS3-MATH',
-    shortLabel: 'LS3',
-    fullName: 'LS3 · Mathematical & Problem Solving Skills',
-    aliases: [
-      'ls3-math',
-      'ls3',
-      'math',
-      'mathematical',
-      'mathematical & problem solving skills',
-      'mathematical and problem solving skills',
-      'mathematical and problem solving',
-    ],
-  },
-  {
-    key: 'LS4-LIFE',
-    code: 'LS4',
-    strandCode: 'LS4-LIFE',
-    shortLabel: 'LS4',
-    fullName: 'LS4 · Life and Career Skills',
-    aliases: [
-      'ls4-life',
-      'ls4',
-      'life and career skills',
-      'life & career skills',
-      'life and career',
-    ],
-  },
-  {
-    key: 'LS5-SOC',
-    code: 'LS5',
-    strandCode: 'LS5-SOC',
-    shortLabel: 'LS5',
-    fullName: 'LS5 · Understanding Self & Society',
-    aliases: [
-      'ls5-soc',
-      'ls5',
-      'society',
-      'understanding self & society',
-      'understanding self and society',
-      'understanding the self and society',
-    ],
-  },
-  {
-    key: 'LS6-DIGI',
-    code: 'LS6',
-    strandCode: 'LS6-DIGI',
-    shortLabel: 'LS6',
-    fullName: 'LS6 · Digital Citizenship',
-    aliases: [
-      'ls6-digi',
-      'ls6',
-      'digital citizenship',
-      'digital literacy',
-      'digital citizenship & literacy',
-    ],
-  },
-]);
-
-// Provide backward compatibility for any callers expecting .value (ref-like) or direct array
-try {
-  Object.defineProperty(MODULE_FILTERS, 'value', {
-    get() {
-      return this;
-    },
-    configurable: true,
-  });
-} catch {
-  // Ignore in case object is not extensible
-}
+import { stripRichTextToPlain } from '../utils/sanitizeRichText.js';
 
 const currentStrand = ref('all');
 const rawModules = ref([]);
@@ -331,8 +210,6 @@ const canScroll = ref(true);
 const scrollProgressRatio = ref(0);
 const thumbWidthPercent = ref(35);
 
-const availableFilters = computed(() => MODULE_FILTERS);
-
 // All published and assigned teacher modules (excluding any demo/mock entries)
 const allModules = computed(() => {
   const list = Array.isArray(rawModules.value) ? rawModules.value : [];
@@ -341,19 +218,83 @@ const allModules = computed(() => {
   );
 });
 
+// Build filter pills dynamically from Admin-registered Learning Areas (+ any strand present on assigned modules)
+const availableFilters = computed(() => {
+  const areaMap = new Map();
+
+  if (Array.isArray(rawStrands.value)) {
+    for (const area of rawStrands.value) {
+      if (!area || !area.id) continue;
+      areaMap.set(Number(area.id), {
+        id: Number(area.id),
+        code: formatStrandCode(area.code),
+        name: formatStrandName(area.name, area.code),
+      });
+    }
+  }
+
+  // Ensure modules whose Learning Area became inactive still have a filter entry if assigned to the learner
+  for (const mod of allModules.value) {
+    const areaId = Number(mod.learningAreaId || mod.learningArea?.id || 0);
+    if (areaId && !areaMap.has(areaId)) {
+      areaMap.set(areaId, {
+        id: areaId,
+        code: formatStrandCode(mod.learningArea?.code || mod.strandCode || mod.code || ''),
+        name: formatStrandName(mod.learningArea?.name || mod.strand || 'General Strand'),
+      });
+    }
+  }
+
+  const areas = Array.from(areaMap.values());
+  const codeCounts = new Map();
+  for (const a of areas) {
+    const key = String(a.code || '').trim().toUpperCase();
+    codeCounts.set(key, (codeCounts.get(key) || 0) + 1);
+  }
+
+  const dynamicStrandFilters = areas.map((a) => {
+    const codeKey = String(a.code || '').trim().toUpperCase();
+    const sharesCode = (codeCounts.get(codeKey) || 0) > 1;
+    let shortLabel = a.code || a.name;
+    if (sharesCode && a.code) {
+      const parenMatch = a.name.match(/\(([^)]+)\)\s*$/);
+      shortLabel = parenMatch ? `${a.code} ${parenMatch[1]}` : `${a.code} · ${a.name}`;
+    }
+
+    return {
+      key: `area-${a.id}`,
+      learningAreaId: a.id,
+      code: a.code,
+      shortLabel,
+      fullName: formatStrandAndCode(a.code, a.name) || a.name,
+    };
+  });
+
+  return [
+    {
+      key: 'all',
+      code: 'ALL',
+      shortLabel: 'All',
+      fullName: 'All Modules',
+    },
+    {
+      key: 'completed',
+      code: 'COMPLETED',
+      shortLabel: 'Completed',
+      fullName: 'Completed Modules',
+      isCompleted: true,
+    },
+    ...dynamicStrandFilters,
+  ];
+});
+
 // Total count
 const allCount = computed(() => (Array.isArray(allModules.value) ? allModules.value.length : 0));
 
-// Helper to safely access a filter item by key from MODULE_FILTERS
+// Helper to safely access a filter item by key from availableFilters
 function getFilterByKey(key) {
   if (!key) return null;
-  const filters = Array.isArray(MODULE_FILTERS)
-    ? MODULE_FILTERS
-    : (Array.isArray(MODULE_FILTERS?.value) ? MODULE_FILTERS.value : []);
-  if (typeof filters.find === 'function') {
-    return filters.find((s) => s && s.key === key) || null;
-  }
-  return null;
+  return availableFilters.value.find((s) => s && s.key === key) || null;
 }
 
 // Full name of selected filter
@@ -372,7 +313,7 @@ function getModuleStrandName(mod) {
 function getModuleInstructions(mod) {
   if (!mod || typeof mod !== 'object') return '';
   const raw = mod.instructions || mod.description || '';
-  return typeof raw === 'string' ? raw.trim() : '';
+  return stripRichTextToPlain(raw);
 }
 
 function getModuleBadgeCode(mod) {
@@ -419,68 +360,15 @@ function isModuleInProgress(mod) {
   return hasReadingActivity || hasAssessmentActivity || hasSubmissionActivity;
 }
 
-// Resolves the definitive learning strand key for a given module (e.g. 'LS1-ENG', 'LS1-FIL', 'LS2-SCI', etc.)
-function getModuleStrandKey(mod) {
-  if (!mod || typeof mod !== 'object') return null;
-
-  // 1. Direct match by learningAreaId against loaded backend strands
-  if (mod.learningAreaId && Array.isArray(rawStrands.value) && rawStrands.value.length > 0) {
-    const matchedArea = rawStrands.value.find((a) => a && a.id === mod.learningAreaId);
-    if (matchedArea) {
-      const aCode = String(matchedArea.code || '').toUpperCase().trim();
-      const aName = String(matchedArea.name || '').toLowerCase().trim();
-      if (aCode === 'LS1-ENG' || aCode.includes('ENG') || aName.includes('english')) return 'LS1-ENG';
-      if (aCode === 'LS1-FIL' || aCode.includes('FIL') || aName.includes('filipino')) return 'LS1-FIL';
-      if (aCode === 'LS2-SCI' || aCode.startsWith('LS2') || aName.includes('scientific')) return 'LS2-SCI';
-      if (aCode === 'LS3-MATH' || aCode.startsWith('LS3') || aName.includes('math')) return 'LS3-MATH';
-      if (aCode === 'LS4-LIFE' || aCode.startsWith('LS4') || aName.includes('life') || aName.includes('career')) return 'LS4-LIFE';
-      if (aCode === 'LS5-SOC' || aCode.startsWith('LS5') || aName.includes('society') || aName.includes('self')) return 'LS5-SOC';
-      if (aCode === 'LS6-DIGI' || aCode.startsWith('LS6') || aName.includes('digital')) return 'LS6-DIGI';
-    }
-  }
-
-  // 2. Direct code checks on mod
-  const areaCode = String(mod.learningArea?.code || mod.strandCode || mod.code || '').toUpperCase().trim();
-  if (areaCode === 'LS1-ENG' || areaCode.endsWith('-ENG')) return 'LS1-ENG';
-  if (areaCode === 'LS1-FIL' || areaCode.endsWith('-FIL')) return 'LS1-FIL';
-  if (areaCode === 'LS2-SCI' || areaCode === 'LS2' || areaCode.startsWith('LS2')) return 'LS2-SCI';
-  if (areaCode === 'LS3-MATH' || areaCode === 'LS3' || areaCode.startsWith('LS3')) return 'LS3-MATH';
-  if (areaCode === 'LS4-LIFE' || areaCode.startsWith('LS4') || areaCode.startsWith('LS4')) return 'LS4-LIFE';
-  if (areaCode === 'LS5-SOC' || areaCode === 'LS5' || areaCode.startsWith('LS5')) return 'LS5-SOC';
-  if (areaCode === 'LS6-DIGI' || areaCode === 'LS6' || areaCode.startsWith('LS6')) return 'LS6-DIGI';
-
-  // 3. Resolved canonical strand name check (via formatStrandName)
-  const canonicalName = getModuleStrandName(mod).toLowerCase();
-  if (canonicalName.includes('english')) return 'LS1-ENG';
-  if (canonicalName.includes('filipino')) return 'LS1-FIL';
-  if (canonicalName.includes('scientific') || canonicalName.includes('critical thinking')) return 'LS2-SCI';
-  if (canonicalName.includes('mathematical') || canonicalName.includes('problem solving')) return 'LS3-MATH';
-  if (canonicalName.includes('life') || canonicalName.includes('career')) return 'LS4-LIFE';
-  if (canonicalName.includes('society') || canonicalName.includes('self')) return 'LS5-SOC';
-  if (canonicalName.includes('digital') || canonicalName.includes('citizenship')) return 'LS6-DIGI';
-
-  // 4. Fallback on full text
-  const fullText = `${mod.strand || ''} ${mod.learningArea?.name || ''} ${mod.title || ''}`.toLowerCase();
-  if (fullText.includes('english')) return 'LS1-ENG';
-  if (fullText.includes('filipino')) return 'LS1-FIL';
-  if (fullText.includes('scientific') || fullText.includes('science')) return 'LS2-SCI';
-  if (fullText.includes('math') || fullText.includes('problem solving')) return 'LS3-MATH';
-  if (fullText.includes('career') || fullText.includes('life')) return 'LS4-LIFE';
-  if (fullText.includes('society') || fullText.includes('understanding self')) return 'LS5-SOC';
-  if (fullText.includes('digital')) return 'LS6-DIGI';
-
-  // Fallback for generic LS1 without language distinction (defaults to English if not Filipino)
-  if (areaCode.startsWith('LS1')) return 'LS1-ENG';
-
-  return null;
-}
-
-// Strand matching function
+// Strand matching function using Learning Area database ID
 function matchesStrand(mod, strandKey) {
   if (!mod || typeof mod !== 'object') return false;
   if (!strandKey || strandKey === 'all') return true;
   if (strandKey === 'completed') return isModuleCompleted(mod);
-  return getModuleStrandKey(mod) === strandKey;
+  const filter = getFilterByKey(strandKey);
+  if (!filter || !filter.learningAreaId) return false;
+  const modAreaId = Number(mod.learningAreaId || mod.learningArea?.id || 0);
+  return modAreaId === Number(filter.learningAreaId);
 }
 
 // Module count for filter pill badge
@@ -669,46 +557,8 @@ async function loadModules() {
     if (strandRes.status === 'fulfilled') {
       const strandList = Array.isArray(strandRes.value.data) ? strandRes.value.data : [];
       rawStrands.value = strandList;
-      if (strandList.length > 0) {
-        const filters = Array.isArray(MODULE_FILTERS)
-          ? MODULE_FILTERS
-          : (Array.isArray(MODULE_FILTERS?.value) ? MODULE_FILTERS.value : []);
-        strandList.forEach((area) => {
-          if (!area || (!area.code && !area.name)) return;
-          const areaCode = String(area.code || '').toUpperCase().trim();
-          const areaName = String(area.name || '').toLowerCase().trim();
-
-          // Match exact key or strandCode first
-          let target = filters.find((f) => f && (f.key === areaCode || f.strandCode === areaCode));
-
-          // If not matched by exact code, disambiguate by English / Filipino
-          if (!target) {
-            if (areaCode.includes('ENG') || areaName.includes('english')) {
-              target = filters.find((f) => f && f.key === 'LS1-ENG');
-            } else if (areaCode.includes('FIL') || areaName.includes('filipino')) {
-              target = filters.find((f) => f && f.key === 'LS1-FIL');
-            } else {
-              // For LS2-LS6, match by code prefix ONLY if it's not LS1
-              const cleanCode = formatStrandCode(areaCode);
-              if (cleanCode && cleanCode !== 'LS1') {
-                target = filters.find((f) => f && f.code === cleanCode);
-              }
-            }
-          }
-
-          if (target && area.name) {
-            const formatted = formatStrandAndCode(area.code, area.name);
-            // Safety guard: NEVER allow Filipino to be set on English, or English on Filipino!
-            if (target.key === 'LS1-ENG' && formatted.toLowerCase().includes('filipino')) {
-              return;
-            }
-            if (target.key === 'LS1-FIL' && formatted.toLowerCase().includes('english')) {
-              return;
-            }
-            target.fullName = formatted;
-          }
-        });
-      }
+    } else {
+      rawStrands.value = [];
     }
   } catch (err) {
     console.error('Failed to load backend modules:', err);

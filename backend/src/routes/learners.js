@@ -156,48 +156,36 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
 
     // Retrieve actual registered Learning Areas from the database
     const dbAreas = await prisma.learningArea.findMany({
-      where: { status: 'active' },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     });
 
-    const cleanStrandCode = (c) => {
-      const match = String(c || '').replace(/\s+/g, '').match(/^LS\d+/i);
-      return match ? match[0].toUpperCase() : String(c || '').replace(/\s+/g, '').replace(/-[A-Za-z0-9]+$/, '').toUpperCase();
-    };
-
     const fallbackAreas = [
-      { id: 1, code: 'LS1-ENG', name: 'Communication Skills (English)' },
-      { id: 2, code: 'LS1-FIL', name: 'Communication Skills (Filipino)' },
-      { id: 3, code: 'LS2-SCI', name: 'Scientific & Critical Thinking Skills' },
-      { id: 4, code: 'LS3-MATH', name: 'Mathematical & Problem Solving Skills' },
-      { id: 5, code: 'LS4-LIFE', name: 'Life and Career Skills' },
-      { id: 6, code: 'LS5-SOC', name: 'Understanding Self & Society' },
-      { id: 7, code: 'LS6-DIGI', name: 'Digital Citizenship' },
+      { id: 1, code: 'LS1', name: 'Communication Skills (English)', status: 'Active' },
+      { id: 2, code: 'LS1', name: 'Communication Skills (Filipino)', status: 'Active' },
+      { id: 3, code: 'LS2', name: 'Scientific & Critical Thinking Skills', status: 'Active' },
+      { id: 4, code: 'LS3', name: 'Mathematical & Problem Solving Skills', status: 'Active' },
+      { id: 5, code: 'LS4', name: 'Life & Career Skills', status: 'Active' },
+      { id: 6, code: 'LS5', name: 'Understanding Self & Society', status: 'Active' },
+      { id: 7, code: 'LS6', name: 'Digital Citizenship', status: 'Active' },
     ];
 
-    const sourceAreas = Array.isArray(dbAreas) && dbAreas.length > 0 ? dbAreas : fallbackAreas;
+    const sourceAreas = Array.isArray(dbAreas) && dbAreas.length > 0
+      ? dbAreas.filter((a) => String(a.status || 'Active').trim().toLowerCase() !== 'inactive')
+      : fallbackAreas;
 
     const OFFICIAL_STRANDS = sourceAreas.map((area) => {
-      const code = cleanStrandCode(area.code);
+      const code = String(area.code || '').trim();
       return {
-        key: area.code,
+        id: area.id,
+        key: String(area.id),
         code,
-        name: `${code} · ${area.name}`,
+        name: code ? `${code} · ${area.name}` : area.name,
         rawName: area.name,
-        match: (areaCode, text) => {
-          if (areaCode === area.code) return true;
-          if (area.code.includes('ENG') && (areaCode.includes('ENG') || (text.includes('english') && (text.includes('ls1') || text.includes('communication'))))) return true;
-          if (area.code.includes('FIL') && (areaCode.includes('FIL') || (text.includes('filipino') && (text.includes('ls1') || text.includes('communication'))))) return true;
-          if (areaCode === code || areaCode.startsWith(code)) {
-            if (code === 'LS1') {
-              if (area.code.includes('ENG') && text.includes('english')) return true;
-              if (area.code.includes('FIL') && text.includes('filipino')) return true;
-              return false;
-            }
-            return true;
-          }
-          const lowerName = area.name.toLowerCase();
-          return text.includes(lowerName);
+        match: (mod) => {
+          if (mod.learningAreaId && Number(mod.learningAreaId) === Number(area.id)) return true;
+          const lowerName = String(area.name || '').trim().toLowerCase();
+          const modAreaName = String(mod.learningArea?.name || '').trim().toLowerCase();
+          return Boolean(lowerName && modAreaName && modAreaName === lowerName);
         },
       };
     });
@@ -323,27 +311,13 @@ router.get('/me/progress', authenticate, requireRole(['LEARNER', 'ADMIN', 'TEACH
         }
       }
 
-      // Match strand
-      const areaCode = (m.learningArea?.code || m.code || '').toUpperCase().trim();
-      const fullText = [
-        m.learningArea?.code || '',
-        m.learningArea?.name || '',
-        m.code || '',
-        m.title || '',
-        m.description || '',
-      ].join(' ').toLowerCase();
-
+      // Match strand by Learning Area database ID
       let matchedKey = null;
       for (const s of OFFICIAL_STRANDS) {
-        if (s.match(areaCode, fullText)) {
+        if (s.match(m)) {
           matchedKey = s.key;
           break;
         }
-      }
-
-      // Fallback for generic LS1
-      if (!matchedKey && (areaCode === 'LS1' || areaCode.startsWith('LS1'))) {
-        matchedKey = 'LS1-ENG';
       }
 
       if (matchedKey && strandMap[matchedKey]) {

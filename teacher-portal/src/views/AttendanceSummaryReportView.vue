@@ -111,16 +111,9 @@
             />
           </div>
 
-          <!-- Reset Filters Button (Beside To Date) -->
+          <!-- Clear Filters Button (Beside To Date) -->
           <div class="filter-btn-col filter-col-reset">
-            <button
-              type="button"
-              class="btn-reset-filter btn-reset-filters"
-              @click="resetFilters"
-              title="Reset Filters"
-            >
-              Reset Filters
-            </button>
+            <ClearFiltersButton @click="resetFilters" />
           </div>
         </div>
 
@@ -564,6 +557,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners, getLearner } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/attendance.js';
@@ -1262,33 +1256,6 @@ function printReportDirectly() {
   right: 0.85rem;
   pointer-events: none;
   color: #64748b;
-}
-
-/* Reset Filters Button */
-.btn-reset-filter,
-.btn-reset-filters {
-  height: 42px;
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  font-size: 0.875rem;
-  font-weight: 500;
-  padding: 0 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.btn-reset-filter:hover,
-.btn-reset-filters:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
 }
 
 /* Generate Report Button */
@@ -1999,8 +1966,7 @@ function printReportDirectly() {
   .filter-btn-col {
     width: 100%;
   }
-  .btn-reset-filter,
-  .btn-reset-filters,
+  .btn-clear-filters,
   .btn-generate-report {
     width: 100%;
     justify-content: center;

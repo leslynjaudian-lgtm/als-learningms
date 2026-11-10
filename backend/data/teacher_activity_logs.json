@@ -1,5 +1,57 @@
 [
   {
+    "id": "tlog-1794304965528-qbzigk",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "kkmkefkodxcdmfvdx osdzfkcsdxfc;sjdxgv",
+    "description": "Uploaded learning module \"kkmkefkodxcdmfvdx osdzfkcsdxfc;sjdxgv\" (LS1) for A&E Elementary.",
+    "moduleId": "43",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/43",
+    "timestamp": "2026-11-10T10:02:45.520Z"
+  },
+  {
+    "id": "tlog-1794304208106-nxl4le",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "aaaaaa",
+    "description": "Uploaded learning module \"aaaaaa\" (LS1) for A&E Elementary.",
+    "moduleId": "42",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/42",
+    "timestamp": "2026-11-10T09:50:08.096Z"
+  },
+  {
+    "id": "tlog-1794298244001-g2kdet",
+    "teacherId": "18",
+    "type": "MODULE_UPDATED",
+    "activityTypeLabel": "Updated a Module",
+    "relatedEntity": "Verification Scenario Module",
+    "description": "Updated learning module \"Verification Scenario Module\".",
+    "moduleId": "41",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/41",
+    "timestamp": "2026-11-10T08:10:43.997Z"
+  },
+  {
+    "id": "tlog-1794298243706-nu7far",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "Verification Scenario Module",
+    "description": "Uploaded learning module \"Verification Scenario Module\" (LS2) for A&E Elementary.",
+    "moduleId": "41",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/41",
+    "timestamp": "2026-11-10T08:10:43.700Z"
+  },
+  {
     "id": "tlog-1794281943998-7vx74t",
     "teacherId": "18",
     "type": "MODULE_UPLOADED",

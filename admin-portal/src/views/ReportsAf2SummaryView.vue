@@ -149,9 +149,7 @@
       </div>
 
       <div class="filter-actions">
-        <button type="button" class="btn btn-secondary" @click="resetFilters">
-          Reset
-        </button>
+        <ClearFiltersButton @click="resetFilters" />
         <button type="button" class="btn btn-primary" @click="generateReport">
           Generate Report
         </button>
@@ -489,6 +487,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';

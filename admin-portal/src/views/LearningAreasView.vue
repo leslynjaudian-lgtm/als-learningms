@@ -46,7 +46,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(area, idx) in areas" :key="area.id || area.name">
+            <tr v-for="(area, idx) in areas" :key="area.id">
               <td>{{ idx + 1 }}</td>
               <td>
                 <span class="badge badge-primary">{{ area.code }}</span>
@@ -114,7 +114,7 @@
       </div>
 
       <!-- Empty State -->
-      <div v-if="areas.length === 0" class="empty-state-box">
+      <div v-if="!loading && areas.length === 0" class="empty-state-box">
         <div class="empty-state-graphic">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -156,7 +156,7 @@
                 v-model="form.code"
                 type="text"
                 class="form-input"
-                placeholder="e.g. LS 1"
+                placeholder="e.g. LS1"
                 required
               />
             </div>
@@ -204,11 +204,11 @@
 
             <!-- Modal Footer Buttons -->
             <div class="modal-footer" style="padding: 1rem 0 0; margin-top: 1rem;">
-              <button type="button" class="btn btn-secondary" @click="closeFormModal">
+              <button type="button" class="btn btn-secondary" :disabled="saving" @click="closeFormModal">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary">
-                {{ editingArea ? 'Save Changes' : 'Save Learning Area' }}
+              <button type="submit" class="btn btn-primary" :disabled="saving">
+                {{ saving ? 'Saving...' : (editingArea ? 'Save Changes' : 'Save Learning Area') }}
               </button>
             </div>
           </form>
@@ -286,6 +286,12 @@
 import { ref, reactive, onMounted } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
+import {
+  getLearningAreas,
+  createLearningArea,
+  updateLearningArea,
+  deleteLearningArea,
+} from '../api/learningAreas.js';
 
 // --- Toast Notifications ---
 const toasts = ref([]);
@@ -301,84 +307,21 @@ function showToast(message, type = 'success') {
   }, 3200);
 }
 
-// --- Initial ALS Strands Data ---
-const STORAGE_KEY = 'als_admin_learning_areas_v1';
-
-const defaultAreas = [
-  {
-    id: 1,
-    code: 'LS 1',
-    name: 'Communication Skills (English)',
-    description: 'Developing English communication skills for daily life and work.',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    code: 'LS 1',
-    name: 'Communication Skills (Filipino)',
-    description: 'Developing Filipino communication skills for daily life and work.',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    code: 'LS 2',
-    name: 'Scientific & Critical Thinking Skills',
-    description: 'Building scientific literacy and critical thinking abilities.',
-    status: 'Active',
-  },
-  {
-    id: 4,
-    code: 'LS 3',
-    name: 'Mathematical & Problem Solving Skills',
-    description: 'Developing mathematical concepts and problem-solving skills.',
-    status: 'Active',
-  },
-  {
-    id: 5,
-    code: 'LS 4',
-    name: 'Life & Career Skills',
-    description: 'Enhancing employability and livelihood capabilities.',
-    status: 'Active',
-  },
-  {
-    id: 6,
-    code: 'LS 5',
-    name: 'Understanding Self & Society',
-    description: 'Understanding Philippine history, government, and civic responsibilities.',
-    status: 'Active',
-  },
-  {
-    id: 7,
-    code: 'LS 6',
-    name: 'Digital Citizenship',
-    description: 'Developing digital literacy and responsible use of technology.',
-    status: 'Active',
-  },
-];
-
 const areas = ref([]);
+const loading = ref(true);
+const saving = ref(false);
 
-function loadAreas() {
+async function loadAreas() {
+  loading.value = true;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        areas.value = parsed;
-        return;
-      }
-    }
+    const res = await getLearningAreas();
+    areas.value = Array.isArray(res.data) ? res.data : [];
   } catch (err) {
-    console.warn('Could not read stored learning areas:', err);
-  }
-  areas.value = [...defaultAreas];
-}
-
-function persistAreas() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(areas.value));
-  } catch (err) {
-    console.warn('Could not persist learning areas:', err);
+    console.error('Failed to load learning areas:', err);
+    showToast(err.response?.data?.error || 'Failed to load learning areas.', 'error');
+    areas.value = [];
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -411,52 +354,47 @@ function openEditModal(area) {
   form.code = area.code || '';
   form.name = area.name || '';
   form.description = area.description || '';
-  form.status = area.status || 'Active';
+  form.status = area.status === 'Inactive' ? 'Inactive' : 'Active';
   showFormModal.value = true;
 }
 
 function closeFormModal() {
+  if (saving.value) return;
   showFormModal.value = false;
   editingArea.value = null;
 }
 
-function saveForm() {
+async function saveForm() {
   if (!form.code.trim() || !form.name.trim() || !form.description.trim()) {
     showToast('Please fill out all required fields.', 'error');
     return;
   }
 
-  if (editingArea.value) {
-    // Update existing
-    const idx = areas.value.findIndex(
-      (a) => a.id === editingArea.value.id || a.name === editingArea.value.name
-    );
-    if (idx !== -1) {
-      areas.value[idx] = {
-        ...areas.value[idx],
-        code: form.code.trim(),
-        name: form.name.trim(),
-        description: form.description.trim(),
-        status: form.status,
-      };
-      persistAreas();
-      showToast('Learning area updated successfully.');
-    }
-  } else {
-    // Create new
-    const newArea = {
-      id: Date.now(),
-      code: form.code.trim(),
-      name: form.name.trim(),
-      description: form.description.trim(),
-      status: form.status,
-    };
-    areas.value.push(newArea);
-    persistAreas();
-    showToast('Learning area added successfully.');
-  }
+  const payload = {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    description: form.description.trim(),
+    status: form.status === 'Inactive' ? 'Inactive' : 'Active',
+  };
 
-  closeFormModal();
+  saving.value = true;
+  try {
+    if (editingArea.value) {
+      await updateLearningArea(editingArea.value.id, payload);
+      showToast('Learning area updated successfully.');
+    } else {
+      await createLearningArea(payload);
+      showToast('Learning area added successfully.');
+    }
+    saving.value = false;
+    closeFormModal();
+    await loadAreas();
+  } catch (err) {
+    console.error('Failed to save learning area:', err);
+    showToast(err.response?.data?.error || 'Failed to save learning area.', 'error');
+  } finally {
+    saving.value = false;
+  }
 }
 
 // --- Modal State: View Details ---
@@ -484,27 +422,27 @@ function closeDeleteModal() {
   deletingArea.value = null;
 }
 
-function confirmDeleteArea() {
+async function confirmDeleteArea() {
   if (!deletingArea.value) return;
   deleting.value = true;
-
   const targetId = deletingArea.value.id;
-  const targetName = deletingArea.value.name;
 
-  setTimeout(() => {
-    areas.value = areas.value.filter((a) => {
-      if (targetId && a.id) {
-        return a.id !== targetId;
-      }
-      return a.name !== targetName;
-    });
-
-    persistAreas();
+  try {
+    await deleteLearningArea(targetId);
     deleting.value = false;
     showDeleteModal.value = false;
     deletingArea.value = null;
     showToast('Learning area deleted successfully.');
-  }, 200);
+    await loadAreas();
+  } catch (err) {
+    console.error('Failed to delete learning area:', err);
+    showToast(
+      err.response?.data?.error || 'Failed to delete learning area.',
+      'error'
+    );
+  } finally {
+    deleting.value = false;
+  }
 }
 </script>
 

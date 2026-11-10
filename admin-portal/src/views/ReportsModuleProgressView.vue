@@ -52,16 +52,9 @@
           />
         </div>
 
-        <!-- 5. Reset Filters (White background, border, same height) -->
+        <!-- 5. Clear Filters -->
         <div class="filter-btn-col col-reset">
-          <button
-            type="button"
-            class="filter-reset-btn"
-            @click="resetFilters"
-            title="Reset Filters"
-          >
-            Reset Filters
-          </button>
+          <ClearFiltersButton @click="resetFilters" />
         </div>
 
         <!-- 6. Generate Report (ALS LMS blue button, same height) -->
@@ -421,6 +414,10 @@
                     <span class="sub-item-name">Overdue:</span>
                     <span class="sub-item-count font-mono text-red-bold">{{ modalSummary.overdue }}</span>
                   </div>
+                  <div v-if="modalSummary.notStarted > 0" class="sub-item-row">
+                    <span class="sub-item-name">Not Started:</span>
+                    <span class="sub-item-count font-mono">{{ modalSummary.notStarted }}</span>
+                  </div>
                 </div>
               </div>
 
@@ -593,6 +590,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getModuleProgressReport, getLearnerModuleProgressDetails } from '../api/reports.js';
 import { getLearner } from '../api/learners.js';
@@ -645,6 +643,7 @@ const modalSummary = computed(() => {
   let notRecorded = 0;
   let inProgress = 0;
   let overdue = 0;
+  let notStarted = 0;
 
   for (const m of mods) {
     const st = String(m.status || '').trim().toLowerCase();
@@ -656,6 +655,8 @@ const modalSummary = computed(() => {
       overdue++;
     } else if (st === 'in progress' || st === 'in_progress' || st === 'started') {
       inProgress++;
+    } else if (st === 'not started' || st === 'not_started') {
+      notStarted++;
     } else {
       notRecorded++;
     }
@@ -669,10 +670,11 @@ const modalSummary = computed(() => {
     notRecorded = Number(bSummary.notRecorded || 0);
     inProgress = Number(bSummary.inProgress || 0);
     overdue = Number(bSummary.overdue || 0);
+    notStarted = Number(bSummary.notStarted || 0);
   }
 
   const recorded = mastered + notMastered;
-  const pending = notRecorded + inProgress + overdue;
+  const pending = notRecorded + inProgress + overdue + notStarted;
   const totalModules = recorded + pending;
   const progress = totalModules > 0 ? Math.round((recorded / totalModules) * 100) : 0;
 
@@ -684,6 +686,7 @@ const modalSummary = computed(() => {
     notRecorded,
     inProgress,
     overdue,
+    notStarted,
     totalModules,
     progress,
   };
@@ -832,7 +835,10 @@ async function openDetailsModal(learner) {
   loadingDetails.value = true;
   selectedLearnerDetails.value = null;
   try {
-    const details = await getLearnerModuleProgressDetails(learner.id);
+    const params = {};
+    if (lastGeneratedFilters.value.fromDate) params.fromDate = lastGeneratedFilters.value.fromDate;
+    if (lastGeneratedFilters.value.toDate) params.toDate = lastGeneratedFilters.value.toDate;
+    const details = await getLearnerModuleProgressDetails(learner.id, params);
     selectedLearnerDetails.value = details;
   } catch (err) {
     console.error('Error fetching learner details:', err);
@@ -1016,38 +1022,6 @@ function closeLearnerModal() {
   align-items: flex-end;
 }
 
-/* Reset Filters: Secondary, white background, border, same 42px height */
-.filter-reset-btn {
-  height: 42px;
-  min-height: 42px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 8px;
-  background-color: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.filter-reset-btn:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
-}
-
-.filter-reset-btn:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
 /* Generate Report Button: ALS LMS Blue, white text, same 42px height */
 .generate-report-btn {
   height: 42px;
@@ -1149,7 +1123,7 @@ function closeLearnerModal() {
   .col-generate {
     flex: 1 1 auto;
   }
-  .filter-reset-btn,
+  .btn-clear-filters,
   .generate-report-btn {
     width: 100%;
   }

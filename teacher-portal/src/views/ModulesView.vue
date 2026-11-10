@@ -166,8 +166,8 @@
 
               <h2 class="feed-card-title">{{ item.title }}</h2>
 
-              <p v-if="item.instructions || item.description" class="feed-card-desc">
-                {{ item.instructions || item.description }}
+              <p v-if="getPlainInstructionsPreview(item)" class="feed-card-desc">
+                {{ getPlainInstructionsPreview(item) }}
               </p>
 
               <div class="feed-meta-bottom">
@@ -246,7 +246,7 @@
         <div v-if="currentStepIndex === 0" class="step-form-pane">
           <div class="pane-header-info">
             <h3>Step 1: Module Information</h3>
-            <p>Define the title, instructions, learning strand, module code, ALS level, learning center, and learner assignments.</p>
+            <p>Define the title, instructions, target ALS level, learning strand, learning center, learning strand code, and learner assignments.</p>
           </div>
 
           <!-- Step 1 Validation Warning Message -->
@@ -275,42 +275,15 @@
             <!-- ROW 2 — FULL WIDTH: Instructions -->
             <div class="field-item full-width">
               <label class="field-lbl">Instructions</label>
-              <textarea
+              <InstructionsRichEditor
                 v-model="newModule.instructions"
-                rows="3"
-                class="field-textarea-box"
                 placeholder="Enter instructions or directions for this module..."
-              ></textarea>
+              />
             </div>
 
-            <!-- ROW 3 — TWO COLUMNS: Learning Strand * | Module Code * -->
+            <!-- ROW 1 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
             <div class="field-item">
-              <label class="field-lbl">Learning Strand <span class="req">*</span></label>
-              <select v-model="newModule.strand" class="field-select-box" required>
-                <option value="" disabled>Select Learning Strand</option>
-                <option v-for="s in internalStrands" :key="s.slug" :value="s.name">
-                  {{ s.name }}
-                </option>
-              </select>
-            </div>
-
-            <div class="field-item">
-              <label class="field-lbl">Module Code <span class="req">*</span></label>
-              <LockedFieldTooltip message="This field cannot be edited.">
-                <input
-                  type="text"
-                  :value="newModule.code"
-                  class="field-input-box is-readonly"
-                  placeholder="Auto-populated based on Learning Strand"
-                  readonly
-                  title="This field cannot be edited."
-                />
-              </LockedFieldTooltip>
-            </div>
-
-            <!-- ROW 4 — TWO COLUMNS: ALS Level * | Learning Center * -->
-            <div class="field-item">
-              <label class="field-lbl">ALS Level <span class="req">*</span></label>
+              <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
               <div class="locked-level-box">
                 <LockedFieldTooltip message="This field cannot be edited.">
                   <input
@@ -326,6 +299,24 @@
             </div>
 
             <div class="field-item">
+              <label class="field-lbl">Learning Strand <span class="req">*</span></label>
+              <select
+                v-model="newModule.learningAreaId"
+                class="field-select-box"
+                required
+                @change="syncSelectedLearningStrand"
+              >
+                <option value="" disabled>
+                  {{ loadingLearningAreas ? 'Loading Learning Strands...' : 'Select Learning Strand' }}
+                </option>
+                <option v-for="area in activeLearningAreas" :key="area.id" :value="area.id">
+                  {{ area.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- ROW 2 — TWO COLUMNS: Learning Center * | Learning Strand Code * -->
+            <div class="field-item">
               <label class="field-lbl">Learning Center <span class="req">*</span></label>
               <select v-model="newModule.learningCenterId" class="field-select-box" required>
                 <option value="" disabled>Select Assigned Learning Center</option>
@@ -335,7 +326,20 @@
               </select>
             </div>
 
-            <!-- ROW 5 — FULL WIDTH: Assign Module To * -->
+            <div class="field-item">
+              <label class="field-lbl">Learning Strand Code <span class="req">*</span></label>
+              <LockedFieldTooltip message="This field cannot be edited.">
+                <input
+                  type="text"
+                  :value="displayedLearningStrandCode"
+                  class="field-input-box is-readonly"
+                  readonly
+                  title="This field cannot be edited."
+                />
+              </LockedFieldTooltip>
+            </div>
+
+            <!-- ROW 3 — FULL WIDTH: Assign Module To * -->
             <AssignModuleToDropdown
               v-model:is-all-learners="newModule.isAllLearners"
               v-model:selected-learner-ids="newModule.selectedLearnerIds"
@@ -377,6 +381,18 @@
           <div class="pane-header-info">
             <h3>Step 2: Pre-Test (Assessment)</h3>
             <p>Add multiple-choice questions to assess learners' prior knowledge before the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
+          </div>
+
+          <div class="assessment-instructions-block">
+            <label class="field-lbl" for="create-pretest-instructions">Instructions</label>
+            <textarea
+              id="create-pretest-instructions"
+              v-model="newModule.preTestInstructions"
+              rows="3"
+              class="field-textarea-box assessment-instructions-textarea"
+              placeholder="Enter instructions for the pre-test..."
+              @input="autoExpandAssessmentTextarea"
+            ></textarea>
           </div>
 
           <!-- Step 2 Validation Warning Message -->
@@ -690,6 +706,18 @@
               </button>
             </div>
             <p>Add multiple-choice questions to assess what learners have learned after completing the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
+          </div>
+
+          <div class="assessment-instructions-block">
+            <label class="field-lbl" for="create-posttest-instructions">Instructions</label>
+            <textarea
+              id="create-posttest-instructions"
+              v-model="newModule.postTestInstructions"
+              rows="3"
+              class="field-textarea-box assessment-instructions-textarea"
+              placeholder="Enter instructions for the post-test..."
+              @input="autoExpandAssessmentTextarea"
+            ></textarea>
           </div>
 
           <!-- Step 4 Validation Warning Message -->
@@ -1009,7 +1037,10 @@ import { useTeacherSession } from '../composables/useTeacherSession.js';
 import AssignModuleToDropdown from '../components/AssignModuleToDropdown.vue';
 import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 import ModuleThumbnail from '../components/ModuleThumbnail.vue';
+import InstructionsRichEditor from '../components/InstructionsRichEditor.vue';
+import { formatRichTextPreview, sanitizeRichText } from '../utils/sanitizeRichText.js';
 import { getModules, createModule, uploadModuleFile } from '../api/modules.js';
+import { getLearningAreas } from '../api/learningAreas.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getManilaTodayKey, toDateKey } from '../utils/manilaTime.js';
 
@@ -1235,60 +1266,47 @@ const wizardSteps = [
   { key: 'postTest', title: 'Post-Test' },
 ];
 
-// Strands list for the module information dropdown
-const internalStrands = [
-  { slug: 'communication-skills-eng', name: 'Communication Skills (English)' },
-  { slug: 'communication-skills-fil', name: 'Communication Skills (Filipino)' },
-  { slug: 'scientific-literacy', name: 'Scientific & Critical Thinking Skills' },
-  { slug: 'mathematical-skills', name: 'Mathematical & Problem Solving Skills' },
-  { slug: 'life-career-skills', name: 'Life and Career Skills' },
-  { slug: 'self-society', name: 'Understanding Self & Society' },
-  { slug: 'digital-citizenship', name: 'Digital Citizenship' },
-];
+// Dynamic Active Learning Areas from Admin Portal (MySQL)
+const activeLearningAreas = ref([]);
+const loadingLearningAreas = ref(false);
 
-const STRAND_TO_CODE_MAP = {
-  'Communication Skills (English)': 'LS1',
-  'Communication Skills (Filipino)': 'LS1',
-  'Scientific & Critical Thinking Skills': 'LS2',
-  'Scientific Literacy': 'LS2',
-  'Mathematical & Problem Solving Skills': 'LS3',
-  'Mathematical and Problem Solving Skills': 'LS3',
-  'Life and Career Skills': 'LS4',
-  'Life & Career Skills': 'LS4',
-  'Understanding Self & Society': 'LS5',
-  'Understanding the Self and Society': 'LS5',
-  'Digital Citizenship': 'LS6',
-};
-
-function resolveModuleCodeFromStrand(strandName) {
-  if (!strandName) return '';
-  if (STRAND_TO_CODE_MAP[strandName]) {
-    return STRAND_TO_CODE_MAP[strandName];
+async function loadLearningAreas() {
+  loadingLearningAreas.value = true;
+  try {
+    const res = await getLearningAreas({ status: 'active', _t: Date.now() });
+    const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
+    activeLearningAreas.value = list
+      .filter((a) => String(a.status || 'Active').toLowerCase() === 'active')
+      .map((a) => ({
+        ...a,
+        id: Number(a.id),
+        code: String(a.code || '').trim(),
+        name: String(a.name || '').trim(),
+      }));
+  } catch (err) {
+    console.error('Failed to load active learning areas:', err);
+    activeLearningAreas.value = [];
+  } finally {
+    loadingLearningAreas.value = false;
   }
-  const sLower = String(strandName).toLowerCase();
-  if (sLower.includes('english') || sLower.includes('filipino') || sLower.includes('communication')) return 'LS1';
-  if (sLower.includes('scientific') || sLower.includes('science')) return 'LS2';
-  if (sLower.includes('mathematical') || sLower.includes('math') || sLower.includes('problem solving')) return 'LS3';
-  if (sLower.includes('life') || sLower.includes('career')) return 'LS4';
-  if (sLower.includes('self') || sLower.includes('society')) return 'LS5';
-  if (sLower.includes('digital') || sLower.includes('citizenship')) return 'LS6';
-  return '';
 }
 
 const DEFAULT_READING_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
 
 const newModule = reactive({
   title: '',
-  strand: 'Communication Skills (English)',
+  learningAreaId: '',
+  strand: '',
   level: 'A&E Elementary',
   learningCenterId: '',
-  code: 'LS1',
+  code: '',
   dateStarted: '',
   dateEnded: '',
   instructions: '',
   description: '',
   isAllLearners: true,
   selectedLearnerIds: [],
+  preTestInstructions: '',
   preTest: [createBlankQuestion()],
   uploadedFile: null,
   fileName: '',
@@ -1296,14 +1314,55 @@ const newModule = reactive({
   fileSize: '',
   learningNotes: DEFAULT_READING_INSTRUCTIONS,
   readingInstructions: DEFAULT_READING_INSTRUCTIONS,
+  postTestInstructions: '',
   postTest: [createBlankQuestion()],
 });
 
-// Watch Learning Strand to automatically update Module Code
+function autoExpandAssessmentTextarea(event) {
+  const el = event?.target;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+function getPlainInstructionsPreview(item) {
+  return formatRichTextPreview(item?.instructions || item?.description || '');
+}
+
+const displayedLearningStrandCode = computed(() => {
+  if (!newModule.learningAreaId) return '';
+  const matched = activeLearningAreas.value.find(
+    (a) => Number(a.id) === Number(newModule.learningAreaId)
+  );
+  if (matched) {
+    return String(matched.code || '').trim();
+  }
+  return String(newModule.code || '').trim();
+});
+
+function syncSelectedLearningStrand() {
+  if (!newModule.learningAreaId) {
+    newModule.strand = '';
+    newModule.code = '';
+    return;
+  }
+  const matched = activeLearningAreas.value.find(
+    (a) => Number(a.id) === Number(newModule.learningAreaId)
+  );
+  if (matched) {
+    newModule.strand = matched.name || '';
+    newModule.code = String(matched.code || '').trim();
+  } else {
+    newModule.strand = '';
+    newModule.code = '';
+  }
+}
+
+// Watch Learning Area ID to automatically populate Learning Strand Name and Learning Strand Code
 watch(
-  () => newModule.strand,
-  (newStrand) => {
-    newModule.code = resolveModuleCodeFromStrand(newStrand);
+  () => [newModule.learningAreaId, activeLearningAreas.value],
+  () => {
+    syncSelectedLearningStrand();
   },
   { immediate: true }
 );
@@ -1366,176 +1425,7 @@ const eligibleLearners = computed(() => {
   });
 });
 
-// Dropdown & multi-select state for Assign Module To
-const isAssignDropdownOpen = ref(false);
-const assignSearchQuery = ref('');
-const assignDropdownTriggerRef = ref(null);
-const assignDropdownMenuRef = ref(null);
-const assignDropdownSearchInputRef = ref(null);
-const assignDropdownPlacement = ref('down');
-const assignDropdownStyle = ref({});
-
-function updateAssignDropdownPosition() {
-  if (!assignDropdownTriggerRef.value || !isAssignDropdownOpen.value) return;
-  const rect = assignDropdownTriggerRef.value.getBoundingClientRect();
-  const viewportHeight = window.innerHeight;
-  const viewportWidth = window.innerWidth;
-
-  const spaceBelow = viewportHeight - rect.bottom - 12;
-  const spaceAbove = rect.top - 12;
-
-  const preferUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-  assignDropdownPlacement.value = preferUp ? 'up' : 'down';
-
-  const width = Math.min(rect.width, viewportWidth - 24);
-  const left = Math.max(12, Math.min(rect.left, viewportWidth - width - 12));
-
-  if (preferUp) {
-    const maxHeight = Math.min(260, Math.max(120, spaceAbove));
-    assignDropdownStyle.value = {
-      position: 'fixed',
-      bottom: `${viewportHeight - rect.top + 4}px`,
-      left: `${left}px`,
-      width: `${width}px`,
-      maxHeight: `${maxHeight}px`,
-      zIndex: 10050,
-    };
-  } else {
-    const maxHeight = Math.min(260, Math.max(120, spaceBelow));
-    assignDropdownStyle.value = {
-      position: 'fixed',
-      top: `${rect.bottom + 4}px`,
-      left: `${left}px`,
-      width: `${width}px`,
-      maxHeight: `${maxHeight}px`,
-      zIndex: 10050,
-    };
-  }
-}
-
-function openAssignDropdown() {
-  if (eligibleLearners.value.length === 0) return;
-  isAssignDropdownOpen.value = true;
-  assignSearchQuery.value = '';
-  nextTick(() => {
-    updateAssignDropdownPosition();
-    assignDropdownSearchInputRef.value?.focus();
-  });
-}
-
-function closeAssignDropdown() {
-  isAssignDropdownOpen.value = false;
-  assignSearchQuery.value = '';
-}
-
-function toggleAssignDropdown() {
-  if (isAssignDropdownOpen.value) {
-    closeAssignDropdown();
-  } else {
-    openAssignDropdown();
-  }
-}
-
-function handleGlobalDropdownScroll() {
-  if (isAssignDropdownOpen.value) {
-    if (!assignDropdownTriggerRef.value) {
-      closeAssignDropdown();
-      return;
-    }
-    const rect = assignDropdownTriggerRef.value.getBoundingClientRect();
-    if (rect.bottom < 60 || rect.top > window.innerHeight - 60) {
-      closeAssignDropdown();
-    } else {
-      updateAssignDropdownPosition();
-    }
-  }
-}
-
-function handleGlobalDropdownKeydown(e) {
-  if (e.key === 'Escape' && isAssignDropdownOpen.value) {
-    closeAssignDropdown();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-}
-
-// Search filter inside Assign Module To dropdown
-const searchedEligibleLearners = computed(() => {
-  const query = assignSearchQuery.value.trim().toLowerCase();
-  if (!query) return eligibleLearners.value;
-  return eligibleLearners.value.filter((l) =>
-    (l.name || l.fullName || '').toLowerCase().includes(query)
-  );
-});
-
-// Display text in the closed Assign Module To dropdown trigger
-const assignDropdownDisplayText = computed(() => {
-  const total = eligibleLearners.value.length;
-  if (total === 0) return 'No learners available';
-  if (newModule.isAllLearners) {
-    return `All Learners (${total} ${total === 1 ? 'learner' : 'learners'})`;
-  }
-  const count = (newModule.selectedLearnerIds || []).length;
-  if (count === 0) return 'Select learners...';
-  return `${count} ${count === 1 ? 'Learner' : 'Learners'} Selected`;
-});
-
-const assignDropdownTooltipText = computed(() => {
-  const total = eligibleLearners.value.length;
-  if (total === 0) return 'No active learners available';
-  if (newModule.isAllLearners) return `All Learners (${total} active)`;
-  const count = (newModule.selectedLearnerIds || []).length;
-  if (count === 0) return 'Select learners...';
-  const selectedSet = new Set(newModule.selectedLearnerIds);
-  return eligibleLearners.value
-    .filter((l) => selectedSet.has(Number(l.id)))
-    .map((l) => l.name)
-    .join(', ');
-});
-
-function selectAllLearners() {
-  const allIds = eligibleLearners.value.map((l) => Number(l.id));
-  if (newModule.isAllLearners) {
-    newModule.isAllLearners = false;
-    newModule.selectedLearnerIds = [];
-  } else {
-    newModule.isAllLearners = true;
-    newModule.selectedLearnerIds = [...allIds];
-  }
-}
-
-function toggleLearner(learnerId) {
-  const idNum = Number(learnerId);
-  const allIds = eligibleLearners.value.map((l) => Number(l.id));
-
-  if (newModule.isAllLearners) {
-    // Was All Learners, now teacher deselects one learner
-    newModule.isAllLearners = false;
-    newModule.selectedLearnerIds = allIds.filter((id) => id !== idNum);
-  } else {
-    const idx = newModule.selectedLearnerIds.indexOf(idNum);
-    if (idx === -1) {
-      newModule.selectedLearnerIds.push(idNum);
-    } else {
-      newModule.selectedLearnerIds.splice(idx, 1);
-    }
-
-    // When every eligible learner is selected, All Learners should automatically become checked
-    if (allIds.length > 0 && newModule.selectedLearnerIds.length >= allIds.length) {
-      newModule.isAllLearners = true;
-      newModule.selectedLearnerIds = [...allIds];
-    }
-  }
-}
-
-function isLearnerSelected(learnerId) {
-  if (newModule.isAllLearners) {
-    return true;
-  }
-  return (newModule.selectedLearnerIds || []).includes(Number(learnerId));
-}
-
-// Watch level and learning center changes to dynamically update selection
+// Watch level and learning center changes to dynamically update selection for AssignModuleToDropdown
 watch(
   () => [newModule.learningCenterId, newModule.level, activeTargetLevel.value],
   () => {
@@ -1547,9 +1437,6 @@ watch(
       }
     } else if (newModule.isAllLearners) {
       newModule.selectedLearnerIds = Array.from(validIds);
-    }
-    if (isAssignDropdownOpen.value) {
-      updateAssignDropdownPosition();
     }
   }
 );
@@ -1571,8 +1458,15 @@ function validateStep1() {
     step1ErrorMessage.value = 'Module Title is required.';
     return false;
   }
-  if (!newModule.strand) {
+  if (!newModule.learningAreaId) {
     step1ErrorMessage.value = 'Learning Strand is required.';
+    return false;
+  }
+  const selectedArea = activeLearningAreas.value.find(
+    (a) => Number(a.id) === Number(newModule.learningAreaId)
+  );
+  if (!selectedArea || String(selectedArea.status || 'Active').toLowerCase() !== 'active') {
+    step1ErrorMessage.value = 'Selected Learning Strand is inactive or unavailable.';
     return false;
   }
   if (!newModule.level) {
@@ -1583,13 +1477,12 @@ function validateStep1() {
     step1ErrorMessage.value = 'Learning Center is required.';
     return false;
   }
-  if (!newModule.code) {
-    step1ErrorMessage.value = 'No valid Module Code is configured for the selected Learning Strand.';
+  if (!newModule.code || !String(selectedArea.code || '').trim()) {
+    step1ErrorMessage.value = 'No valid Learning Strand Code is configured for the selected Learning Strand.';
     return false;
   }
-  const expectedCode = resolveModuleCodeFromStrand(newModule.strand);
-  if (expectedCode && newModule.code !== expectedCode) {
-    step1ErrorMessage.value = `Module Code (${newModule.code}) does not match the selected Learning Strand (${expectedCode}).`;
+  if (newModule.code !== String(selectedArea.code).trim()) {
+    step1ErrorMessage.value = `Learning Strand Code (${newModule.code}) does not match the registered Learning Area (${selectedArea.code}).`;
     return false;
   }
 
@@ -1751,8 +1644,9 @@ async function loadTeacherLearners() {
   }
 }
 
-function startModuleCreation() {
+async function startModuleCreation() {
   resetWizard();
+  await loadLearningAreas();
   // Set default center if available
   if (availableLearningCenters.value && availableLearningCenters.value.length > 0) {
     newModule.learningCenterId = availableLearningCenters.value[0].id;
@@ -1772,7 +1666,6 @@ function startModuleCreation() {
 
 function cancelModuleCreation() {
   isCreatingModule.value = false;
-  isAssignDropdownOpen.value = false;
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
   step4ErrorMessage.value = '';
@@ -2012,17 +1905,20 @@ function removeSelectedFile() {
 
 function resetWizard() {
   newModule.title = '';
-  newModule.strand = 'Communication Skills (English)';
+  newModule.learningAreaId = '';
+  newModule.strand = '';
   newModule.level = activeLevel.value;
   newModule.learningCenterId = '';
-  newModule.code = 'LS1';
+  newModule.code = '';
   newModule.dateStarted = '';
   newModule.dateEnded = '';
   newModule.instructions = '';
   newModule.description = '';
   newModule.isAllLearners = true;
   newModule.selectedLearnerIds = [];
+  newModule.preTestInstructions = '';
   newModule.preTest = [createBlankQuestion()];
+  newModule.postTestInstructions = '';
   newModule.postTest = [createBlankQuestion()];
   newModule.uploadedFile = null;
   newModule.fileName = '';
@@ -2034,8 +1930,6 @@ function resetWizard() {
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
   step4ErrorMessage.value = '';
-  isAssignDropdownOpen.value = false;
-  assignSearchQuery.value = '';
 }
 
 async function publishCompleteModule() {
@@ -2072,6 +1966,9 @@ async function publishCompleteModule() {
       }
     }
 
+    const sanitizedInstructions = sanitizeRichText(newModule.instructions);
+    const sanitizedDescription = sanitizeRichText(newModule.description);
+
     // 2. Prepare payload to save to database
     const payload = {
       title: newModule.title.trim(),
@@ -2079,8 +1976,9 @@ async function publishCompleteModule() {
       moduleCode: newModule.code,
       dateStarted: newModule.dateStarted,
       dateEnded: newModule.dateEnded,
-      instructions: newModule.instructions ? newModule.instructions.trim() : '',
-      description: newModule.instructions ? newModule.instructions.trim() : (newModule.description ? newModule.description.trim() : ''),
+      instructions: sanitizedInstructions,
+      description: sanitizedInstructions || sanitizedDescription,
+      learningAreaId: Number(newModule.learningAreaId),
       strand: newModule.strand,
       level: newModule.level,
       learningCenterId: newModule.learningCenterId || (assignedCenters.value[0] ? assignedCenters.value[0].id : null),
@@ -2090,6 +1988,8 @@ async function publishCompleteModule() {
       fileName: newModule.fileName || null,
       learningNotes: newModule.learningNotes ? newModule.learningNotes.trim() : '',
       readingInstructions: newModule.learningNotes ? newModule.learningNotes.trim() : '',
+      preTestInstructions: newModule.preTestInstructions ? newModule.preTestInstructions.trim() : '',
+      postTestInstructions: newModule.postTestInstructions ? newModule.postTestInstructions.trim() : '',
       preTest: newModule.preTest.map((q, idx) => ({
         questionText: q.prompt.trim(),
         options: q.choices.map((c, cIdx) => ({
@@ -2182,11 +2082,7 @@ watch(
 onMounted(async () => {
   setActiveModuleLevel(activeTargetLevel.value);
   newModule.level = activeLevel.value;
-  window.addEventListener('resize', updateAssignDropdownPosition);
-  window.addEventListener('scroll', handleGlobalDropdownScroll, true);
-  window.addEventListener('keydown', handleGlobalDropdownKeydown);
-  await loadModules();
-  await loadTeacherLearners();
+  await Promise.all([loadModules(), loadTeacherLearners(), loadLearningAreas()]);
   if (route.query.action === 'create') {
     startModuleCreation();
     router.replace({ path: route.path, query: {} });
@@ -2202,12 +2098,6 @@ watch(
     }
   }
 );
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateAssignDropdownPosition);
-  window.removeEventListener('scroll', handleGlobalDropdownScroll, true);
-  window.removeEventListener('keydown', handleGlobalDropdownKeydown);
-});
 </script>
 
 <style scoped>
@@ -2407,6 +2297,8 @@ onBeforeUnmount(() => {
 
 .feed-info-content {
   flex: 1;
+  min-width: 0;
+  min-height: 110px;
   display: flex;
   flex-direction: column;
 }
@@ -2415,7 +2307,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.2;
   flex-wrap: wrap;
 }
 
@@ -2460,22 +2353,33 @@ onBeforeUnmount(() => {
   font-size: 1.15rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 0.35rem 0;
-  line-height: 1.35;
+  margin: 0 0 0.2rem 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .feed-card-desc {
   font-size: 0.875rem;
   color: #475569;
-  margin: 0 0 0.65rem 0;
-  line-height: 1.45;
+  margin: 0 0 0.3rem 0;
+  line-height: 1.38;
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 
 .feed-meta-bottom {
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8125rem;
+  line-height: 1.2;
   color: #64748b;
   flex-wrap: wrap;
 }
@@ -2866,6 +2770,39 @@ onBeforeUnmount(() => {
 .field-textarea-box:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.instructions-auto-textarea {
+  min-height: 150px;
+  resize: none;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.assessment-instructions-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+
+.assessment-instructions-textarea {
+  min-height: 82px;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .field-input-box.is-locked,
@@ -3673,250 +3610,13 @@ onBeforeUnmount(() => {
   max-width: 440px;
 }
 
-/* Read-only Module Code Box */
+/* Read-only Learning Strand Code Box */
 .field-input-box.is-readonly {
   background-color: #f8fafc;
   color: #1e293b;
   cursor: default;
   font-weight: 600;
   border-color: #cbd5e1;
-}
-
-/* Assign Module To Multi-select Dropdown */
-.assign-module-dropdown-group {
-  position: relative;
-}
-
-.custom-dropdown-trigger {
-  width: 100%;
-  height: 42px;
-  min-height: 42px;
-  padding: 0 0.85rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
-  box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.custom-dropdown-trigger:hover:not(.is-disabled) {
-  border-color: #94a3b8;
-}
-
-.custom-dropdown-trigger:focus,
-.custom-dropdown-trigger.is-open {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-  outline: none;
-}
-
-.custom-dropdown-trigger.is-disabled {
-  background: #f8fafc;
-  cursor: not-allowed;
-  opacity: 0.75;
-}
-
-.custom-dropdown-trigger.has-error {
-  border-color: #ef4444;
-}
-
-.custom-dropdown-trigger.has-error:focus,
-.custom-dropdown-trigger.has-error.is-open {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
-}
-
-.dropdown-trigger-text {
-  font-size: 0.875rem;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 0.5rem;
-  line-height: 1.2;
-}
-
-.dropdown-chevron {
-  color: #64748b;
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-
-.dropdown-chevron.is-rotated {
-  transform: rotate(180deg);
-}
-
-.assign-dropdown-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10040;
-  background: transparent;
-}
-
-.custom-dropdown-menu {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-.custom-dropdown-menu.placement-down {
-  transform-origin: top center;
-  animation: dropdownFadeDown 0.15s ease-out;
-}
-
-.custom-dropdown-menu.placement-up {
-  transform-origin: bottom center;
-  animation: dropdownFadeUp 0.15s ease-out;
-}
-
-@keyframes dropdownFadeDown {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes dropdownFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.dropdown-search-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
-
-.dropdown-search-wrap svg {
-  color: #94a3b8;
-  flex-shrink: 0;
-}
-
-.dropdown-search-input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: 0.85rem;
-  color: #0f172a;
-  width: 100%;
-  font-family: inherit;
-  padding: 0;
-}
-
-.dropdown-search-clear {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 1.1rem;
-  line-height: 1;
-  padding: 0 0.25rem;
-}
-
-.dropdown-search-clear:hover {
-  color: #475569;
-}
-
-.dropdown-options-list {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 0.35rem 0;
-}
-
-.dropdown-option-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.85rem;
-  cursor: pointer;
-  transition: background 0.12s ease;
-  user-select: none;
-}
-
-.dropdown-option-item:hover {
-  background: #f1f5f9;
-}
-
-.dropdown-option-item.is-selected {
-  background: #eff6ff;
-}
-
-.all-learners-item {
-  font-weight: 600;
-}
-
-.custom-checkbox {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  border: 1.5px solid #cbd5e1;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-}
-
-.custom-checkbox.is-checked {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
-}
-
-.option-name {
-  font-size: 0.875rem;
-  color: #1e293b;
-  flex: 1;
-  word-break: break-word;
-}
-
-.option-badge {
-  font-size: 0.75rem;
-  color: #64748b;
-  background: #e2e8f0;
-  padding: 0.15rem 0.5rem;
-  border-radius: 9999px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: #e2e8f0;
-  margin: 0.25rem 0;
-}
-
-.dropdown-empty {
-  padding: 1.25rem 0.85rem;
-  text-align: center;
-  font-size: 0.85rem;
-  color: #64748b;
-  line-height: 1.4;
 }
 
 .field-helper-text {
@@ -3948,12 +3648,19 @@ onBeforeUnmount(() => {
 
 @media (max-width: 580px) {
   .feed-card-item {
+    flex-wrap: wrap;
     align-items: flex-start;
   }
   .feed-card-actions {
     margin-left: 0;
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .feed-info-content {
+    min-height: 94px;
   }
 }
 </style>

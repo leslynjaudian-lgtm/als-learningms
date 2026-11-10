@@ -91,13 +91,55 @@ async function main() {
   const existingAreas = await prisma.learningArea.findMany();
   if (existingAreas.length === 0) {
     const areas = [
-      { code: 'LS1-ENG', name: 'Communication Skills (English)', sortOrder: 1 },
-      { code: 'LS1-FIL', name: 'Communication Skills (Filipino)', sortOrder: 2 },
-      { code: 'LS2-SCI', name: 'Scientific & Critical Thinking Skills', sortOrder: 3 },
-      { code: 'LS3-MATH', name: 'Mathematical & Problem Solving Skills', sortOrder: 4 },
-      { code: 'LS4-LIFE', name: 'Life and Career Skills', sortOrder: 5 },
-      { code: 'LS5-SOC', name: 'Understanding Self & Society', sortOrder: 6 },
-      { code: 'LS6-DIGI', name: 'Digital Citizenship', sortOrder: 7 },
+      {
+        code: 'LS1',
+        name: 'Communication Skills (English)',
+        description: 'Developing English communication skills for daily life and work.',
+        sortOrder: 1,
+        status: 'Active',
+      },
+      {
+        code: 'LS1',
+        name: 'Communication Skills (Filipino)',
+        description: 'Developing Filipino communication skills for daily life and work.',
+        sortOrder: 2,
+        status: 'Active',
+      },
+      {
+        code: 'LS2',
+        name: 'Scientific & Critical Thinking Skills',
+        description: 'Building scientific literacy and critical thinking abilities.',
+        sortOrder: 3,
+        status: 'Active',
+      },
+      {
+        code: 'LS3',
+        name: 'Mathematical & Problem Solving Skills',
+        description: 'Developing mathematical concepts and problem-solving skills.',
+        sortOrder: 4,
+        status: 'Active',
+      },
+      {
+        code: 'LS4',
+        name: 'Life & Career Skills',
+        description: 'Enhancing employability and livelihood capabilities.',
+        sortOrder: 5,
+        status: 'Active',
+      },
+      {
+        code: 'LS5',
+        name: 'Understanding Self & Society',
+        description: 'Understanding Philippine history, government, and civic responsibilities.',
+        sortOrder: 6,
+        status: 'Active',
+      },
+      {
+        code: 'LS6',
+        name: 'Digital Citizenship',
+        description: 'Developing digital literacy and responsible use of technology.',
+        sortOrder: 7,
+        status: 'Active',
+      },
     ];
     for (const a of areas) {
       await prisma.learningArea.create({ data: a });

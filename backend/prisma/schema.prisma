@@ -162,17 +162,18 @@ model LearningCenter {
 
 model LearningArea {
   id          Int      @id @default(autoincrement())
-  code        String   @unique @db.VarChar(50) // e.g., "LS1-ENG", "LS2", "LS6"
+  code        String   @db.VarChar(50) // e.g., "LS1", "LS2", "LS6" (multiple strands may share a code)
   name        String   @db.VarChar(150) // e.g., "Communication Skills (English)"
   description String?  @db.Text
   sortOrder   Int      @default(1) @map("sort_order")
-  status      String   @default("active") @db.VarChar(50)
+  status      String   @default("Active") @db.VarChar(50)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
   modules Module[]
 
+  @@index([code])
   @@map("learning_areas")
 }
 

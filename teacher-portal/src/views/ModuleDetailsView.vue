@@ -143,8 +143,8 @@
                 </svg>
               </div>
               <div class="info-strip-text">
-                <span class="info-strip-label">Module Code</span>
-                <span class="info-strip-value code-accent">{{ moduleData.code || resolveModuleCodeFromStrand(moduleData.strand) || '—' }}</span>
+                <span class="info-strip-label">Learning Strand Code</span>
+                <span class="info-strip-value code-accent">{{ moduleData.code || moduleData.learningArea?.code || '—' }}</span>
               </div>
             </div>
 
@@ -172,7 +172,7 @@
               </div>
               <div class="info-strip-text">
                 <span class="info-strip-label">Learning Strand</span>
-                <span class="info-strip-value">{{ moduleData.strand || '—' }}</span>
+                <span class="info-strip-value">{{ moduleData.learningArea?.name || moduleData.strand || '—' }}</span>
               </div>
             </div>
 
@@ -227,9 +227,11 @@
                 <h3 class="detail-note-title">Instructions</h3>
               </div>
               <div class="detail-note-body">
-                <p v-if="moduleData.instructions || moduleData.description" class="prose-text">
-                  {{ moduleData.instructions || moduleData.description }}
-                </p>
+                <div
+                  v-if="sanitizedModuleInstructions"
+                  class="prose-text rich-instructions-content"
+                  v-html="sanitizedModuleInstructions"
+                ></div>
                 <p v-else class="empty-text-hint">No instructions provided for this module.</p>
               </div>
             </div>
@@ -682,19 +684,33 @@
       v-else-if="moduleData && showReviewModal && currentSubmission"
       class="review-activity-fullpage"
     >
-      <!-- Top Navigation Bar: Back to Submissions + Learner Prev/Next Navigation -->
+      <!-- Top Navigation Bar: Back to Report / Back to Submissions + Learner Prev/Next Navigation -->
       <div class="review-top-nav-row">
-        <button
-          type="button"
-          class="btn-back-link"
-          @click="closeReviewModal"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-          </svg>
-          <span>Back to Submissions</span>
-        </button>
+        <div class="review-nav-left-btns">
+          <router-link
+            v-if="reportReturnPath"
+            :to="reportReturnPath"
+            class="btn-back-link btn-back-report"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>Back to Report</span>
+          </router-link>
+
+          <button
+            type="button"
+            class="btn-back-link"
+            @click="closeReviewModal"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/>
+              <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>Back to Submissions</span>
+          </button>
+        </div>
 
         <!-- Previous / Next Learner Navigation -->
         <div v-if="navigableSubmissions.length > 1" class="learner-prev-next-nav">
@@ -732,8 +748,13 @@
       <div class="review-header-card">
         <div class="review-header-top">
           <div>
-            <h1 class="review-page-title">Review Learner Activity</h1>
+            <h1 class="review-page-title">
+              {{ isProgressViewMode ? 'Learner Module Progress Details' : 'Review Learner Activity' }}
+            </h1>
             <p class="review-page-module-subtitle">{{ moduleData.title }}</p>
+          </div>
+          <div v-if="effectiveSubmissionDeadline" class="review-deadline-pill" :class="{ 'is-overdue': isOverdueSubmissionMode }">
+            <span>Deadline: {{ formatDisplayDate(effectiveSubmissionDeadline) }}</span>
           </div>
         </div>
 
@@ -753,14 +774,185 @@
             <span class="learner-meta-value">{{ formatAlsLevelDisplay(currentSubmission.programLevel || moduleData.level) }}</span>
           </div>
 
+          <div v-if="learnerProgressDetails" class="learner-meta-cell">
+            <span class="learner-meta-label">Completion</span>
+            <span class="learner-meta-value strong">{{ learnerProgressDetails.progressPct ?? 0 }}%</span>
+          </div>
+
           <div class="learner-meta-cell">
             <span class="learner-meta-label">Status</span>
             <div class="learner-meta-status-wrap">
-              <span class="sub-status-badge" :class="getStatusClass(currentSubmission.status, currentSubmission)">
+              <span class="sub-status-badge" :class="effectiveReviewStatusClass">
                 <span class="sub-dot"></span>
-                {{ formatProgressStatus(currentSubmission.status, currentSubmission) }}
+                {{ effectiveReviewStatusLabel }}
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Completed & Incomplete Activities Breakdown (Progress View / Overdue Details) -->
+      <div
+        v-if="(isProgressViewMode || isOverdueSubmissionMode || !hasSubmissionOutput(currentSubmission)) && learnerProgressDetails"
+        class="review-panel-card activity-progress-breakdown-card"
+      >
+        <div class="breakdown-header-row">
+          <div>
+            <h2 class="panel-heading">Completed &amp; Incomplete Activities</h2>
+            <p class="breakdown-subtext">
+              <template v-if="isOverdueSubmissionMode">
+                Submission deadline passed on {{ formatDisplayDate(effectiveSubmissionDeadline) }}. Review completed and missing activities below.
+              </template>
+              <template v-else>
+                Track completed and remaining activities required for this module.
+              </template>
+            </p>
+          </div>
+        </div>
+
+        <div class="activity-checklist-grid">
+          <!-- 1. Pre-Test -->
+          <div class="activity-check-item" :class="{ 'is-done': !learnerProgressDetails.preTest?.required || learnerProgressDetails.preTest?.completed }">
+            <div class="check-item-top">
+              <span class="check-item-title">1. Pre-Test</span>
+              <span
+                class="check-pill"
+                :class="
+                  !learnerProgressDetails.preTest?.required
+                    ? 'pill-na'
+                    : learnerProgressDetails.preTest?.completed
+                      ? 'pill-done'
+                      : 'pill-pending'
+                "
+              >
+                {{
+                  !learnerProgressDetails.preTest?.required
+                    ? 'Not Required'
+                    : learnerProgressDetails.preTest?.completed
+                      ? 'Completed'
+                      : 'Incomplete'
+                }}
+              </span>
+            </div>
+            <p class="check-item-detail">
+              <template v-if="!learnerProgressDetails.preTest?.required">
+                No Pre-Test configured for this module.
+              </template>
+              <template v-else-if="learnerProgressDetails.preTest?.completed">
+                Score: {{ learnerProgressDetails.preTest.score }} / {{ learnerProgressDetails.preTest.max }} ({{ learnerProgressDetails.preTest.percentage }}%)
+              </template>
+              <template v-else>
+                Learner has not taken the Pre-Test yet.
+              </template>
+            </p>
+          </div>
+
+          <!-- 2. Module Reading -->
+          <div class="activity-check-item" :class="{ 'is-done': learnerProgressDetails.reading?.completed }">
+            <div class="check-item-top">
+              <span class="check-item-title">2. Read Module</span>
+              <span
+                class="check-pill"
+                :class="
+                  learnerProgressDetails.reading?.completed
+                    ? 'pill-done'
+                    : learnerProgressDetails.reading?.completedPages > 0
+                      ? 'pill-progress'
+                      : 'pill-pending'
+                "
+              >
+                {{
+                  learnerProgressDetails.reading?.completed
+                    ? 'Completed'
+                    : learnerProgressDetails.reading?.completedPages > 0
+                      ? 'In Progress'
+                      : 'Incomplete'
+                }}
+              </span>
+            </div>
+            <p class="check-item-detail">
+              <template v-if="learnerProgressDetails.reading?.totalPages > 0">
+                {{ learnerProgressDetails.reading.completedPages }} of {{ learnerProgressDetails.reading.totalPages }} pages read
+              </template>
+              <template v-else-if="learnerProgressDetails.reading?.completed">
+                Reading completed.
+              </template>
+              <template v-else>
+                No module pages read yet.
+              </template>
+            </p>
+          </div>
+
+          <!-- 3. Post-Test -->
+          <div class="activity-check-item" :class="{ 'is-done': !learnerProgressDetails.postTest?.required || learnerProgressDetails.postTest?.completed }">
+            <div class="check-item-top">
+              <span class="check-item-title">3. Post-Test</span>
+              <span
+                class="check-pill"
+                :class="
+                  !learnerProgressDetails.postTest?.required
+                    ? 'pill-na'
+                    : learnerProgressDetails.postTest?.completed
+                      ? 'pill-done'
+                      : 'pill-pending'
+                "
+              >
+                {{
+                  !learnerProgressDetails.postTest?.required
+                    ? 'Not Required'
+                    : learnerProgressDetails.postTest?.completed
+                      ? 'Completed'
+                      : 'Incomplete'
+                }}
+              </span>
+            </div>
+            <p class="check-item-detail">
+              <template v-if="!learnerProgressDetails.postTest?.required">
+                No Post-Test configured for this module.
+              </template>
+              <template v-else-if="learnerProgressDetails.postTest?.completed">
+                Score: {{ learnerProgressDetails.postTest.score }} / {{ learnerProgressDetails.postTest.max }} ({{ learnerProgressDetails.postTest.percentage }}%)
+              </template>
+              <template v-else>
+                Learner has not taken the Post-Test yet.
+              </template>
+            </p>
+          </div>
+
+          <!-- 4. Activity Submission -->
+          <div class="activity-check-item" :class="{ 'is-done': learnerProgressDetails.activity?.hasSubmission }">
+            <div class="check-item-top">
+              <span class="check-item-title">4. Activity Submission</span>
+              <span
+                class="check-pill"
+                :class="
+                  learnerProgressDetails.activity?.hasSubmission
+                    ? 'pill-done'
+                    : isOverdueSubmissionMode
+                      ? 'pill-missing'
+                      : 'pill-pending'
+                "
+              >
+                {{
+                  learnerProgressDetails.activity?.hasSubmission
+                    ? 'Submitted'
+                    : isOverdueSubmissionMode
+                      ? 'Missing'
+                      : 'Incomplete'
+                }}
+              </span>
+            </div>
+            <p class="check-item-detail">
+              <template v-if="learnerProgressDetails.activity?.hasSubmission">
+                Submitted {{ formatDisplayDate(learnerProgressDetails.activity.submittedAt) }}
+              </template>
+              <template v-else-if="effectiveSubmissionDeadline">
+                No activity output submitted (Deadline: {{ formatDisplayDate(effectiveSubmissionDeadline) }}).
+              </template>
+              <template v-else>
+                No activity output submitted yet.
+              </template>
+            </p>
           </div>
         </div>
       </div>
@@ -1028,13 +1220,26 @@
             </div>
 
             <!-- Fallback if learner submission has no files or no activity submitted -->
-            <div v-else class="no-artifact-hint">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
+            <div v-else class="no-artifact-hint empty-submission-box">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
-              <span>{{ hasSubmissionOutput(currentSubmission) ? 'No activity files attached with this submission.' : 'No activity submitted yet.' }}</span>
+              <div class="empty-submission-title">
+                {{ hasSubmissionOutput(currentSubmission) ? 'No Activity Files Attached' : 'No Activity Submission Found' }}
+              </div>
+              <p class="empty-submission-desc">
+                <template v-if="hasSubmissionOutput(currentSubmission)">
+                  No activity files were attached with this submission.
+                </template>
+                <template v-else-if="isOverdueSubmissionMode && effectiveSubmissionDeadline">
+                  This learner has not submitted any activity output for the {{ formatDisplayDate(effectiveSubmissionDeadline) }} deadline.
+                </template>
+                <template v-else>
+                  This learner has not submitted any activity output for this module yet.
+                </template>
+              </p>
             </div>
           </div>
         </div>
@@ -1151,12 +1356,10 @@
               <!-- ROW 2 — FULL WIDTH: Instructions -->
               <div class="field-item full-width">
                 <label class="field-lbl">Instructions</label>
-                <textarea
+                <InstructionsRichEditor
                   v-model="editForm.instructions"
-                  rows="3"
-                  class="field-textarea-box"
                   placeholder="Enter instructions or directions for this module..."
-                ></textarea>
+                />
               </div>
 
               <!-- Teacher Reading Instructions -->
@@ -1185,15 +1388,25 @@
 
               <div class="field-item">
                 <label class="field-lbl">Learning Strand <span class="req">*</span></label>
-                <select v-model="editForm.strand" class="field-select-box" required>
+                <select
+                  v-model="editForm.learningAreaId"
+                  class="field-select-box"
+                  required
+                  @change="syncEditLearningStrand"
+                >
                   <option value="" disabled>Select Learning Strand</option>
-                  <option v-for="s in internalStrands" :key="s.slug" :value="s.name">
-                    {{ s.name }}
+                  <option
+                    v-for="area in editableLearningAreas"
+                    :key="area.id"
+                    :value="area.id"
+                    :disabled="area.status === 'Inactive' && Number(area.id) !== Number(moduleData?.learningAreaId)"
+                  >
+                    {{ area.name }}{{ area.status === 'Inactive' ? ' (Inactive)' : '' }}
                   </option>
                 </select>
               </div>
 
-              <!-- ROW 4 — TWO COLUMNS: Learning Center * | Module Code * -->
+              <!-- ROW 4 — TWO COLUMNS: Learning Center * | Learning Strand Code * -->
               <div class="field-item">
                 <label class="field-lbl">Learning Center <span class="req">*</span></label>
                 <select v-model="editForm.learningCenterId" class="field-select-box" required>
@@ -1205,13 +1418,12 @@
               </div>
 
               <div class="field-item">
-                <label class="field-lbl">Module Code <span class="req">*</span></label>
+                <label class="field-lbl">Learning Strand Code <span class="req">*</span></label>
                 <LockedFieldTooltip message="This field cannot be edited.">
                   <input
                     type="text"
-                    :value="editForm.code"
+                    :value="displayedEditLearningStrandCode"
                     class="field-input-box is-readonly"
-                    placeholder="Auto-populated based on Learning Strand"
                     readonly
                     title="This field cannot be edited."
                   />
@@ -1255,6 +1467,19 @@
               <div class="edit-assessment-header">
                 <h3>Pre-Test (Assessment)</h3>
                 <p>Add multiple-choice questions to assess learners' prior knowledge before the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
+              </div>
+
+              <div class="assessment-instructions-block">
+                <label class="field-lbl" for="edit-pretest-instructions">Instructions</label>
+                <textarea
+                  id="edit-pretest-instructions"
+                  ref="editPreInstructionsRef"
+                  v-model="editForm.preTestInstructions"
+                  rows="3"
+                  class="field-textarea-box assessment-instructions-textarea"
+                  placeholder="Enter instructions for the pre-test..."
+                  @input="autoExpandEditAssessmentTextarea"
+                ></textarea>
               </div>
 
               <div class="gf-questions-container">
@@ -1476,6 +1701,19 @@
                   </button>
                 </div>
                 <p>Add multiple-choice questions to assess what learners have learned after completing the module. Click the circle beside the correct answer and provide feedback for both correct and incorrect answers.</p>
+              </div>
+
+              <div class="assessment-instructions-block">
+                <label class="field-lbl" for="edit-posttest-instructions">Instructions</label>
+                <textarea
+                  id="edit-posttest-instructions"
+                  ref="editPostInstructionsRef"
+                  v-model="editForm.postTestInstructions"
+                  rows="3"
+                  class="field-textarea-box assessment-instructions-textarea"
+                  placeholder="Enter instructions for the post-test..."
+                  @input="autoExpandEditAssessmentTextarea"
+                ></textarea>
               </div>
 
               <div class="gf-questions-container">
@@ -1825,15 +2063,18 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, shallowR
 import { useRoute, useRouter } from 'vue-router';
 import * as pdfjsLib from 'pdfjs-dist';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
+import InstructionsRichEditor from '../components/InstructionsRichEditor.vue';
+import { sanitizeRichText } from '../utils/sanitizeRichText.js';
 import { useClcData } from '../composables/useClcData.js';
 import DeleteConfirmModal from '../components/DeleteConfirmModal.vue';
 import AssignModuleToDropdown from '../components/AssignModuleToDropdown.vue';
 import LockedFieldTooltip from '../components/LockedFieldTooltip.vue';
 import AddLearnerRecordModal from '../components/AddLearnerRecordModal.vue';
 import { getModule, updateModule, deleteModule } from '../api/modules.js';
+import { getLearningAreas } from '../api/learningAreas.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { getLearningCenters } from '../api/learningCenters.js';
-import { getSubmissions, updateSubmission, getLearnerAssessmentScores } from '../api/submissions.js';
+import { getSubmissions, updateSubmission, getLearnerAssessmentScores, getLearnerModuleProgressBreakdown } from '../api/submissions.js';
 import { getRecordContext, createRecord } from '../api/records.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
@@ -1857,6 +2098,45 @@ const submissions = ref([]);
 const activeTab = ref(route.query.tab === 'submissions' ? 'submissions' : 'details');
 const showMaterialSection = ref(false);
 const showAssessmentSection = ref(false);
+const learnerProgressDetails = ref(null);
+const loadingProgressDetails = ref(false);
+
+const reportReturnPath = computed(() => {
+  const raw = route.query.returnTo;
+  if (!raw || typeof raw !== 'string') return '';
+  return raw.startsWith('/dashboard/reports') ? raw : '';
+});
+
+const isProgressViewMode = computed(() => route.query.view === 'progress');
+
+const effectiveSubmissionDeadline = computed(() => {
+  return (
+    learnerProgressDetails.value?.deadlineYmd ||
+    currentSubmission.value?.dateEnded ||
+    moduleData.value?.dateEnded ||
+    null
+  );
+});
+
+const isOverdueSubmissionMode = computed(() => {
+  if (route.query.status === 'overdue') return true;
+  if (learnerProgressDetails.value?.status === 'Overdue' || learnerProgressDetails.value?.isOverdue) return true;
+  return normalizeSubmissionBucket(currentSubmission.value?.status, currentSubmission.value) === 'overdue';
+});
+
+const effectiveReviewStatusLabel = computed(() => {
+  if (learnerProgressDetails.value?.status) return learnerProgressDetails.value.status;
+  return formatProgressStatus(currentSubmission.value?.status, currentSubmission.value);
+});
+
+const effectiveReviewStatusClass = computed(() => {
+  const lbl = String(effectiveReviewStatusLabel.value || '').trim().toLowerCase();
+  if (lbl === 'mastered' || lbl === 'not mastered' || lbl === 'recorded') return 'status-recorded';
+  if (lbl === 'overdue') return 'status-overdue';
+  if (lbl === 'in progress') return 'status-in-progress';
+  if (lbl === 'not started') return 'status-not-started';
+  return getStatusClass(currentSubmission.value?.status, currentSubmission.value);
+});
 
 function selectModuleTab(tab) {
   activeTab.value = tab;
@@ -1916,16 +2196,28 @@ const editErrorMessage = ref('');
 const editLearnerDropdownOpen = ref(false);
 const teacherLearners = ref([]);
 const allLearningCenters = ref([]);
+const allLearningAreas = ref([]);
 
-const internalStrands = [
-  { slug: 'communication-skills-eng', name: 'Communication Skills (English)' },
-  { slug: 'communication-skills-fil', name: 'Communication Skills (Filipino)' },
-  { slug: 'scientific-literacy', name: 'Scientific & Critical Thinking Skills' },
-  { slug: 'mathematical-skills', name: 'Mathematical & Problem Solving Skills' },
-  { slug: 'life-career-skills', name: 'Life and Career Skills' },
-  { slug: 'self-society', name: 'Understanding Self & Society' },
-  { slug: 'digital-citizenship', name: 'Digital Citizenship' },
-];
+const editableLearningAreas = computed(() => {
+  const currentId = Number(moduleData.value?.learningAreaId || 0);
+  const list = Array.isArray(allLearningAreas.value) ? allLearningAreas.value : [];
+  const visible = list.filter(
+    (a) => String(a.status || 'Active').toLowerCase() === 'active' || Number(a.id) === currentId
+  );
+  if (
+    currentId &&
+    moduleData.value?.learningArea &&
+    !visible.some((a) => Number(a.id) === currentId)
+  ) {
+    visible.unshift({
+      id: currentId,
+      code: moduleData.value.learningArea.code || moduleData.value.code || '',
+      name: moduleData.value.learningArea.name || moduleData.value.strand || '',
+      status: moduleData.value.learningArea.status || 'Inactive',
+    });
+  }
+  return visible;
+});
 
 let editQuestionUidCounter = 0;
 
@@ -2039,20 +2331,40 @@ function mapExistingQuestionsForEdit(questionsList) {
   });
 }
 
+const editPreInstructionsRef = ref(null);
+const editPostInstructionsRef = ref(null);
+
+function autoExpandEditTextareaEl(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+function autoExpandEditAssessmentTextarea(event) {
+  autoExpandEditTextareaEl(event?.target);
+}
+
 const editForm = reactive({
   title: '',
   instructions: '',
   readingInstructions: '',
-  strand: 'Communication Skills (English)',
+  learningAreaId: '',
+  strand: '',
   level: 'A&E Elementary',
   learningCenterId: '',
-  code: 'LS1',
+  code: '',
   dateStarted: '',
   dateEnded: '',
   isAllLearners: true,
   selectedLearnerIds: [],
+  preTestInstructions: '',
+  postTestInstructions: '',
   preTest: [],
   postTest: [],
+});
+
+const sanitizedModuleInstructions = computed(() => {
+  return sanitizeRichText(moduleData.value?.instructions || moduleData.value?.description || '');
 });
 
 function addEditQuestion(targetKey) {
@@ -2272,42 +2584,48 @@ const availableLearningCenters = computed(() => {
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 });
 
-const STRAND_TO_CODE_MAP = {
-  'Communication Skills (English)': 'LS1',
-  'Communication Skills (Filipino)': 'LS1',
-  'Scientific & Critical Thinking Skills': 'LS2',
-  'Scientific Literacy': 'LS2',
-  'Mathematical & Problem Solving Skills': 'LS3',
-  'Mathematical and Problem Solving Skills': 'LS3',
-  'Life and Career Skills': 'LS4',
-  'Life & Career Skills': 'LS4',
-  'Understanding Self & Society': 'LS5',
-  'Understanding the Self and Society': 'LS5',
-  'Digital Citizenship': 'LS6',
-};
-
-function resolveModuleCodeFromStrand(strandName) {
-  if (!strandName) return '';
-  if (STRAND_TO_CODE_MAP[strandName]) {
-    return STRAND_TO_CODE_MAP[strandName];
+const displayedEditLearningStrandCode = computed(() => {
+  if (!editForm.learningAreaId) return '';
+  if (
+    moduleData.value &&
+    Number(editForm.learningAreaId) === Number(moduleData.value.learningAreaId) &&
+    editForm.code
+  ) {
+    return String(editForm.code).trim();
   }
-  const sLower = String(strandName).toLowerCase();
-  if (sLower.includes('english') || sLower.includes('filipino') || sLower.includes('communication')) return 'LS1';
-  if (sLower.includes('scient') || sLower.includes('science')) return 'LS2';
-  if (sLower.includes('mathematical') || sLower.includes('math') || sLower.includes('problem solving')) return 'LS3';
-  if (sLower.includes('life') || sLower.includes('career')) return 'LS4';
-  if (sLower.includes('self') || sLower.includes('society')) return 'LS5';
-  if (sLower.includes('digital') || sLower.includes('citizenship')) return 'LS6';
-  return '';
+  const matched = editableLearningAreas.value.find(
+    (a) => Number(a.id) === Number(editForm.learningAreaId)
+  );
+  if (matched) {
+    return String(matched.code || '').trim();
+  }
+  return String(editForm.code || '').trim();
+});
+
+function syncEditLearningStrand() {
+  if (!editForm.learningAreaId) {
+    editForm.strand = '';
+    editForm.code = '';
+    return;
+  }
+  const matched = editableLearningAreas.value.find(
+    (a) => Number(a.id) === Number(editForm.learningAreaId)
+  );
+  if (matched) {
+    editForm.strand = matched.name || '';
+    editForm.code = String(matched.code || '').trim();
+  } else {
+    editForm.strand = '';
+    editForm.code = '';
+  }
 }
 
-// Watch editForm.strand to automatically update editForm.code
+// Watch editForm.learningAreaId to automatically update Learning Strand Name and Learning Strand Code
 watch(
-  () => editForm.strand,
-  (newStrand) => {
-    if (newStrand) {
-      editForm.code = resolveModuleCodeFromStrand(newStrand);
-    }
+  () => editForm.learningAreaId,
+  () => {
+    if (isInitializingEditModal.value) return;
+    syncEditLearningStrand();
   }
 );
 
@@ -2392,9 +2710,10 @@ watch(
 async function loadEditPrerequisites(shouldSyncInitial = false) {
   const tid = teacherId.value;
   try {
-    const [learnersRes, centersRes] = await Promise.allSettled([
+    const [learnersRes, centersRes, areasRes] = await Promise.allSettled([
       getAssignedLearners(tid ? { teacherId: tid } : {}),
       getLearningCenters(),
+      getLearningAreas({ _t: Date.now() }),
     ]);
 
     if (learnersRes.status === 'fulfilled' && Array.isArray(learnersRes.value.data)) {
@@ -2422,6 +2741,24 @@ async function loadEditPrerequisites(shouldSyncInitial = false) {
       allLearningCenters.value = centersRes.value.data;
     }
 
+    if (areasRes.status === 'fulfilled' && Array.isArray(areasRes.value.data)) {
+      allLearningAreas.value = areasRes.value.data.map((a) => ({
+        ...a,
+        id: Number(a.id),
+        code: String(a.code || '').trim(),
+        name: String(a.name || '').trim(),
+      }));
+      if (editForm.learningAreaId && !editForm.code) {
+        const matched = allLearningAreas.value.find(
+          (a) => Number(a.id) === Number(editForm.learningAreaId)
+        );
+        if (matched) {
+          editForm.code = matched.code || '';
+          editForm.strand = matched.name || editForm.strand;
+        }
+      }
+    }
+
     if (shouldSyncInitial && showEditModal.value && !hasUserModifiedEditAssignment.value) {
       syncEditModalInitialAssignments();
     }
@@ -2442,23 +2779,32 @@ function openEditModal() {
   else if (normLevel.toLowerCase().includes('jun') || normLevel.toLowerCase().includes('sec')) normLevel = 'A&E Junior High';
 
   editForm.title = moduleData.value.title || '';
-  editForm.instructions = moduleData.value.instructions || moduleData.value.description || '';
+  editForm.instructions = sanitizeRichText(moduleData.value.instructions || moduleData.value.description || '');
   editForm.readingInstructions = moduleData.value.readingInstructions !== undefined
     ? moduleData.value.readingInstructions
     : (moduleData.value.learningNotes !== undefined ? moduleData.value.learningNotes : '');
-  editForm.strand = moduleData.value.strand || 'Communication Skills (English)';
+  editForm.learningAreaId = moduleData.value.learningAreaId ? Number(moduleData.value.learningAreaId) : '';
+  editForm.strand = moduleData.value.learningArea?.name || moduleData.value.strand || '';
   editForm.level = normLevel;
   editForm.learningCenterId = moduleData.value.learningCenterId || '';
-  editForm.code = moduleData.value.code || 'LS1';
+  editForm.code = String(moduleData.value.code || moduleData.value.learningArea?.code || '').trim();
   editForm.dateStarted = moduleData.value.dateStarted ? String(moduleData.value.dateStarted).split('T')[0] : '';
   editForm.dateEnded = moduleData.value.dateEnded ? String(moduleData.value.dateEnded).split('T')[0] : '';
   syncEditModalInitialAssignments();
+  const preAss = (moduleData.value.assessments || []).find((a) => a.type === 'PRE_TEST') || moduleData.value.preTest || null;
+  const postAss = (moduleData.value.assessments || []).find((a) => a.type === 'POST_TEST') || moduleData.value.postTest || null;
+  editForm.preTestInstructions =
+    moduleData.value.preTestInstructions ?? preAss?.instructions ?? preAss?.description ?? '';
+  editForm.postTestInstructions =
+    moduleData.value.postTestInstructions ?? postAss?.instructions ?? postAss?.description ?? '';
   editForm.preTest = mapExistingQuestionsForEdit(preTestQuestions.value);
   editForm.postTest = mapExistingQuestionsForEdit(postTestQuestions.value);
 
   showEditModal.value = true;
   nextTick(() => {
     isInitializingEditModal.value = false;
+    autoExpandEditTextareaEl(editPreInstructionsRef.value);
+    autoExpandEditTextareaEl(editPostInstructionsRef.value);
   });
   loadEditPrerequisites(true);
 }
@@ -2476,7 +2822,7 @@ async function saveEditModule() {
     editErrorMessage.value = 'Module Title is required.';
     return;
   }
-  if (!editForm.strand) {
+  if (!editForm.learningAreaId) {
     editErrorMessage.value = 'Learning Strand is required.';
     return;
   }
@@ -2489,7 +2835,7 @@ async function saveEditModule() {
     return;
   }
   if (!editForm.code) {
-    editErrorMessage.value = 'Module Code is required.';
+    editErrorMessage.value = 'No valid Learning Strand Code is configured for the selected Learning Strand.';
     return;
   }
   if (editEligibleLearners.value.length === 0) {
@@ -2529,17 +2875,21 @@ async function saveEditModule() {
   try {
     const payload = {
       title: editForm.title.trim(),
-      instructions: editForm.instructions.trim(),
+      instructions: sanitizeRichText(editForm.instructions),
       readingInstructions: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
       learningNotes: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
+      learningAreaId: Number(editForm.learningAreaId),
       strand: editForm.strand,
       level: editForm.level,
       learningCenterId: Number(editForm.learningCenterId),
       code: editForm.code,
+      moduleCode: editForm.code,
       dateStarted: editForm.dateStarted,
       dateEnded: editForm.dateEnded,
       isAllLearners: editForm.isAllLearners,
       assignedLearnerIds: editForm.isAllLearners ? [] : editForm.selectedLearnerIds,
+      preTestInstructions: editForm.preTestInstructions != null ? editForm.preTestInstructions.trim() : '',
+      postTestInstructions: editForm.postTestInstructions != null ? editForm.postTestInstructions.trim() : '',
       preTest: editForm.preTest.map((q, idx) => ({
         id: q.id || undefined,
         questionText: q.prompt.trim(),
@@ -3323,14 +3673,42 @@ async function fetchModuleDetails() {
         activeTab.value = 'submissions';
       }
       const routeSubId = route.params.submissionId;
+      const routeLearnerId = route.query.learnerId;
       if (routeSubId) {
         activeTab.value = 'submissions';
-        const targetSub = submissions.value.find(
+        let targetSub = submissions.value.find(
           (s) =>
             String(s.id) === String(routeSubId) ||
             Number(s.id) === Number(routeSubId) ||
-            (s.learnerId && (String(s.learnerId) === String(routeSubId) || Number(s.learnerId) === Number(routeSubId)))
+            (s.learnerId && (String(s.learnerId) === String(routeSubId) || Number(s.learnerId) === Number(routeSubId))) ||
+            (routeLearnerId && s.learnerId && Number(s.learnerId) === Number(routeLearnerId))
         );
+        if (!targetSub && routeLearnerId) {
+          try {
+            const pRes = await getLearnerModuleProgressBreakdown(moduleId, routeLearnerId);
+            const pData = pRes?.data;
+            if (pData?.learner) {
+              targetSub = {
+                id: routeSubId || `pending_${moduleId}_${pData.learner.id}`,
+                submissionId: pData.activity?.submissionId || null,
+                hasSubmitted: Boolean(pData.activity?.hasSubmission),
+                isRecorded: Boolean(pData.isRecorded),
+                moduleId: Number(moduleId),
+                moduleTitle: res.data.title || 'Learning Module',
+                dateEnded: pData.deadlineYmd || res.data.dateEnded || null,
+                learnerId: pData.learner.id,
+                learnerName: pData.learner.fullName,
+                lrn: pData.learner.lrn || '—',
+                programLevel: pData.learner.level || res.data.level,
+                status: pData.status || 'In Progress',
+                files: [],
+                fileCount: 0,
+              };
+            }
+          } catch (err) {
+            console.warn('Could not load fallback learner progress breakdown:', err);
+          }
+        }
         if (targetSub) {
           await openReviewModal(targetSub, { skipRouteSync: true });
         }
@@ -3463,31 +3841,48 @@ async function openReviewModal(submission, options = {}) {
     console.warn('Could not inspect local CLC records for scores:', err);
   }
 
-  // Fetch real database assessment scores from backend API
+  // Fetch real database assessment scores & progress breakdown from backend API
+  learnerProgressDetails.value = null;
+  loadingProgressDetails.value = true;
   try {
     const moduleId = moduleData.value?.id || submission.moduleId;
     const learnerId = submission.learnerId;
     if (moduleId && learnerId) {
-      const res = await getLearnerAssessmentScores(moduleId, learnerId);
-      if (res.data) {
-        if (res.data.preTestScore !== null && res.data.preTestScore !== undefined) {
-          learnerScores.value.preTestScore = Number(res.data.preTestScore);
+      const [scoresRes, progressRes] = await Promise.all([
+        getLearnerAssessmentScores(moduleId, learnerId).catch(() => null),
+        getLearnerModuleProgressBreakdown(moduleId, learnerId).catch(() => null),
+      ]);
+      if (scoresRes?.data) {
+        if (scoresRes.data.preTestScore !== null && scoresRes.data.preTestScore !== undefined) {
+          learnerScores.value.preTestScore = Number(scoresRes.data.preTestScore);
         }
-        if (res.data.preTestTotal) {
-          learnerScores.value.preTestTotal = Number(res.data.preTestTotal);
+        if (scoresRes.data.preTestTotal) {
+          learnerScores.value.preTestTotal = Number(scoresRes.data.preTestTotal);
         }
-        if (res.data.postTestScore !== null && res.data.postTestScore !== undefined) {
-          learnerScores.value.postTestScore = Number(res.data.postTestScore);
+        if (scoresRes.data.postTestScore !== null && scoresRes.data.postTestScore !== undefined) {
+          learnerScores.value.postTestScore = Number(scoresRes.data.postTestScore);
         }
-        if (res.data.postTestTotal) {
-          learnerScores.value.postTestTotal = Number(res.data.postTestTotal);
+        if (scoresRes.data.postTestTotal) {
+          learnerScores.value.postTestTotal = Number(scoresRes.data.postTestTotal);
+        }
+      }
+      if (progressRes?.data) {
+        learnerProgressDetails.value = progressRes.data;
+        if (progressRes.data.preTest?.score != null && learnerScores.value.preTestScore === null) {
+          learnerScores.value.preTestScore = Number(progressRes.data.preTest.score);
+          if (progressRes.data.preTest.max) learnerScores.value.preTestTotal = Number(progressRes.data.preTest.max);
+        }
+        if (progressRes.data.postTest?.score != null && learnerScores.value.postTestScore === null) {
+          learnerScores.value.postTestScore = Number(progressRes.data.postTest.score);
+          if (progressRes.data.postTest.max) learnerScores.value.postTestTotal = Number(progressRes.data.postTest.max);
         }
       }
     }
   } catch (err) {
-    console.warn('Could not fetch assessment scores from API:', err);
+    console.warn('Could not fetch assessment scores / progress breakdown from API:', err);
   } finally {
     learnerScores.value.loading = false;
+    loadingProgressDetails.value = false;
   }
 
   // Detect whether this specific submission has already been added to Records via the real database
@@ -3528,6 +3923,7 @@ function closeReviewModal() {
   cleanupPdfPreviewDoc();
   showReviewModal.value = false;
   currentSubmission.value = null;
+  learnerProgressDetails.value = null;
   reviewSuccessMessage.value = '';
   reviewErrorMessage.value = '';
   activeTab.value = 'submissions';
@@ -3541,7 +3937,9 @@ function closeReviewModal() {
 
   const modId = moduleData.value?.id || route.params.id;
   if (modId && route.params.submissionId) {
-    router.replace({ path: `/dashboard/modules/${modId}`, query: { tab: 'submissions' } }).catch(() => {});
+    const nextQuery = { tab: 'submissions' };
+    if (reportReturnPath.value) nextQuery.returnTo = reportReturnPath.value;
+    router.replace({ path: `/dashboard/modules/${modId}`, query: nextQuery }).catch(() => {});
   }
 }
 
@@ -4941,6 +5339,40 @@ watch(
   color: #334155;
   margin: 0;
   white-space: pre-wrap;
+}
+
+.rich-instructions-content {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.rich-instructions-content :deep(p) {
+  margin: 0 0 0.5rem;
+}
+
+.rich-instructions-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.rich-instructions-content :deep(ul) {
+  margin: 0.35rem 0 0.5rem;
+  padding-left: 1.35rem;
+  list-style-type: disc;
+}
+
+.rich-instructions-content :deep(ol) {
+  margin: 0.35rem 0 0.5rem;
+  padding-left: 1.35rem;
+  list-style-type: decimal;
+}
+
+.rich-instructions-content :deep(li) {
+  margin-bottom: 0.2rem;
+}
+
+.rich-instructions-content :deep(li p) {
+  margin: 0;
 }
 
 .empty-text-hint {
@@ -6555,6 +6987,19 @@ watch(
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.instructions-auto-textarea {
+  min-height: 150px;
+  resize: none;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
 .edit-modal-footer {
   padding: 1rem 1.75rem;
   border-top: 1px solid #e2e8f0;
@@ -6659,7 +7104,7 @@ watch(
   min-width: 0;
 }
 
-/* Read-only Module Code Box */
+/* Read-only Learning Strand Code Box */
 .field-input-box.is-readonly {
   background-color: #f8fafc;
   color: #1e293b;
@@ -6973,6 +7418,24 @@ watch(
   font-size: 0.85rem;
   color: #64748b;
   margin: 0;
+}
+
+.assessment-instructions-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.15rem;
+}
+
+.assessment-instructions-textarea {
+  min-height: 82px;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .edit-assessment-title-bar {
@@ -7693,5 +8156,166 @@ watch(
 .btn-already-recorded-ok:hover {
   background: #1d4ed8;
   border-color: #1d4ed8;
+}
+
+.review-nav-left-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.btn-back-report {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.btn-back-report:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.review-deadline-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.review-deadline-pill.is-overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.sub-status-badge.status-not-started {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.activity-progress-breakdown-card {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.breakdown-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.breakdown-subtext {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.activity-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.85rem;
+}
+
+.activity-check-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.activity-check-item.is-done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.check-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.check-item-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.check-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.check-pill.pill-done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.check-pill.pill-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.check-pill.pill-pending {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.check-pill.pill-missing {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.check-pill.pill-na {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.check-item-detail {
+  margin: 0;
+  font-size: 0.79rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.empty-submission-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.25rem 1.25rem;
+  gap: 0.45rem;
+}
+
+.empty-submission-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 0.25rem;
+}
+
+.empty-submission-desc {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #64748b;
+  max-width: 380px;
+  line-height: 1.45;
 }
 </style>

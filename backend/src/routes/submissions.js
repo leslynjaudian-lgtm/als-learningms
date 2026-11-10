@@ -8,6 +8,7 @@ import { syncLearnerModuleProgress } from '../utils/progressCalculator.js';
 import { notifyActivitySubmitted } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
+import { evaluateLearnerModuleStatus } from '../utils/moduleProgressStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -511,6 +512,118 @@ async function getLearnerAssessmentScores(learnerId, moduleId) {
 }
 
 // ---------------------
+// GET /api/submissions/learner-progress
+// Authoritative learner-specific module progress & activity checklist for Teacher/Admin
+// ---------------------
+router.get('/learner-progress', authenticate, requireRole(['ADMIN', 'TEACHER']), async (req, res, next) => {
+  try {
+    const moduleId = parseInt(req.query.moduleId, 10);
+    const learnerId = parseInt(req.query.learnerId, 10);
+    if (isNaN(moduleId) || isNaN(learnerId)) {
+      return res.status(400).json({ error: 'Valid moduleId and learnerId are required' });
+    }
+
+    const [learner, moduleObj] = await Promise.all([
+      prisma.learner.findUnique({
+        where: { id: learnerId },
+        include: { learningCenter: true, assignedTeacher: true },
+      }),
+      prisma.module.findUnique({
+        where: { id: moduleId },
+        include: {
+          learningArea: true,
+          assessments: {
+            select: { id: true, type: true, title: true, _count: { select: { questions: true } } },
+          },
+          _count: { select: { pages: true } },
+        },
+      }),
+    ]);
+
+    if (!learner) return res.status(404).json({ error: 'Learner not found' });
+    if (!moduleObj) return res.status(404).json({ error: 'Module not found' });
+
+    if (req.user.role === 'TEACHER') {
+      const allowedTeacherIds = [req.user.profileId, req.user.userId, req.user.id]
+        .filter((v) => v != null && !isNaN(Number(v)))
+        .map(Number);
+      const teacherCenterId = req.user.teacherProfile?.learningCenterId;
+
+      const isLearnerAssigned =
+        allowedTeacherIds.includes(Number(learner.assignedTeacherId)) ||
+        (teacherCenterId && learner.learningCenterId === teacherCenterId && !learner.assignedTeacherId);
+      if (!isLearnerAssigned) {
+        return res.status(403).json({ error: 'Access denied. Learner is not assigned to you.' });
+      }
+      if (!allowedTeacherIds.includes(Number(moduleObj.teacherId))) {
+        return res.status(403).json({ error: 'Access denied. Module is not owned by you.' });
+      }
+    }
+
+    const [assignment, learnerProgress, attempts, submissions] = await Promise.all([
+      prisma.moduleAssignment.findUnique({
+        where: { moduleId_learnerId: { moduleId, learnerId } },
+      }).catch(() => null),
+      prisma.learnerProgress.findUnique({
+        where: { learnerId_moduleId: { learnerId, moduleId } },
+      }).catch(() => null),
+      prisma.assessmentAttempt.findMany({
+        where: { learnerId, assessment: { moduleId } },
+        include: { assessment: { select: { id: true, moduleId: true, type: true, _count: { select: { questions: true } } } } },
+        orderBy: { submittedAt: 'desc' },
+      }).catch(() => []),
+      prisma.submission.findMany({
+        where: { moduleId, learnerId },
+        orderBy: { submittedAt: 'desc' },
+      }).catch(() => []),
+    ]);
+
+    const af2Records = readAf2Records();
+    const af2Record = af2Records.find((r) => {
+      const rLid = r.learnerId != null ? Number(r.learnerId) : null;
+      const rMid = r.moduleId != null ? Number(r.moduleId) : null;
+      if (rLid === learnerId && rMid === moduleId) return true;
+      if (rLid === learnerId && !rMid && r.moduleTitle && moduleObj.title && r.moduleTitle.trim().toLowerCase() === moduleObj.title.trim().toLowerCase()) {
+        return true;
+      }
+      return false;
+    }) || null;
+
+    const evalRes = evaluateLearnerModuleStatus({
+      learnerId,
+      af2Record,
+      module: moduleObj,
+      assignment,
+      learnerProgress,
+      attempts,
+      submissions,
+    });
+
+    res.json({
+      learner: {
+        id: learner.id,
+        fullName: learner.fullName,
+        lrn: learner.lrn || '—',
+        level: formatLearnerProgramLevel(learner.level),
+        learningCenter: learner.learningCenter?.name || '—',
+      },
+      module: {
+        id: moduleObj.id,
+        code: moduleObj.code || '',
+        title: moduleObj.title,
+        strand: moduleObj.learningArea?.name || 'General',
+        dateStarted: moduleObj.dateStarted ? moduleObj.dateStarted.toISOString().split('T')[0] : null,
+        dateEnded: moduleObj.dateEnded ? moduleObj.dateEnded.toISOString().split('T')[0] : null,
+      },
+      recordId: af2Record?.id || null,
+      ...evalRes,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
 // GET /api/submissions/scores
 // Query assessment scores for a specific module and learner
 // ---------------------
@@ -608,6 +721,15 @@ router.get('/', optionalAuth, async (req, res, next) => {
         });
 
         if (moduleObj) {
+          if (req.user && req.user.role === 'TEACHER') {
+            const allowedTeacherIds = [req.user.profileId, req.user.userId, req.user.id]
+              .filter((v) => v != null && !isNaN(Number(v)))
+              .map(Number);
+            if (!allowedTeacherIds.includes(Number(moduleObj.teacherId))) {
+              return res.json([]);
+            }
+          }
+
           const submittedLearnerIds = new Set(grouped.map((g) => Number(g.learnerId)));
           const requestedLearnerId = learnerId ? parseInt(learnerId, 10) : null;
           const eligibleCandidates = [];
@@ -615,6 +737,13 @@ router.get('/', optionalAuth, async (req, res, next) => {
           if (Array.isArray(moduleObj.assignments) && moduleObj.assignments.length > 0) {
             for (const assign of moduleObj.assignments) {
               if (!assign.learner) continue;
+              if (req.user && req.user.role === 'TEACHER') {
+                const tCenterId = req.user.teacherProfile?.learningCenterId;
+                const isOwnLearner =
+                  Number(assign.learner.assignedTeacherId) === Number(req.user.profileId) ||
+                  (tCenterId && assign.learner.learningCenterId === tCenterId && !assign.learner.assignedTeacherId);
+                if (!isOwnLearner) continue;
+              }
               if (requestedLearnerId && !isNaN(requestedLearnerId) && assign.learner.id !== requestedLearnerId) {
                 continue;
               }

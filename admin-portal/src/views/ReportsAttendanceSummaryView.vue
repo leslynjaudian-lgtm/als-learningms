@@ -121,16 +121,9 @@
           />
         </div>
 
-        <!-- 5. Reset Filters (Beside date inputs, no label, aligned baseline) -->
+        <!-- 5. Clear Filters (Beside date inputs, no label, aligned baseline) -->
         <div class="filter-btn-col col-reset">
-          <button
-            type="button"
-            class="filter-reset-btn"
-            @click="resetFilters"
-            title="Reset Filters"
-          >
-            Reset Filters
-          </button>
+          <ClearFiltersButton @click="resetFilters" />
         </div>
 
         <!-- 6. Generate Report (Beside Reset Filters, no label, aligned baseline) -->
@@ -568,6 +561,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { useAdminSession } from '../composables/useAdminSession.js';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';
@@ -1243,37 +1237,6 @@ function printReportDirectly() {
   background-color: #ffffff;
 }
 
-.filter-reset-btn {
-  height: 42px;
-  min-height: 42px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 8px;
-  background-color: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.filter-reset-btn:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
-}
-
-.filter-reset-btn:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
 .generate-report-btn {
   height: 42px;
   min-height: 42px;
@@ -1336,7 +1299,7 @@ function printReportDirectly() {
   .col-generate {
     flex: 1 1 calc(50% - 0.5rem);
   }
-  .filter-reset-btn,
+  .btn-clear-filters,
   .generate-report-btn {
     width: 100%;
   }

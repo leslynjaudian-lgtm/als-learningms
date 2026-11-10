@@ -34,3 +34,12 @@ export function getLearnerAssessmentScores(moduleId, learnerId) {
   return api.get('/submissions/scores', { params: { moduleId, learnerId } });
 }
 
+/**
+ * Fetch detailed learner module progress & completed/incomplete activities breakdown.
+ * @param {number|string} moduleId
+ * @param {number|string} learnerId
+ */
+export function getLearnerModuleProgressBreakdown(moduleId, learnerId) {
+  return api.get('/submissions/learner-progress', { params: { moduleId, learnerId } });
+}
+

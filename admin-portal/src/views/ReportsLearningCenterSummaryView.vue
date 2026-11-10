@@ -101,14 +101,10 @@
       </div>
 
       <div class="filter-actions">
-        <button
+        <ClearFiltersButton
           v-if="searchQuery || statusFilter"
-          type="button"
-          class="btn btn-secondary"
           @click="resetFilters"
-        >
-          Reset Filters
-        </button>
+        />
       </div>
     </div>
 
@@ -219,6 +215,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { getLearningCenters } from '../api/learningCenters.js';
 import { getTeachers } from '../api/teachers.js';
 import { getLearners } from '../api/learners.js';
@@ -536,30 +533,6 @@ const filteredAvgAttendanceRate = computed(() => {
 .filter-actions {
   display: flex;
   align-items: flex-end;
-}
-
-.filter-actions .btn {
-  height: 42px;
-  min-height: 42px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 8px;
-  background-color: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.filter-actions .btn:hover {
-  background-color: #f8fafc;
-  border-color: #94a3b8;
-  color: #0f172a;
 }
 
 /* Community Learning Centers Breakdown Section */

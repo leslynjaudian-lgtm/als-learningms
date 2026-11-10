@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.js';
 import learningCenterRoutes from './learningCenters.js';
+import learningAreaRoutes from './learningAreas.js';
 import teacherRoutes from './teachers.js';
 import learnerRoutes from './learners.js';
 import moduleRoutes from './modules.js';
@@ -33,6 +34,7 @@ router.get('/health', (_req, res) => {
 // ---------------------
 router.use('/auth', authRoutes);
 router.use('/learning-centers', learningCenterRoutes);
+router.use('/learning-areas', learningAreaRoutes);
 router.use('/teachers', teacherRoutes);
 router.use('/learners', learnerRoutes);
 router.use('/modules', moduleRoutes);

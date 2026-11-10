@@ -25,13 +25,13 @@
     <template v-else>
       <!-- Consistent Back Navigation Bar: Outside and above the main content card -->
       <div class="module-back-bar">
-        <router-link v-if="currentStep === 0" to="/modules" class="module-back-btn" @click="handleModulesBackClick($event)">
+        <RouterLink v-if="currentStep === 0" to="/modules" class="module-back-btn" @click="handleModulesBackClick($event)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
           <span>My Modules</span>
-        </router-link>
+        </RouterLink>
         <button v-else type="button" class="module-back-btn" @click="goToOverview">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -73,8 +73,16 @@
         <!-- Section 1: Module Overview Card -->
         <div class="module-header-card">
           <div class="header-titles">
+            <div v-if="moduleStrandCode || moduleSubheading" class="module-strand-meta-row">
+              <span v-if="moduleStrandCode" class="module-code-pill">{{ moduleStrandCode }}</span>
+              <span v-if="moduleSubheading" class="module-strand-label">{{ moduleSubheading }}</span>
+            </div>
             <h1 class="module-main-title">{{ moduleTitle }}</h1>
-            <p v-if="moduleInstructions" class="module-instructions-inline">{{ moduleInstructions }}</p>
+            <div
+              v-if="sanitizedModuleInstructions"
+              class="module-instructions-inline rich-instructions-content"
+              v-html="sanitizedModuleInstructions"
+            ></div>
           </div>
 
           <div class="overview-divider"></div>
@@ -495,25 +503,19 @@
 
       <!-- In Progress: Question by Question -->
       <template v-else-if="!progress.preTestCompleted && !showingPreTestScore">
-        <div class="assessment-header">
-          <div class="assessment-eyebrow">
-            <span class="step-badge">Pre-Test</span>
-            <span class="q-counter">Question {{ currentPreQIndex + 1 }} of {{ preTestQuestions.length }}</span>
+        <!-- Pre-Test Instructions (Plain text, hidden if blank) -->
+        <template v-if="preTestInstructionsText">
+          <div class="assessment-instructions">
+            <div class="assessment-instructions-label">Instructions:</div>
+            <p class="assessment-instructions-text">{{ preTestInstructionsText }}</p>
           </div>
-
-          <!-- Progress bar -->
-          <div class="assessment-progress-bar">
-            <div
-              class="bar-fill"
-              :style="{ width: `${((currentPreQIndex + 1) / preTestQuestions.length) * 100}%` }"
-            ></div>
-          </div>
-        </div>
+          <hr class="assessment-instructions-divider" />
+        </template>
 
         <!-- Question Prompt -->
         <div class="question-body">
           <h2 class="question-text">
-            {{ currentPreQ.question }}
+            {{ currentPreQIndex + 1 }}. {{ currentPreQ.question }}
           </h2>
 
           <!-- Options -->
@@ -634,7 +636,7 @@
         :pdfUrl="pdfUrl"
         :title="moduleTitle"
         :code="moduleCode"
-        :subtitle="moduleStrandCode"
+        :subtitle="moduleSubheading"
         :downloadFileName="moduleDownloadFileName"
         :instructions="moduleReadingInstructions"
         :initialPage="progress.pdfCurrentPage || 1"
@@ -678,28 +680,22 @@
 
       <!-- In Progress: Question by Question -->
       <template v-else-if="!progress.postTestCompleted && !showingPostTestScore">
-        <div class="assessment-header">
-          <div class="assessment-eyebrow">
-            <span class="step-badge post-badge">Post-Test</span>
-            <span class="q-counter">Question {{ currentPostQIndex + 1 }} of {{ postTestQuestions.length }}</span>
+        <!-- Post-Test Instructions (Plain text, hidden if blank) -->
+        <template v-if="postTestInstructionsText">
+          <div class="assessment-instructions">
+            <div class="assessment-instructions-label">Instructions:</div>
+            <p class="assessment-instructions-text">{{ postTestInstructionsText }}</p>
           </div>
-
-          <!-- Progress bar -->
-          <div class="assessment-progress-bar">
-            <div
-              class="bar-fill post-fill"
-              :style="{ width: `${((currentPostQIndex + 1) / postTestQuestions.length) * 100}%` }"
-            ></div>
-          </div>
-        </div>
+          <hr class="assessment-instructions-divider" />
+        </template>
 
         <!-- Question Prompt -->
         <div class="question-body">
           <h2 class="question-text">
-            {{ currentPostQ.question }}
+            {{ currentPostQIndex + 1 }}. {{ currentPostQ.question }}
           </h2>
 
-          <!-- Options (Do not reveal correct answers or feedback before Post-Test submission) -->
+          <!-- Options -->
           <div class="options-list">
             <button
               v-for="opt in currentPostQ.options"
@@ -707,16 +703,31 @@
               type="button"
               class="option-item"
               :class="{
-                selected: isOptionSelectedPost(opt.id)
+                selected: isOptionSelectedPost(opt.id),
+                correct: isPostSubmitted && (Array.isArray(currentPostQ.correctAnswer) ? currentPostQ.correctAnswer.includes(opt.id) : opt.id === currentPostQ.correctAnswer),
+                incorrect: isPostSubmitted && isOptionSelectedPost(opt.id) && !(Array.isArray(currentPostQ.correctAnswer) ? currentPostQ.correctAnswer.includes(opt.id) : opt.id === currentPostQ.correctAnswer),
+                locked: isPostSubmitted
               }"
+              :disabled="isPostSubmitted"
               @click="onSelectPostAnswer(opt.id)"
             >
               <div
                 class="opt-choice-indicator opt-letter-circle"
                 :class="isCheckboxQuestion(currentPostQ) ? 'is-checkbox' : 'is-radio'"
               >
+                <!-- Submitted Feedback State -->
+                <template v-if="isPostSubmitted">
+                  <svg v-if="Array.isArray(currentPostQ.correctAnswer) ? currentPostQ.correctAnswer.includes(opt.id) : opt.id === currentPostQ.correctAnswer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else-if="isOptionSelectedPost(opt.id)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </template>
+
                 <!-- Checkbox Question: Selected Checkmark -->
-                <template v-if="isCheckboxQuestion(currentPostQ)">
+                <template v-else-if="isCheckboxQuestion(currentPostQ)">
                   <svg v-if="isOptionSelectedPost(opt.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
@@ -732,15 +743,46 @@
           </div>
         </div>
 
+        <!-- Immediate Feedback Section (Displayed only after answer submission) -->
+        <div
+          v-if="isPostSubmitted"
+          class="feedback-card"
+          :class="isPostAnswerCorrect ? 'feedback-correct' : 'feedback-incorrect'"
+        >
+          <div class="feedback-heading">
+            <svg v-if="isPostAnswerCorrect" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <span>{{ isPostAnswerCorrect ? 'Correct!' : 'Incorrect' }}</span>
+          </div>
+          <p class="feedback-detail">{{ getQuestionFeedback(currentPostQ, isPostAnswerCorrect) }}</p>
+        </div>
+
         <!-- Actions -->
         <div class="assessment-actions">
           <button
+            v-if="!isPostSubmitted"
             type="button"
             class="btn-primary action-btn"
             :disabled="hasNoPostAnswer"
             @click="submitPostAnswer"
           >
-            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : 'Submit Post-Test' }}</span>
+            Submit Answer
+          </button>
+          <button
+            v-else
+            type="button"
+            class="btn-primary action-btn"
+            :disabled="isSubmittingPostAssessment"
+            @click="nextPostQuestion"
+          >
+            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : (isSubmittingPostAssessment ? 'Submitting...' : 'View Results') }}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -1190,7 +1232,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
+import { RouterLink, useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import api from '../api/axios';
 import MockPdfViewer from '../components/MockPdfViewer.vue';
 import AssessmentResultsReview from '../components/AssessmentResultsReview.vue';
@@ -1204,6 +1246,7 @@ import {
   formatStrandName,
   formatStrandAndCode,
 } from '../utils/formatStrand.js';
+import { sanitizeRichText } from '../utils/sanitizeRichText.js';
 import {
   MOCK_MODULE,
   PRE_TEST_QUESTIONS,
@@ -1470,12 +1513,29 @@ const currentPreQIndex = ref(0);
 const selectedPreAnswer = ref('');
 const isPreSubmitted = ref(false);
 const showingPreTestScore = ref(false);
+const isSubmittingPreAssessment = ref(false);
 
 // Step 3: Post-test state
 const currentPostQIndex = ref(0);
 const selectedPostAnswer = ref('');
 const isPostSubmitted = ref(false);
 const showingPostTestScore = ref(false);
+const isSubmittingPostAssessment = ref(false);
+
+function isAssessmentQuestionCorrect(question, userAnswer) {
+  if (!question || userAnswer == null) return false;
+  if (Array.isArray(question.correctAnswer)) {
+    const selectedArr = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
+    return (
+      selectedArr.length === question.correctAnswer.length &&
+      question.correctAnswer.every((id) => selectedArr.includes(id))
+    );
+  }
+  if (Array.isArray(userAnswer)) {
+    return userAnswer.length === 1 && userAnswer[0] === question.correctAnswer;
+  }
+  return userAnswer === question.correctAnswer;
+}
 
 const isPreTestResultsView = computed(() => {
   return currentStep.value === 1 && Boolean(progress.value.preTestCompleted || showingPreTestScore.value);
@@ -1732,6 +1792,32 @@ const postTestQuestions = computed(() => {
   return rawPostQuestions.value.map((q, idx) => normalizeQuestion(q, idx));
 });
 
+const preTestInstructionsText = computed(() => {
+  if (isMock.value) return '';
+  const raw =
+    moduleData.value?.preTestInstructions ||
+    realPreTest.value?.instructions ||
+    realPreTest.value?.description ||
+    '';
+  const trimmed = String(raw).trim();
+  const title = String(moduleData.value?.title || '').trim();
+  if (!trimmed || (title && trimmed === `Pre-Test (Assessment) for ${title}`)) return '';
+  return trimmed;
+});
+
+const postTestInstructionsText = computed(() => {
+  if (isMock.value) return '';
+  const raw =
+    moduleData.value?.postTestInstructions ||
+    realPostTest.value?.instructions ||
+    realPostTest.value?.description ||
+    '';
+  const trimmed = String(raw).trim();
+  const title = String(moduleData.value?.title || '').trim();
+  if (!trimmed || (title && trimmed === `Post-Test for ${title}`)) return '';
+  return trimmed;
+});
+
 function isCheckboxQuestion(q) {
   if (!q) return false;
   const t = String(q.questionType || q.type || '').toUpperCase();
@@ -1796,17 +1882,21 @@ const moduleTitle = computed(() => {
 
 const moduleCode = computed(() => {
   if (isMock.value) return MOCK_MODULE.code;
-  return moduleData.value?.code || moduleData.value?.moduleCode || `MOD-${effectiveModuleId.value}`;
+  return (
+    moduleData.value?.code ||
+    moduleData.value?.moduleCode ||
+    moduleData.value?.learningArea?.code ||
+    `MOD-${effectiveModuleId.value}`
+  );
 });
 
 const moduleStrandCode = computed(() => {
   if (isMock.value) return formatStrandCode(MOCK_MODULE.strandCode);
   const candidate =
-    moduleData.value?.learningArea?.code ||
-    (moduleData.value?.code && /^LS/i.test(moduleData.value.code) ? moduleData.value.code : null) ||
-    moduleData.value?.strandCode ||
     moduleData.value?.code ||
-    'LS';
+    moduleData.value?.strandCode ||
+    moduleData.value?.learningArea?.code ||
+    '';
   return formatStrandCode(candidate);
 });
 
@@ -1829,6 +1919,10 @@ const moduleInstructions = computed(() => {
   if (isMock.value) return (MOCK_MODULE.instructions || MOCK_MODULE.description || '').trim();
   const raw = moduleData.value?.instructions || moduleData.value?.description || '';
   return String(raw).trim();
+});
+
+const sanitizedModuleInstructions = computed(() => {
+  return sanitizeRichText(moduleInstructions.value);
 });
 
 const moduleReadingInstructions = computed(() => {
@@ -1958,24 +2052,43 @@ function onSelectPreAnswer(optId) {
 }
 
 function submitPreAnswer() {
-  if (hasNoPreAnswer.value) return;
+  if (isPreSubmitted.value || hasNoPreAnswer.value) return;
+
+  const qId = currentPreQ.value?.id;
+  if (!qId) return;
+  const existingAnswer = progress.value.preTestAnswers[qId];
+  const hasExisting = Array.isArray(existingAnswer) ? existingAnswer.length > 0 : Boolean(existingAnswer);
+  if (hasExisting) {
+    selectedPreAnswer.value = existingAnswer;
+    isPreSubmitted.value = true;
+    return;
+  }
+
   isPreSubmitted.value = true;
 
   // Record answer locally
-  progress.value.preTestAnswers[currentPreQ.value.id] = selectedPreAnswer.value;
+  progress.value.preTestAnswers[qId] = selectedPreAnswer.value;
   saveProgress();
 }
 
 async function nextPreQuestion() {
   if (currentPreQIndex.value + 1 < preTestQuestions.value.length) {
     currentPreQIndex.value += 1;
-    isPreSubmitted.value = false;
-    selectedPreAnswer.value = progress.value.preTestAnswers[currentPreQ.value.id] || '';
+    const saved = progress.value.preTestAnswers[currentPreQ.value.id];
+    const hasSaved = Array.isArray(saved) ? saved.length > 0 : Boolean(saved);
+    isPreSubmitted.value = hasSaved;
+    selectedPreAnswer.value = hasSaved ? saved : '';
   } else {
+    if (isSubmittingPreAssessment.value) return;
+    if (progress.value.preTestCompleted) {
+      showingPreTestScore.value = true;
+      return;
+    }
+
     // Finish Pre-test & calculate score locally
     let score = 0;
     preTestQuestions.value.forEach((q) => {
-      if (progress.value.preTestAnswers[q.id] === q.correctAnswer) {
+      if (isAssessmentQuestionCorrect(q, progress.value.preTestAnswers[q.id])) {
         score += 1;
       }
     });
@@ -1988,6 +2101,7 @@ async function nextPreQuestion() {
 
     // Submit attempt to backend if real module
     if (!isMock.value && realPreTest.value?.id) {
+      isSubmittingPreAssessment.value = true;
       try {
         const res = await api.post(`/modules/${effectiveModuleId.value}/attempt`, {
           assessmentId: realPreTest.value.id,
@@ -1998,7 +2112,14 @@ async function nextPreQuestion() {
           saveProgress();
         }
       } catch (err) {
-        console.warn('Could not sync pre-test attempt to server:', err);
+        if (err?.response?.data?.alreadyCompleted && err.response.data.score != null) {
+          progress.value.preTestScore = Number(err.response.data.score);
+          saveProgress();
+        } else {
+          console.warn('Could not sync pre-test attempt to server:', err);
+        }
+      } finally {
+        isSubmittingPreAssessment.value = false;
       }
     }
   }
@@ -2155,6 +2276,7 @@ function reopenPdfViewer() {
 // POST-TEST LOGIC
 // ==========================================
 function onSelectPostAnswer(optId) {
+  if (isPostSubmitted.value) return;
   if (isCheckboxQuestion(currentPostQ.value)) {
     const list = Array.isArray(selectedPostAnswer.value)
       ? [...selectedPostAnswer.value]
@@ -2171,25 +2293,44 @@ function onSelectPostAnswer(optId) {
   }
 }
 
-async function submitPostAnswer() {
-  if (hasNoPostAnswer.value) return;
+function submitPostAnswer() {
+  if (isPostSubmitted.value || hasNoPostAnswer.value) return;
 
-  // Record answer locally without revealing correct answer or feedback before Post-Test submission
-  progress.value.postTestAnswers[currentPostQ.value.id] = selectedPostAnswer.value;
+  const qId = currentPostQ.value?.id;
+  if (!qId) return;
+  const existingAnswer = progress.value.postTestAnswers[qId];
+  const hasExisting = Array.isArray(existingAnswer) ? existingAnswer.length > 0 : Boolean(existingAnswer);
+  if (hasExisting) {
+    selectedPostAnswer.value = existingAnswer;
+    isPostSubmitted.value = true;
+    return;
+  }
+
+  isPostSubmitted.value = true;
+
+  // Record answer locally after submission
+  progress.value.postTestAnswers[qId] = selectedPostAnswer.value;
   saveProgress();
-  await nextPostQuestion();
 }
 
 async function nextPostQuestion() {
   if (currentPostQIndex.value + 1 < postTestQuestions.value.length) {
     currentPostQIndex.value += 1;
-    isPostSubmitted.value = false;
-    selectedPostAnswer.value = progress.value.postTestAnswers[currentPostQ.value.id] || '';
+    const saved = progress.value.postTestAnswers[currentPostQ.value.id];
+    const hasSaved = Array.isArray(saved) ? saved.length > 0 : Boolean(saved);
+    isPostSubmitted.value = hasSaved;
+    selectedPostAnswer.value = hasSaved ? saved : '';
   } else {
+    if (isSubmittingPostAssessment.value) return;
+    if (progress.value.postTestCompleted) {
+      showingPostTestScore.value = true;
+      return;
+    }
+
     // Finish Post-test & calculate score locally
     let score = 0;
     postTestQuestions.value.forEach((q) => {
-      if (progress.value.postTestAnswers[q.id] === q.correctAnswer) {
+      if (isAssessmentQuestionCorrect(q, progress.value.postTestAnswers[q.id])) {
         score += 1;
       }
     });
@@ -2202,6 +2343,7 @@ async function nextPostQuestion() {
 
     // Submit attempt to backend if real module
     if (!isMock.value && realPostTest.value?.id) {
+      isSubmittingPostAssessment.value = true;
       try {
         const res = await api.post(`/modules/${effectiveModuleId.value}/attempt`, {
           assessmentId: realPostTest.value.id,
@@ -2212,7 +2354,14 @@ async function nextPostQuestion() {
           saveProgress();
         }
       } catch (err) {
-        console.warn('Could not sync post-test attempt to server:', err);
+        if (err?.response?.data?.alreadyCompleted && err.response.data.score != null) {
+          progress.value.postTestScore = Number(err.response.data.score);
+          saveProgress();
+        } else {
+          console.warn('Could not sync post-test attempt to server:', err);
+        }
+      } finally {
+        isSubmittingPostAssessment.value = false;
       }
     }
   }
@@ -2768,6 +2917,41 @@ async function fetchModuleData() {
       progress.value.postTestScore = Number(mod.postTestScore);
       progress.value.postTestCompleted = true;
       progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 4);
+    }
+
+    // Restore in-progress Pre-Test / Post-Test question state on page reload
+    if (!progress.value.preTestCompleted && preTestQuestions.value.length > 0) {
+      const firstUnansweredPreIdx = preTestQuestions.value.findIndex((q) => {
+        const ans = progress.value.preTestAnswers?.[q.id];
+        return Array.isArray(ans) ? ans.length === 0 : !ans;
+      });
+      if (firstUnansweredPreIdx >= 0) {
+        currentPreQIndex.value = firstUnansweredPreIdx;
+        selectedPreAnswer.value = '';
+        isPreSubmitted.value = false;
+      } else {
+        const lastIdx = preTestQuestions.value.length - 1;
+        currentPreQIndex.value = lastIdx;
+        selectedPreAnswer.value = progress.value.preTestAnswers?.[preTestQuestions.value[lastIdx].id] || '';
+        isPreSubmitted.value = true;
+      }
+    }
+
+    if (!progress.value.postTestCompleted && postTestQuestions.value.length > 0) {
+      const firstUnansweredPostIdx = postTestQuestions.value.findIndex((q) => {
+        const ans = progress.value.postTestAnswers?.[q.id];
+        return Array.isArray(ans) ? ans.length === 0 : !ans;
+      });
+      if (firstUnansweredPostIdx >= 0) {
+        currentPostQIndex.value = firstUnansweredPostIdx;
+        selectedPostAnswer.value = '';
+        isPostSubmitted.value = false;
+      } else {
+        const lastIdx = postTestQuestions.value.length - 1;
+        currentPostQIndex.value = lastIdx;
+        selectedPostAnswer.value = progress.value.postTestAnswers?.[postTestQuestions.value[lastIdx].id] || '';
+        isPostSubmitted.value = true;
+      }
     }
 
     // Restore Reading Progress from backend learnerProgress or module payload
@@ -4321,6 +4505,33 @@ onUnmounted(() => {
   gap: 0.35rem;
 }
 
+.module-strand-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.1rem;
+}
+
+.module-code-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.module-strand-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1.3;
+}
+
 .module-main-title {
   font-size: 1.25rem;
   font-weight: 800;
@@ -4338,6 +4549,40 @@ onUnmounted(() => {
   margin: 0.25rem 0 0;
   white-space: pre-line;
   word-break: break-word;
+}
+
+.rich-instructions-content {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.rich-instructions-content :deep(p) {
+  margin: 0 0 0.45rem;
+}
+
+.rich-instructions-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.rich-instructions-content :deep(ul) {
+  margin: 0.35rem 0 0.45rem;
+  padding-left: 1.3rem;
+  list-style-type: disc;
+}
+
+.rich-instructions-content :deep(ol) {
+  margin: 0.35rem 0 0.45rem;
+  padding-left: 1.3rem;
+  list-style-type: decimal;
+}
+
+.rich-instructions-content :deep(li) {
+  margin-bottom: 0.15rem;
+}
+
+.rich-instructions-content :deep(li p) {
+  margin: 0;
 }
 
 .overview-divider {
@@ -4866,6 +5111,37 @@ onUnmounted(() => {
   color: #166534;
   line-height: 1.45;
   margin: 0;
+}
+
+/* Assessment Instructions (Plain Text) */
+.assessment-instructions {
+  text-align: left;
+  margin: 0;
+}
+
+.assessment-instructions-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.45;
+  margin: 0 0 0.25rem 0;
+}
+
+.assessment-instructions-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  color: #0f172a;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.assessment-instructions-divider {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  width: 100%;
+  margin: 1rem 0 1.25rem 0;
 }
 
 .summary-button-group {

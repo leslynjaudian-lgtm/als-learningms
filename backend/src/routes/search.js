@@ -52,43 +52,43 @@ function matchesText(value, queryLower) {
 const DEFAULT_LEARNING_AREAS = [
   {
     id: 1,
-    code: 'LS 1',
+    code: 'LS1',
     name: 'Communication Skills (English)',
     description: 'Developing English communication skills for daily life and work.',
   },
   {
     id: 2,
-    code: 'LS 1',
+    code: 'LS1',
     name: 'Communication Skills (Filipino)',
     description: 'Developing Filipino communication skills for daily life and work.',
   },
   {
     id: 3,
-    code: 'LS 2',
+    code: 'LS2',
     name: 'Scientific & Critical Thinking Skills',
     description: 'Building scientific literacy and critical thinking abilities.',
   },
   {
     id: 4,
-    code: 'LS 3',
+    code: 'LS3',
     name: 'Mathematical & Problem Solving Skills',
     description: 'Developing mathematical concepts and problem-solving skills.',
   },
   {
     id: 5,
-    code: 'LS 4',
+    code: 'LS4',
     name: 'Life & Career Skills',
     description: 'Enhancing employability and livelihood capabilities.',
   },
   {
     id: 6,
-    code: 'LS 5',
+    code: 'LS5',
     name: 'Understanding Self & Society',
     description: 'Understanding Philippine history, government, and civic responsibilities.',
   },
   {
     id: 7,
-    code: 'LS 6',
+    code: 'LS6',
     name: 'Digital Citizenship',
     description: 'Developing digital literacy and responsible use of technology.',
   },
@@ -156,7 +156,7 @@ router.get('/admin', optionalAuth, async (req, res, next) => {
         .catch(() => []),
       prisma.learningArea
         .findMany({
-          orderBy: { code: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         })
         .catch(() => []),
       prisma.announcement

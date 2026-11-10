@@ -70,12 +70,7 @@
 
         <!-- 4. Clear Filters Button -->
         <div class="filter-action-cell">
-          <button type="button" class="clear-filters-btn" @click="clearFilters">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-            </svg>
-            <span>Clear Filters</span>
-          </button>
+          <ClearFiltersButton @click="clearFilters" />
         </div>
       </div>
     </div>
@@ -200,6 +195,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import PageHeader from '../components/PageHeader.vue';
+import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 
@@ -540,38 +536,6 @@ onMounted(() => {
   align-items: flex-end;
 }
 
-.clear-filters-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-  height: 42px;
-  min-height: 42px;
-  box-sizing: border-box;
-}
-
-.clear-filters-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
-}
-
-.clear-filters-btn:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
 /* Table Card */
 .table-card {
   background: #ffffff;
@@ -880,7 +844,7 @@ onMounted(() => {
     grid-template-columns: 1fr;
     gap: 0.85rem;
   }
-  .filter-action-cell .clear-filters-btn {
+  .filter-action-cell .btn-clear-filters {
     width: 100%;
     justify-content: center;
   }
