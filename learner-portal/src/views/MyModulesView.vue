@@ -214,7 +214,12 @@ const thumbWidthPercent = ref(35);
 const allModules = computed(() => {
   const list = Array.isArray(rawModules.value) ? rawModules.value : [];
   return list.filter(
-    (m) => m && typeof m === 'object' && m.code !== 'LS2-MOCK-001' && m.id !== 'ls2-mock-001'
+    (m) =>
+      m &&
+      typeof m === 'object' &&
+      m.code !== 'LS2-MOCK-001' &&
+      m.id !== 'ls2-mock-001' &&
+      (!m.status || String(m.status).toUpperCase() === 'PUBLISHED')
   );
 });
 
@@ -326,9 +331,13 @@ function getModuleBadgeCode(mod) {
 function isModuleCompleted(mod) {
   if (!mod || typeof mod !== 'object') return false;
   const pct = Number(mod.progress ?? 0);
+  const hasSavedCompletedRecord = Array.isArray(mod.learnerProgress) &&
+    mod.learnerProgress.some((lp) => lp && (lp.status === 'COMPLETED' || Boolean(lp.completedAt)));
   return Boolean(
     mod.completed === true ||
     mod.progressStatus === 'COMPLETED' ||
+    Boolean(mod.completedAt) ||
+    hasSavedCompletedRecord ||
     pct >= 100
   );
 }
@@ -569,9 +578,14 @@ async function loadModules() {
   }
 }
 
+function resetModulesState() {
+  rawModules.value = [];
+}
+
 onMounted(() => {
   loadModules();
   window.addEventListener('als-progress-updated', loadModules);
+  window.addEventListener('als-learner-session-changed', resetModulesState);
   window.addEventListener('focus', loadModules);
   window.addEventListener('resize', updateScrollMetrics);
 
@@ -586,6 +600,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('als-progress-updated', loadModules);
+  window.removeEventListener('als-learner-session-changed', resetModulesState);
   window.removeEventListener('focus', loadModules);
   window.removeEventListener('resize', updateScrollMetrics);
   stopThumbDrag();

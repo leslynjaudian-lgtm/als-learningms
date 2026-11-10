@@ -2120,30 +2120,36 @@ const effectiveSubmissionDeadline = computed(() => {
 
 const isOverdueSubmissionMode = computed(() => {
   if (route.query.status === 'overdue') return true;
-  if (learnerProgressDetails.value?.status === 'Overdue' || learnerProgressDetails.value?.isOverdue) return true;
+  if (learnerProgressDetails.value?.submissionStatus) {
+    return learnerProgressDetails.value.submissionStatus === 'Overdue';
+  }
   return normalizeSubmissionBucket(currentSubmission.value?.status, currentSubmission.value) === 'overdue';
 });
 
 const effectiveReviewStatusLabel = computed(() => {
-  if (learnerProgressDetails.value?.status) return learnerProgressDetails.value.status;
-  return formatProgressStatus(currentSubmission.value?.status, currentSubmission.value);
+  const raw = learnerProgressDetails.value?.submissionStatus
+    ? learnerProgressDetails.value.submissionStatus
+    : currentSubmission.value?.status;
+  return formatProgressStatus(raw, currentSubmission.value);
 });
 
 const effectiveReviewStatusClass = computed(() => {
-  const lbl = String(effectiveReviewStatusLabel.value || '').trim().toLowerCase();
-  if (lbl === 'mastered' || lbl === 'not mastered' || lbl === 'recorded') return 'status-recorded';
-  if (lbl === 'overdue') return 'status-overdue';
-  if (lbl === 'in progress') return 'status-in-progress';
-  if (lbl === 'not started') return 'status-not-started';
-  return getStatusClass(currentSubmission.value?.status, currentSubmission.value);
+  const raw = learnerProgressDetails.value?.submissionStatus
+    ? learnerProgressDetails.value.submissionStatus
+    : currentSubmission.value?.status;
+  return getStatusClass(raw, currentSubmission.value);
 });
 
 function selectModuleTab(tab) {
   activeTab.value = tab;
+  const modId = moduleData.value?.id || route.params.id || route.params.moduleId;
+  if (tab === 'submissions' && modId) {
+    fetchSubmissions(modId);
+  }
   if (moduleData.value) {
     setActiveModuleLevel(
       moduleData.value.targetLevel || moduleData.value.level || moduleData.value.programLevel,
-      moduleData.value.id || route.params.id || route.params.moduleId
+      modId
     );
   }
 }
@@ -3005,15 +3011,15 @@ function hasSubmissionOutput(sub) {
   if (!sub) return false;
   if (sub.hasSubmitted === false) return false;
   if (String(sub.id || '').startsWith('pending_')) return false;
-  const s = String(sub.status || '').trim().toLowerCase();
-  if (s === 'in progress' || s === 'overdue') return false;
-  return Boolean(
-    sub.hasSubmitted === true ||
-    sub.submittedAt ||
-    sub.dateSubmitted ||
-    sub.fileUrl ||
-    (Array.isArray(sub.files) && sub.files.length > 0)
-  );
+  if (sub.submissionId === null && !/^\d+$/.test(String(sub.id || ''))) return false;
+  const s = String(sub.status || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (s === 'in progress' || s === 'overdue' || s === 'not started' || s === 'draft' || s === 'placeholder') {
+    return false;
+  }
+  const hasFiles = Array.isArray(sub.files) && sub.files.length > 0;
+  const hasFileUrl = Boolean(sub.fileUrl && String(sub.fileUrl).trim());
+  const hasContent = Boolean(sub.content && String(sub.content).trim());
+  return Boolean(hasFiles || hasFileUrl || hasContent || (sub.hasSubmitted === true && (sub.submittedAt || sub.dateSubmitted)));
 }
 
 function isDeadlinePassedFrontend(deadlineVal) {
@@ -3034,28 +3040,38 @@ function isDeadlinePassedFrontend(deadlineVal) {
   return Date.now() > deadlineDate.getTime();
 }
 
-// Normalize status into canonical buckets: 'recorded', 'not recorded', 'in progress', 'overdue'
+// Normalize status into canonical buckets using priority:
+// 1. Recorded (teacher saved Mastered / Not Mastered in Records)
+// 2. Not Recorded (valid completed submission exists in DB, awaiting teacher evaluation)
+// 3. Overdue (no valid submission and submission deadline has passed)
+// 4. In Progress (no valid submission and deadline has not passed)
 function normalizeSubmissionBucket(status, item = null) {
-  if (item && !hasSubmissionOutput(item)) {
-    const raw = String(status ?? item.status ?? '').trim().toLowerCase().replace(/_/g, ' ');
-    if (raw === 'overdue') return 'overdue';
-    if (raw === 'in progress') return 'in progress';
-    const deadlineCandidate = item.dateEnded || moduleData.value?.dateEnded || null;
-    return isDeadlinePassedFrontend(deadlineCandidate) ? 'overdue' : 'in progress';
+  // Priority 1: Completed evaluation in Records ('Mastered' / 'Not Mastered' / isRecorded)
+  if (item && (item.isRecorded === true || item.isReviewFinalized === true)) {
+    return 'recorded';
   }
-
-  if (item && item.isRecorded === true) {
+  const evalStatus = String(item?.evaluationStatus || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (evalStatus === 'mastered' || evalStatus === 'not mastered') {
+    return 'recorded';
+  }
+  const rawStatus = String(status ?? item?.status ?? '').trim().toLowerCase().replace(/_/g, ' ');
+  if (rawStatus === 'recorded' || rawStatus === 'mastered' || rawStatus === 'not mastered') {
     return 'recorded';
   }
 
-  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
-  if (s === 'recorded') return 'recorded';
-  if (s === 'not recorded' || s === 'submitted' || s === 'not evaluated' || s === 'pending') {
+  // Priority 2: Valid completed activity submission exists -> Not Recorded
+  if (hasSubmissionOutput(item)) {
     return 'not recorded';
   }
-  if (s === 'in progress') return 'in progress';
-  if (s === 'overdue') return 'overdue';
-  return 'not recorded';
+
+  // Priority 3: Submission deadline has passed -> Overdue
+  const deadlineCandidate = item?.dateEnded || learnerProgressDetails.value?.deadlineYmd || moduleData.value?.dateEnded || null;
+  if (rawStatus === 'overdue' || isDeadlinePassedFrontend(deadlineCandidate)) {
+    return 'overdue';
+  }
+
+  // Priority 4: No valid submission and deadline not passed -> In Progress
+  return 'in progress';
 }
 
 // Filtered Submissions (All / Recorded / Not Recorded / In Progress / Overdue)
@@ -3131,15 +3147,21 @@ function getFallbackFileName(url) {
   }
 }
 
-function resolveSubmissionImageUrl(url) {
+function resolveSubmissionImageUrl(url, versionTag = '') {
   if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-    return url;
+  let resolved = '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    resolved = url;
+  } else if (url.startsWith('/')) {
+    resolved = url;
+  } else {
+    resolved = `/uploads/submissions/${url}`;
   }
-  if (url.startsWith('/')) {
-    return url;
+  if (versionTag && !resolved.startsWith('data:') && !resolved.startsWith('blob:')) {
+    const sep = resolved.includes('?') ? '&' : '?';
+    return `${resolved}${sep}v=${encodeURIComponent(String(versionTag))}`;
   }
-  return `/uploads/submissions/${url}`;
+  return resolved;
 }
 
 function getFileTypeDisplay(url, fileName) {
@@ -3743,19 +3765,53 @@ async function fetchSubmissions(moduleId) {
   }
 }
 
+async function fetchLatestLearnerSubmission(moduleId, learnerId, fallbackSubId = null) {
+  if (!moduleId || !learnerId) return null;
+  try {
+    const params = { moduleId, learnerId, includeEligible: '1' };
+    if (teacherId.value) {
+      params.teacherId = teacherId.value;
+    }
+    const res = await getSubmissions(params);
+    if (!Array.isArray(res.data) || res.data.length === 0) return null;
+    const consolidated = consolidateLearnerSubmissionsFrontend(res.data);
+    return (
+      consolidated.find((s) => Number(s.learnerId) === Number(learnerId)) ||
+      (fallbackSubId ? consolidated.find((s) => String(s.id) === String(fallbackSubId)) : null) ||
+      consolidated[0] ||
+      null
+    );
+  } catch (err) {
+    console.warn('Could not refresh learner submission from database:', err);
+    return null;
+  }
+}
+
+function syncSubmissionInList(freshSub) {
+  if (!freshSub || !Array.isArray(submissions.value)) return;
+  const idx = submissions.value.findIndex((s) =>
+    (freshSub.learnerId && Number(s.learnerId) === Number(freshSub.learnerId)) ||
+    (freshSub.id && String(s.id) === String(freshSub.id))
+  );
+  if (idx !== -1) {
+    submissions.value.splice(idx, 1, freshSub);
+  }
+}
+
 // Review Learner Activity Page Handlers
 async function openReviewModal(submission, options = {}) {
   if (!submission) return;
   reviewSuccessMessage.value = '';
   reviewErrorMessage.value = '';
 
-  currentSubmission.value = submission;
-  if (submission.evaluationStatus === 'Not Mastered') {
+  let activeSubmission = submission;
+  currentSubmission.value = activeSubmission;
+  if (activeSubmission.evaluationStatus === 'Not Mastered') {
     reviewForm.status = 'Not Mastered';
   } else {
     reviewForm.status = 'Mastered';
   }
-  reviewForm.teacherRemarks = submission.teacherRemarks || submission.remarks || submission.feedback || '';
+  reviewForm.teacherRemarks = activeSubmission.teacherRemarks || activeSubmission.remarks || activeSubmission.feedback || '';
 
   // Initialize multi-file selection and preview state
   selectedFileIndex.value = 0;
@@ -3770,15 +3826,15 @@ async function openReviewModal(submission, options = {}) {
   // Initialize scores from submission if already loaded
   learnerScores.value = {
     preTestScore:
-      submission.preTestScore !== undefined && submission.preTestScore !== null
-        ? Number(submission.preTestScore)
+      activeSubmission.preTestScore !== undefined && activeSubmission.preTestScore !== null
+        ? Number(activeSubmission.preTestScore)
         : null,
-    preTestTotal: submission.preTestTotal || preTotal,
+    preTestTotal: activeSubmission.preTestTotal || preTotal,
     postTestScore:
-      submission.postTestScore !== undefined && submission.postTestScore !== null
-        ? Number(submission.postTestScore)
+      activeSubmission.postTestScore !== undefined && activeSubmission.postTestScore !== null
+        ? Number(activeSubmission.postTestScore)
         : null,
-    postTestTotal: submission.postTestTotal || postTotal,
+    postTestTotal: activeSubmission.postTestTotal || postTotal,
     loading: true,
   };
 
@@ -3786,7 +3842,7 @@ async function openReviewModal(submission, options = {}) {
 
   // Sync URL to dedicated full-width review page if needed
   const modId = moduleData.value?.id || route.params.id;
-  const subTargetId = submission.id || submission.learnerId;
+  const subTargetId = activeSubmission.id || activeSubmission.learnerId;
   if (!options.skipRouteSync && modId && subTargetId) {
     const targetPath = `/dashboard/modules/${modId}/submissions/${subTargetId}`;
     if (route.path !== targetPath) {
@@ -3794,8 +3850,28 @@ async function openReviewModal(submission, options = {}) {
     }
   }
 
+  // Always fetch fresh submission state from the backend so deleted/replaced files are immediately reflected
+  const freshSubmission = await fetchLatestLearnerSubmission(
+    modId || activeSubmission.moduleId,
+    activeSubmission.learnerId,
+    activeSubmission.id
+  );
+  if (freshSubmission && showReviewModal.value && Number(currentSubmission.value?.learnerId) === Number(activeSubmission.learnerId)) {
+    activeSubmission = freshSubmission;
+    currentSubmission.value = freshSubmission;
+    syncSubmissionInList(freshSubmission);
+    if (freshSubmission.evaluationStatus === 'Not Mastered') {
+      reviewForm.status = 'Not Mastered';
+    } else if (freshSubmission.evaluationStatus === 'Mastered') {
+      reviewForm.status = 'Mastered';
+    }
+    if (!reviewForm.teacherRemarks && (freshSubmission.teacherRemarks || freshSubmission.remarks || freshSubmission.feedback)) {
+      reviewForm.teacherRemarks = freshSubmission.teacherRemarks || freshSubmission.remarks || freshSubmission.feedback || '';
+    }
+  }
+
   // Probe file sizes for all uploaded files and initialize PDF preview if first file is PDF
-  const filesList = getSubmissionFilesList(submission);
+  const filesList = getSubmissionFilesList(activeSubmission);
   filesList.forEach((f) => probeFileSizeIfNeeded(f));
   if (filesList[0]?.isPdf) {
     loadPdfPreviewDocument(filesList[0].fileUrl);
@@ -3936,6 +4012,9 @@ function closeReviewModal() {
   };
 
   const modId = moduleData.value?.id || route.params.id;
+  if (modId) {
+    fetchSubmissions(modId);
+  }
   if (modId && route.params.submissionId) {
     const nextQuery = { tab: 'submissions' };
     if (reportReturnPath.value) nextQuery.returnTo = reportReturnPath.value;
@@ -4155,7 +4234,10 @@ function closeAddToRecordsModal() {
 }
 
 async function saveSubmissionRecordFromReview() {
-  if (!currentSubmission.value) return;
+  if (!currentSubmission.value || !hasSubmissionOutput(currentSubmission.value)) {
+    submissionRecordError.value = 'Cannot create record: no valid activity submission found.';
+    return;
+  }
   if (isSavingSubmissionRecord.value) return;
 
   const isAlreadyRec =
@@ -4444,9 +4526,51 @@ async function saveSubmissionReview() {
   }
 }
 
+async function handleWindowFocusOrVisible() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  const modId = moduleData.value?.id || route.params.id || route.params.moduleId;
+  if (!modId) return;
+
+  if (showReviewModal.value && currentSubmission.value?.learnerId) {
+    const activeLearnerId = currentSubmission.value.learnerId;
+    const fresh = await fetchLatestLearnerSubmission(modId, activeLearnerId, currentSubmission.value.id);
+    if (fresh && showReviewModal.value && Number(currentSubmission.value?.learnerId) === Number(activeLearnerId)) {
+      const prevFilesSignature = JSON.stringify(
+        (getSubmissionFilesList(currentSubmission.value) || []).map((f) => `${f.fileUrl}|${f.fileName}`)
+      );
+      const nextFilesSignature = JSON.stringify(
+        (getSubmissionFilesList(fresh) || []).map((f) => `${f.fileUrl}|${f.fileName}`)
+      );
+      currentSubmission.value = {
+        ...currentSubmission.value,
+        ...fresh,
+        teacherRemarks: reviewForm.teacherRemarks || fresh.teacherRemarks,
+      };
+      syncSubmissionInList(fresh);
+      if (prevFilesSignature !== nextFilesSignature) {
+        selectedFileIndex.value = 0;
+        const filesList = getSubmissionFilesList(fresh);
+        filesList.forEach((f) => probeFileSizeIfNeeded(f));
+        if (filesList[0]?.isPdf) {
+          loadPdfPreviewDocument(filesList[0].fileUrl);
+        } else {
+          cleanupPdfPreviewDoc();
+        }
+      }
+    }
+    return;
+  }
+
+  if (activeTab.value === 'submissions') {
+    fetchSubmissions(modId);
+  }
+}
+
 onMounted(() => {
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+  window.addEventListener('focus', handleWindowFocusOrVisible);
+  document.addEventListener('visibilitychange', handleWindowFocusOrVisible);
   fetchModuleDetails();
   loadEditPrerequisites();
 });
@@ -4454,6 +4578,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange);
   document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+  window.removeEventListener('focus', handleWindowFocusOrVisible);
+  document.removeEventListener('visibilitychange', handleWindowFocusOrVisible);
   cleanupPdfPreviewDoc();
 });
 
@@ -4496,6 +4622,10 @@ watch(
     if (route.params.submissionId) return;
     if (newTab === 'submissions') {
       activeTab.value = 'submissions';
+      const modId = moduleData.value?.id || route.params.id || route.params.moduleId;
+      if (modId) {
+        fetchSubmissions(modId);
+      }
     } else {
       activeTab.value = 'details';
     }

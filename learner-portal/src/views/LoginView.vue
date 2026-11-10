@@ -132,6 +132,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../api/axios.js';
+import { clearLegacySharedModuleProgressKeys, clearLearnerSessionStorage } from '../utils/learnerStorage.js';
 
 const router = useRouter();
 const step = ref('name'); // 'name' | 'lrn'
@@ -141,9 +142,7 @@ const submitting = ref(false);
 const loginError = ref('');
 
 onMounted(() => {
-  localStorage.removeItem('als_learner_authenticated');
-  localStorage.removeItem('als_learner_user');
-  localStorage.removeItem('als_learner_token');
+  clearLearnerSessionStorage();
 });
 
 function goBackToName() {
@@ -154,6 +153,10 @@ function goBackToName() {
 
 function processSuccessfulAuth(data) {
   if (data?.token) {
+    clearLegacySharedModuleProgressKeys();
+    try {
+      sessionStorage.clear();
+    } catch {}
     const u = data.user;
     localStorage.setItem('als_learner_token', data.token);
     localStorage.setItem('als_learner_authenticated', 'true');
@@ -173,6 +176,9 @@ function processSuccessfulAuth(data) {
       id: u.profile?.id || u.id,
       profilePhoto: u.profilePhoto || u.profile?.profilePhoto || null,
     }));
+    try {
+      window.dispatchEvent(new CustomEvent('als-learner-session-changed'));
+    } catch {}
     router.push('/home');
   }
 }

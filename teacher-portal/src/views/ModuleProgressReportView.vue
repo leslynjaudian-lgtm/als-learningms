@@ -415,10 +415,6 @@
                     <span class="sub-item-name">Overdue:</span>
                     <span class="sub-item-count font-mono text-red-bold">{{ modalSummary.overdue }}</span>
                   </div>
-                  <div v-if="modalSummary.notStarted > 0" class="sub-item-row">
-                    <span class="sub-item-name">Not Started:</span>
-                    <span class="sub-item-count font-mono">{{ modalSummary.notStarted }}</span>
-                  </div>
                 </div>
               </div>
 
@@ -480,7 +476,7 @@
                         class="badge"
                         :class="getModuleStatusBadgeClass(mod.status)"
                       >
-                        {{ mod.status }}
+                        {{ formatModuleStatusLabel(mod.status) }}
                       </span>
                     </td>
                     <td class="col-modal-actions">
@@ -669,20 +665,17 @@ const modalSummary = computed(() => {
   let notRecorded = 0;
   let inProgress = 0;
   let overdue = 0;
-  let notStarted = 0;
 
   for (const m of mods) {
-    const st = String(m.status || '').trim().toLowerCase();
+    const st = String(m.status || '').trim().toLowerCase().replace(/_/g, ' ');
     if (st === 'mastered') {
       mastered++;
     } else if (st === 'not mastered') {
       notMastered++;
     } else if (st === 'overdue') {
       overdue++;
-    } else if (st === 'in progress' || st === 'in_progress' || st === 'started') {
+    } else if (st === 'in progress' || st === 'started') {
       inProgress++;
-    } else if (st === 'not started' || st === 'not_started') {
-      notStarted++;
     } else {
       notRecorded++;
     }
@@ -693,14 +686,13 @@ const modalSummary = computed(() => {
   if (mods.length === 0 && bSummary) {
     mastered = Number(bSummary.mastered || 0);
     notMastered = Number(bSummary.notMastered || 0);
-    notRecorded = Number(bSummary.notRecorded || 0);
+    notRecorded = Number(bSummary.notRecorded || 0) + Number(bSummary.notStarted || 0);
     inProgress = Number(bSummary.inProgress || 0);
     overdue = Number(bSummary.overdue || 0);
-    notStarted = Number(bSummary.notStarted || 0);
   }
 
   const recorded = mastered + notMastered;
-  const pending = notRecorded + inProgress + overdue + notStarted;
+  const pending = notRecorded + inProgress + overdue;
   const totalModules = recorded + pending;
   const progress = totalModules > 0 ? Math.round((recorded / totalModules) * 100) : 0;
 
@@ -712,17 +704,25 @@ const modalSummary = computed(() => {
     notRecorded,
     inProgress,
     overdue,
-    notStarted,
     totalModules,
     progress,
   };
 });
 
+function formatModuleStatusLabel(status) {
+  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (s === 'mastered') return 'Mastered';
+  if (s === 'not mastered') return 'Not Mastered';
+  if (s === 'in progress' || s === 'started') return 'In Progress';
+  if (s === 'overdue') return 'Overdue';
+  return 'Not Recorded';
+}
+
 function getModuleStatusBadgeClass(status) {
-  const s = String(status || '').trim().toLowerCase();
+  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
   if (s === 'mastered') return 'badge-green';
   if (s === 'not mastered') return 'badge-amber';
-  if (s === 'in progress' || s === 'in_progress' || s === 'started') return 'badge-blue';
+  if (s === 'in progress' || s === 'started') return 'badge-blue';
   if (s === 'overdue') return 'badge-red';
   return 'badge-gray';
 }

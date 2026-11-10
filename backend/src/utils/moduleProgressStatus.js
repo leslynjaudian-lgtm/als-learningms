@@ -76,6 +76,113 @@ function resolveAttemptSummary({
 }
 
 /**
+ * Check whether a Submission record represents a valid, completed activity submission
+ * (excluding null, pending_* placeholders, drafts, or empty rows with no files/content).
+ */
+export function isValidCompletedSubmission(sub) {
+  if (!sub) return false;
+  if (sub.hasSubmitted === false) return false;
+  if (String(sub.id || '').startsWith('pending_')) return false;
+
+  const st = String(sub.status || '').trim().toUpperCase();
+  if (st === 'DRAFT' || st === 'PENDING' || st === 'PLACEHOLDER' || st === 'IN_PROGRESS') {
+    return false;
+  }
+
+  const hasFileUrl = Boolean(sub.fileUrl && String(sub.fileUrl).trim());
+  const hasFiles = Array.isArray(sub.files) && sub.files.length > 0;
+  let hasContentFilesOrText = false;
+  if (sub.content && typeof sub.content === 'string') {
+    const trimmed = sub.content.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          hasContentFilesOrText = parsed.length > 0;
+        } else if (parsed && typeof parsed === 'object') {
+          hasContentFilesOrText = Boolean(
+            (Array.isArray(parsed.files) && parsed.files.length > 0) ||
+            (parsed.text && String(parsed.text).trim()) ||
+            (parsed.notes && String(parsed.notes).trim())
+          );
+        }
+      } catch {
+        hasContentFilesOrText = Boolean(trimmed);
+      }
+    } else {
+      hasContentFilesOrText = Boolean(trimmed);
+    }
+  }
+
+  return Boolean(hasFileUrl || hasFiles || hasContentFilesOrText);
+}
+
+/**
+ * Unified 4-status submission classification for Teacher Portal -> Submissions & Review Learner Activity.
+ * Priority:
+ *  1. Teacher has completed evaluation in Records ('Mastered' or 'Not Mastered') -> 'Recorded'
+ *  2. Valid completed activity submission exists -> 'Not Recorded'
+ *  3. Submission deadline has passed -> 'Overdue'
+ *  4. Otherwise (no valid submission, deadline not passed) -> 'In Progress'
+ */
+export function evaluateSubmissionStatus({
+  af2Record = null,
+  learnerProgress = null,
+  submissions = [],
+  module = null,
+  assignment = null,
+  dueDate = null,
+}) {
+  const af2Eval = String(af2Record?.assessment || af2Record?.moduleStatus || '').trim();
+  const isEvaluatedInRecords =
+    af2Eval === 'Mastered' ||
+    af2Eval === 'Not Mastered' ||
+    (!af2Record &&
+      (learnerProgress?.masteryStatus === 'MASTERED' ||
+        learnerProgress?.masteryStatus === 'NOT_MASTERED'));
+
+  const validSubmissions = (submissions || []).filter(isValidCompletedSubmission);
+  const hasSubmission = validSubmissions.length > 0;
+
+  if (isEvaluatedInRecords) {
+    return {
+      status: 'Recorded',
+      isRecorded: true,
+      evaluationStatus:
+        af2Eval === 'Mastered' || af2Eval === 'Not Mastered'
+          ? af2Eval
+          : learnerProgress?.masteryStatus === 'MASTERED'
+            ? 'Mastered'
+            : 'Not Mastered',
+      hasSubmission,
+      isOverdue: false,
+    };
+  }
+
+  if (hasSubmission) {
+    return {
+      status: 'Not Recorded',
+      isRecorded: false,
+      evaluationStatus: '',
+      hasSubmission: true,
+      isOverdue: false,
+    };
+  }
+
+  const rawDueDate = dueDate || assignment?.dueDate || module?.dateEnded || af2Record?.dueDate || null;
+  const deadlineYmd = toYmd(rawDueDate);
+  const isOverdue = Boolean(deadlineYmd && isSubmissionDeadlinePassed(deadlineYmd));
+
+  return {
+    status: isOverdue ? 'Overdue' : 'In Progress',
+    isRecorded: false,
+    evaluationStatus: '',
+    hasSubmission: false,
+    isOverdue,
+  };
+}
+
+/**
  * Evaluate authoritative status and activity breakdown for a single (learner, module) pair.
  */
 export function evaluateLearnerModuleStatus({
@@ -124,9 +231,9 @@ export function evaluateLearnerModuleStatus({
     Boolean(readingState && Array.isArray(readingState.pagesRead) && readingState.pagesRead.length > 0);
   const curPage = readingState?.currentPage || (completedPages > 0 ? completedPages : 1);
 
-  const sortedSubmissions = [...(submissions || [])].sort(
-    (a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
-  );
+  const sortedSubmissions = [...(submissions || [])]
+    .filter(isValidCompletedSubmission)
+    .sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
   const latestSubmission = sortedSubmissions[0] || null;
 
   const progressCalc = module
@@ -189,7 +296,7 @@ export function evaluateLearnerModuleStatus({
   // 3. Deadline evaluation (Asia/Manila EOD)
   const rawDueDate = assignment?.dueDate || module?.dateEnded || af2Record?.dueDate || null;
   const deadlineYmd = toYmd(rawDueDate);
-  const isOverdue = Boolean(deadlineYmd && isSubmissionDeadlinePassed(deadlineYmd));
+  const deadlinePassed = Boolean(deadlineYmd && isSubmissionDeadlinePassed(deadlineYmd));
 
   // 4. Unified status classification
   const af2Eval = String(af2Record?.assessment || af2Record?.moduleStatus || '').trim();
@@ -215,19 +322,22 @@ export function evaluateLearnerModuleStatus({
     af2Record?.dateStarted
   );
 
-  let status = 'Not Started';
+  // A module is Overdue only when past its deadline and neither evaluated in Records nor submitted
+  const isOverdue = !isFinalizedMastered && !isFinalizedNotMastered && !hasSubmission && deadlinePassed;
+
+  let status = 'Not Recorded';
   if (isFinalizedMastered) {
     status = 'Mastered';
   } else if (isFinalizedNotMastered) {
     status = 'Not Mastered';
   } else if (isOverdue) {
     status = 'Overdue';
-  } else if (isWorkCompleted) {
+  } else if (hasSubmission || isWorkCompleted) {
     status = 'Not Recorded';
   } else if (hasStarted) {
     status = 'In Progress';
   } else {
-    status = 'Not Started';
+    status = 'Not Recorded';
   }
 
   const progressPct = progressCalc
@@ -518,19 +628,17 @@ export function buildLearnerModuleProgressSummary({
   let notRecorded = 0;
   let inProgress = 0;
   let overdue = 0;
-  let notStarted = 0;
 
   for (const m of modules) {
     if (m.status === 'Mastered') mastered++;
     else if (m.status === 'Not Mastered') notMastered++;
     else if (m.status === 'Overdue') overdue++;
-    else if (m.status === 'Not Recorded') notRecorded++;
     else if (m.status === 'In Progress') inProgress++;
-    else notStarted++;
+    else notRecorded++;
   }
 
   const recorded = mastered + notMastered;
-  const pending = notRecorded + inProgress + overdue + notStarted;
+  const pending = notRecorded + inProgress + overdue;
   const totalModules = recorded + pending;
   const progress = totalModules > 0 ? Math.round((recorded / totalModules) * 100) : 0;
 
@@ -544,7 +652,6 @@ export function buildLearnerModuleProgressSummary({
       notRecorded,
       inProgress,
       overdue,
-      notStarted,
       totalModules,
       progress,
     },

@@ -342,6 +342,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNotifications } from '../composables/useNotifications.js';
+import { clearLearnerSessionStorage } from '../utils/learnerStorage.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -588,10 +589,9 @@ function confirmLogout() {
   logoutModalOpen.value = false;
   notifPanelOpen.value = false;
   profileMenuOpen.value = false;
+  learnerUser.value = null;
   clearNotificationsState();
-  localStorage.removeItem('als_learner_authenticated');
-  localStorage.removeItem('als_learner_user');
-  localStorage.removeItem('als_learner_token');
+  clearLearnerSessionStorage();
   router.push({ name: 'Login' });
 }
 </script>

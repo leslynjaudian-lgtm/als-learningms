@@ -5,7 +5,7 @@ import api from './axios.js';
  * @param {Object} params - { moduleId, learnerId, teacherId }
  */
 export function getSubmissions(params = {}) {
-  return api.get('/submissions', { params });
+  return api.get('/submissions', { params: { _t: Date.now(), ...params } });
 }
 
 /**
@@ -13,7 +13,7 @@ export function getSubmissions(params = {}) {
  * @param {number|string} id
  */
 export function getSubmissionById(id) {
-  return api.get(`/submissions/${id}`);
+  return api.get(`/submissions/${id}`, { params: { _t: Date.now() } });
 }
 
 /**
@@ -31,7 +31,7 @@ export function updateSubmission(id, data) {
  * @param {number|string} learnerId
  */
 export function getLearnerAssessmentScores(moduleId, learnerId) {
-  return api.get('/submissions/scores', { params: { moduleId, learnerId } });
+  return api.get('/submissions/scores', { params: { _t: Date.now(), moduleId, learnerId } });
 }
 
 /**
@@ -40,6 +40,6 @@ export function getLearnerAssessmentScores(moduleId, learnerId) {
  * @param {number|string} learnerId
  */
 export function getLearnerModuleProgressBreakdown(moduleId, learnerId) {
-  return api.get('/submissions/learner-progress', { params: { moduleId, learnerId } });
+  return api.get('/submissions/learner-progress', { params: { _t: Date.now(), moduleId, learnerId } });
 }
 

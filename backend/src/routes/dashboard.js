@@ -4,6 +4,7 @@ import path from 'path';
 import prisma from '../config/prisma.js';
 import { optionalAuth } from '../middleware/authMiddleware.js';
 import { readTeacherActivities } from '../utils/teacherActivityLogger.js';
+import { isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 
 const router = Router();
 const AF2_FILE = path.resolve(process.cwd(), 'data', 'af2_records.json');
@@ -762,9 +763,9 @@ router.get('/admin', async (req, res, next) => {
 
         const assignObj = modIdNum ? assignmentByModule.get(modIdNum) : null;
         const progObj = modIdNum ? progressByModule.get(modIdNum) : null;
+        const rSubs = modIdNum ? (submissionsByLearnerMod.get(`${learner.id}_${modIdNum}`) || []) : [];
         const dueRaw = r.dueDate || assignObj?.dueDate || matchedMod?.dateEnded || null;
-        const dueMs = dueRaw ? new Date(dueRaw).getTime() : null;
-        const isOverdue = !isMastered && !isNotMastered && Boolean(dueMs && !isNaN(dueMs) && dueMs < nowTime);
+        const isOverdue = !isMastered && !isNotMastered && rSubs.length === 0 && Boolean(dueRaw && isSubmissionDeadlinePassed(dueRaw));
 
         const hasStarted = Boolean(
           r.dateStarted ||
@@ -772,8 +773,10 @@ router.get('/admin', async (req, res, next) => {
             (r.moduleStatus && String(r.moduleStatus).toLowerCase().includes('progress')) ||
             (progObj &&
               (progObj.status === 'IN_PROGRESS' ||
+                progObj.status === 'COMPLETED' ||
                 (progObj.completedPages || 0) > 0 ||
-                progObj.preTestScore != null))
+                progObj.preTestScore != null ||
+                progObj.postTestScore != null))
         );
 
         let status = 'Not Recorded';
@@ -781,6 +784,8 @@ router.get('/admin', async (req, res, next) => {
           status = 'Mastered';
         } else if (isNotMastered) {
           status = 'Not Mastered';
+        } else if (rSubs.length > 0) {
+          status = 'Not Recorded';
         } else if (isOverdue) {
           status = 'Overdue';
         } else if (hasStarted) {
@@ -841,21 +846,18 @@ router.get('/admin', async (req, res, next) => {
         const postAtt = postAss ? attemptsByAssessment.get(postAss.id) : null;
         const learnerSubs = submissionsByLearnerMod.get(`${learner.id}_${modId}`) || [];
 
-        const isMastered =
-          progObj?.masteryStatus === 'MASTERED' ||
-          progObj?.status === 'COMPLETED' ||
-          Boolean(postAtt?.isPassed);
+        const isMastered = progObj?.masteryStatus === 'MASTERED';
         const isNotMastered = !isMastered && progObj?.masteryStatus === 'NOT_MASTERED';
 
         const dueRaw = assignObj?.dueDate || mod?.dateEnded || null;
-        const dueMs = dueRaw ? new Date(dueRaw).getTime() : null;
-        const isOverdue = !isMastered && !isNotMastered && Boolean(dueMs && !isNaN(dueMs) && dueMs < nowTime);
+        const isOverdue = !isMastered && !isNotMastered && learnerSubs.length === 0 && Boolean(dueRaw && isSubmissionDeadlinePassed(dueRaw));
 
         const hasStarted =
           !isMastered &&
           !isNotMastered &&
           Boolean(
             progObj?.status === 'IN_PROGRESS' ||
+              progObj?.status === 'COMPLETED' ||
               (progObj?.completedPages || 0) > 0 ||
               progObj?.preTestScore != null ||
               progObj?.postTestScore != null ||
@@ -869,6 +871,8 @@ router.get('/admin', async (req, res, next) => {
           status = 'Mastered';
         } else if (isNotMastered) {
           status = 'Not Mastered';
+        } else if (learnerSubs.length > 0) {
+          status = 'Not Recorded';
         } else if (isOverdue) {
           status = 'Overdue';
         } else if (hasStarted) {

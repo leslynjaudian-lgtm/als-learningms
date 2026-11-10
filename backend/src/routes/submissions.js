@@ -8,7 +8,11 @@ import { syncLearnerModuleProgress } from '../utils/progressCalculator.js';
 import { notifyActivitySubmitted } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
 import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
-import { evaluateLearnerModuleStatus } from '../utils/moduleProgressStatus.js';
+import {
+  evaluateLearnerModuleStatus,
+  evaluateSubmissionStatus,
+  isValidCompletedSubmission,
+} from '../utils/moduleProgressStatus.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -267,11 +271,16 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null, af2Records 
     submissionIds: relIds,
   });
 
-  const isRecorded = Boolean(savedRecord);
+  const af2Eval = String(savedRecord?.assessment || savedRecord?.moduleStatus || '').trim();
+  const isEvaluated = af2Eval === 'Mastered' || af2Eval === 'Not Mastered';
+  const subStatus = evaluateSubmissionStatus({
+    af2Record: savedRecord,
+    module: s.module || null,
+    submissions: [{ ...s, files }],
+  });
+  const isRecorded = subStatus.isRecorded && isEvaluated;
   const recordTrackingStatus = isRecorded ? 'Recorded' : 'Not Recorded';
-  const evaluationStatus = savedRecord
-    ? savedRecord.assessment || savedRecord.moduleStatus || ''
-    : '';
+  const evaluationStatus = isEvaluated ? af2Eval : '';
   const savedRemarks = savedRecord?.remarks
     ? String(savedRecord.remarks).trim()
     : s.feedback || '';
@@ -299,8 +308,8 @@ function formatSubmission(s, groupedFiles = null, relatedIds = null, af2Records 
     activity: s.title || s.module?.title || 'Module Activity Output',
     title: s.title || 'Module Activity Output',
     fileUrl: primaryFile?.fileUrl || s.fileUrl || '',
-    fileName: primaryFile?.fileName || s.fileName || 'Activity 1.jpg',
-    fileType: primaryFile?.fileType || 'JPG Image',
+    fileName: primaryFile?.fileName || s.fileName || '',
+    fileType: primaryFile?.fileType || '',
     fileSize: primaryFile?.fileSize || null,
     files,
     fileCount: files.length,
@@ -324,9 +333,9 @@ function groupSubmissionsByLearnerAndModule(rows, af2Records = null) {
   const resolvedAf2 = Array.isArray(af2Records) ? af2Records : readAf2Records();
 
   // Sort oldest-first when collecting files so Activity 1, Activity 2, Activity 3 stay in upload order
-  const chronological = [...(rows || [])].sort(
-    (a, b) => new Date(a.submittedAt || 0).getTime() - new Date(b.submittedAt || 0).getTime()
-  );
+  const chronological = [...(rows || [])]
+    .filter(isValidCompletedSubmission)
+    .sort((a, b) => new Date(a.submittedAt || 0).getTime() - new Date(b.submittedAt || 0).getTime());
 
   for (const row of chronological) {
     const key = `${row.moduleId}_${row.learnerId}`;
@@ -599,6 +608,14 @@ router.get('/learner-progress', authenticate, requireRole(['ADMIN', 'TEACHER']),
       submissions,
     });
 
+    const subStatusRes = evaluateSubmissionStatus({
+      af2Record,
+      learnerProgress,
+      submissions,
+      module: moduleObj,
+      assignment,
+    });
+
     res.json({
       learner: {
         id: learner.id,
@@ -616,6 +633,9 @@ router.get('/learner-progress', authenticate, requireRole(['ADMIN', 'TEACHER']),
         dateEnded: moduleObj.dateEnded ? moduleObj.dateEnded.toISOString().split('T')[0] : null,
       },
       recordId: af2Record?.id || null,
+      submissionStatus: subStatusRes.status,
+      submissionIsOverdue: subStatusRes.isOverdue,
+      submissionIsRecorded: subStatusRes.isRecorded,
       ...evalRes,
     });
   } catch (err) {
@@ -627,13 +647,14 @@ router.get('/learner-progress', authenticate, requireRole(['ADMIN', 'TEACHER']),
 // GET /api/submissions/scores
 // Query assessment scores for a specific module and learner
 // ---------------------
-router.get('/scores', optionalAuth, async (req, res, next) => {
+router.get('/scores', authenticate, async (req, res, next) => {
   try {
     const { moduleId, learnerId } = req.query;
-    if (!moduleId || !learnerId) {
+    const effectiveLearnerId = req.user.role === 'LEARNER' ? req.user.profileId : learnerId;
+    if (!moduleId || !effectiveLearnerId) {
       return res.status(400).json({ error: 'moduleId and learnerId are required' });
     }
-    const scores = await getLearnerAssessmentScores(learnerId, moduleId);
+    const scores = await getLearnerAssessmentScores(effectiveLearnerId, moduleId);
     res.json(scores);
   } catch (err) {
     next(err);
@@ -646,6 +667,10 @@ router.get('/scores', optionalAuth, async (req, res, next) => {
 // ---------------------
 router.get('/', optionalAuth, async (req, res, next) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
     const { moduleId, learnerId, teacherId } = req.query;
     const where = {};
 
@@ -656,6 +681,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
     // Role Scoping:
     if (req.user && req.user.role === 'LEARNER') {
+      if (!req.user.profileId) return res.json([]);
       where.learnerId = req.user.profileId;
     } else if (req.user && req.user.role === 'TEACHER') {
       where.module = { teacherId: req.user.profileId };
@@ -688,7 +714,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     const grouped = groupSubmissionsByLearnerAndModule(submissions, af2Records);
 
     // If querying for a specific module in the Teacher/Admin Portal, also include eligible learners without submissions
-    // with status 'In Progress' (before deadline) or 'Overdue' (after deadline).
+    // classified by priority: Recorded -> Not Recorded -> Overdue -> In Progress.
     const isTeacherOrAdminRequest =
       Boolean(teacherId) ||
       (req.user && (req.user.role === 'TEACHER' || req.user.role === 'ADMIN')) ||
@@ -702,6 +728,15 @@ router.get('/', optionalAuth, async (req, res, next) => {
         const moduleObj = await prisma.module.findUnique({
           where: { id: mid },
           include: {
+            learningArea: true,
+            assessments: {
+              select: {
+                id: true,
+                type: true,
+                _count: { select: { questions: true } },
+              },
+            },
+            _count: { select: { pages: true } },
             assignments: {
               include: {
                 learner: {
@@ -749,6 +784,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
               }
               eligibleCandidates.push({
                 learner: assign.learner,
+                assignment: assign,
                 dueDate: assign.dueDate || moduleObj.dateEnded || null,
               });
             }
@@ -776,9 +812,52 @@ router.get('/', optionalAuth, async (req, res, next) => {
             for (const lrnObj of eligibleLearners) {
               eligibleCandidates.push({
                 learner: lrnObj,
+                assignment: null,
                 dueDate: moduleObj.dateEnded || null,
               });
             }
+          }
+
+          const pendingCandidateIds = eligibleCandidates
+            .map((c) => c.learner?.id)
+            .filter((lid) => lid != null && !submittedLearnerIds.has(Number(lid)));
+
+          const [candidateProgressList, candidateAttemptsList] = pendingCandidateIds.length > 0
+            ? await Promise.all([
+                prisma.learnerProgress.findMany({
+                  where: {
+                    moduleId: moduleObj.id,
+                    learnerId: { in: pendingCandidateIds },
+                  },
+                }).catch(() => []),
+                prisma.assessmentAttempt.findMany({
+                  where: {
+                    learnerId: { in: pendingCandidateIds },
+                    assessment: { moduleId: moduleObj.id },
+                  },
+                  include: {
+                    assessment: {
+                      select: {
+                        id: true,
+                        moduleId: true,
+                        type: true,
+                        _count: { select: { questions: true } },
+                      },
+                    },
+                  },
+                  orderBy: { submittedAt: 'desc' },
+                }).catch(() => []),
+              ])
+            : [[], []];
+
+          const progressByLearner = new Map(
+            candidateProgressList.map((p) => [Number(p.learnerId), p])
+          );
+          const attemptsByLearner = new Map();
+          for (const att of candidateAttemptsList) {
+            const lid = Number(att.learnerId);
+            if (!attemptsByLearner.has(lid)) attemptsByLearner.set(lid, []);
+            attemptsByLearner.get(lid).push(att);
           }
 
           for (const candidate of eligibleCandidates) {
@@ -786,9 +865,26 @@ router.get('/', optionalAuth, async (req, res, next) => {
             if (!lrnObj || submittedLearnerIds.has(Number(lrnObj.id))) continue;
             submittedLearnerIds.add(Number(lrnObj.id));
 
+            const savedRecord = findSavedRecordForSubmission(af2Records, {
+              learnerId: lrnObj.id,
+              moduleId: moduleObj.id,
+              moduleTitle: moduleObj.title,
+              submissionIds: [],
+            });
+
+            const progObj = progressByLearner.get(Number(lrnObj.id)) || null;
+            const subStatusRes = evaluateSubmissionStatus({
+              af2Record: savedRecord,
+              learnerProgress: progObj,
+              submissions: [],
+              module: moduleObj,
+              assignment: candidate.assignment || null,
+              dueDate: candidate.dueDate || moduleObj.dateEnded || null,
+            });
+
             const effectiveDeadline = candidate.dueDate || moduleObj.dateEnded || null;
-            const isOverdue = Boolean(effectiveDeadline && isSubmissionDeadlinePassed(effectiveDeadline));
-            const nonSubmittedStatus = isOverdue ? 'Overdue' : 'In Progress';
+            const isOverdue = subStatusRes.isOverdue;
+            const nonSubmittedStatus = subStatusRes.status;
             const deadlineYmd = effectiveDeadline
               ? new Date(effectiveDeadline).toISOString().split('T')[0]
               : null;
@@ -797,10 +893,10 @@ router.get('/', optionalAuth, async (req, res, next) => {
               id: `pending_${moduleObj.id}_${lrnObj.id}`,
               submissionId: null,
               hasSubmitted: false,
-              isRecorded: false,
-              existingRecordId: null,
-              evaluationStatus: '',
-              otherActivities: '',
+              isRecorded: subStatusRes.isRecorded,
+              existingRecordId: savedRecord?.id || null,
+              evaluationStatus: subStatusRes.evaluationStatus,
+              otherActivities: savedRecord?.otherActivities || '',
               relatedSubmissionIds: [],
               moduleId: moduleObj.id,
               moduleTitle: moduleObj.title || 'Learning Module',
@@ -820,11 +916,11 @@ router.get('/', optionalAuth, async (req, res, next) => {
               fileCount: 0,
               content: '',
               grade: null,
-              feedback: '',
-              teacherRemarks: '',
-              remarks: '',
+              feedback: savedRecord?.remarks ? String(savedRecord.remarks).trim() : '',
+              teacherRemarks: savedRecord?.remarks ? String(savedRecord.remarks).trim() : '',
+              remarks: savedRecord?.remarks ? String(savedRecord.remarks).trim() : '',
               status: nonSubmittedStatus,
-              isReviewFinalized: false,
+              isReviewFinalized: subStatusRes.isRecorded,
               dateSubmitted: '',
               submittedAt: null,
               updatedAt: null,
@@ -900,6 +996,65 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
   }
 });
 
+function collectUrlsFromSubmissionRows(rows) {
+  const urls = new Set();
+  for (const row of rows || []) {
+    if (row?.fileUrl && String(row.fileUrl).trim()) {
+      urls.add(String(row.fileUrl).trim());
+    }
+    const rowFiles = extractFilesFromSubmissionRow(row);
+    for (const f of rowFiles) {
+      if (f?.fileUrl && String(f.fileUrl).trim()) {
+        urls.add(String(f.fileUrl).trim());
+      }
+    }
+  }
+  return Array.from(urls);
+}
+
+async function safelyRemoveRetiredSubmissionFiles(candidateUrls = []) {
+  const cleanUrls = Array.from(
+    new Set(
+      (candidateUrls || [])
+        .map((u) => String(u || '').trim())
+        .filter((u) => u.startsWith('/uploads/'))
+    )
+  );
+  if (cleanUrls.length === 0) return;
+
+  try {
+    const remainingSubs = await prisma.submission.findMany({
+      select: { fileUrl: true, content: true },
+    });
+    const stillReferenced = new Set();
+    for (const sub of remainingSubs) {
+      if (sub.fileUrl) stillReferenced.add(String(sub.fileUrl).trim().toLowerCase());
+      const subFiles = extractFilesFromSubmissionRow(sub);
+      for (const f of subFiles) {
+        if (f?.fileUrl) stillReferenced.add(String(f.fileUrl).trim().toLowerCase());
+      }
+    }
+
+    const uploadsRoot = path.resolve(BACKEND_ROOT, 'uploads');
+    for (const rawUrl of cleanUrls) {
+      const cleanRel = rawUrl.split('?')[0].trim();
+      if (stillReferenced.has(cleanRel.toLowerCase())) continue;
+      const relPath = cleanRel.replace(/^\/uploads\//i, '');
+      const fullPath = path.resolve(uploadsRoot, relPath);
+      if (!fullPath.startsWith(uploadsRoot + path.sep)) continue;
+      if (fs.existsSync(fullPath)) {
+        try {
+          fs.unlinkSync(fullPath);
+        } catch (err) {
+          console.warn('[Submissions] Failed to unlink retired file:', fullPath, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Submissions] Error cleaning up retired files:', err.message);
+  }
+}
+
 // ---------------------
 // POST /api/submissions
 // Submit module activity (Learner) — supports single or multiple files grouped per learner+module
@@ -927,11 +1082,10 @@ router.post('/', optionalAuth, async (req, res, next) => {
     let targetLearnerId = null;
     if (req.user && req.user.role === 'LEARNER') {
       targetLearnerId = req.user.profileId;
-    } else if (explicitLearnerId) {
+    } else if (req.user && (req.user.role === 'ADMIN' || req.user.role === 'TEACHER') && explicitLearnerId) {
       targetLearnerId = parseInt(explicitLearnerId, 10);
-    } else {
-      const first = await prisma.learner.findFirst();
-      targetLearnerId = first?.id;
+    } else if (!req.user && explicitLearnerId) {
+      return res.status(401).json({ error: 'Authentication required for submission.' });
     }
 
     if (!targetLearnerId) {
@@ -966,10 +1120,50 @@ router.post('/', optionalAuth, async (req, res, next) => {
       });
     }
 
+    // Check if submission(s) already exist for this (moduleId, learnerId)
+    const existingRows = await prisma.submission.findMany({
+      where: {
+        moduleId: parsedModuleId,
+        learnerId: targetLearnerId,
+      },
+      orderBy: { submittedAt: 'asc' },
+    });
+
+    // Protect already evaluated submissions in Records (AF2 file, LearnerProgress masteryStatus, or Submission status)
+    const af2Records = readAf2Records();
+    const savedRecord = findSavedRecordForSubmission(af2Records, {
+      learnerId: targetLearnerId,
+      moduleId: parsedModuleId,
+      moduleTitle: moduleRecord.title,
+      submissionIds: existingRows.map((r) => r.id),
+    });
+    const af2Eval = String(savedRecord?.assessment || savedRecord?.moduleStatus || '').trim();
+    const progRow = await prisma.learnerProgress.findUnique({
+      where: { learnerId_moduleId: { learnerId: targetLearnerId, moduleId: parsedModuleId } },
+      select: { masteryStatus: true },
+    }).catch(() => null);
+
+    const hasRecordsEvaluation =
+      af2Eval === 'Mastered' ||
+      af2Eval === 'Not Mastered' ||
+      progRow?.masteryStatus === 'MASTERED' ||
+      progRow?.masteryStatus === 'NOT_MASTERED' ||
+      existingRows.some((row) => {
+        const st = String(row.status || '').toLowerCase().replace(/_/g, ' ').trim();
+        return st === 'mastered' || st === 'not mastered' || st === 'graded' || row.grade != null;
+      });
+
+    if (hasRecordsEvaluation) {
+      return res.status(403).json({
+        error: 'Your teacher has checked your work in Records. You cannot delete or replace these files now.',
+        isFinalized: true,
+      });
+    }
+
     const nowIso = new Date().toISOString();
     const newFilesList = [];
 
-    if (Array.isArray(incomingFiles) && incomingFiles.length > 0) {
+    if (Array.isArray(incomingFiles)) {
       incomingFiles.forEach((f, idx) => {
         if (f && (f.fileUrl || f.url || f.fileName || f.name)) {
           newFilesList.push(
@@ -1003,26 +1197,6 @@ router.post('/', optionalAuth, async (req, res, next) => {
       );
     }
 
-    // Check if submission(s) already exist for this (moduleId, learnerId)
-    const existingRows = await prisma.submission.findMany({
-      where: {
-        moduleId: parsedModuleId,
-        learnerId: targetLearnerId,
-      },
-      orderBy: { submittedAt: 'asc' },
-    });
-
-    if (existingRows.length > 0) {
-      const primaryExisting = existingRows[0];
-      const statusLower = String(primaryExisting.status || '').toLowerCase().replace(/_/g, ' ').trim();
-      if (statusLower === 'mastered' || statusLower === 'not mastered' || statusLower === 'graded' || primaryExisting.grade != null) {
-        return res.status(403).json({
-          error: 'Your teacher has checked your work. You cannot change these files now.',
-          isFinalized: true
-        });
-      }
-    }
-
     let mergedFiles = [];
     const seenKeys = new Set();
 
@@ -1044,6 +1218,46 @@ router.post('/', optionalAuth, async (req, res, next) => {
     }
 
     newFilesList.forEach(pushUniqueFile);
+
+    const previousFileUrls = collectUrlsFromSubmissionRows(existingRows);
+
+    // If learner removed all submitted files (`replaceFiles: true` with 0 remaining files),
+    // delete the Submission rows so the module is no longer marked as submitted.
+    if (replaceFiles && mergedFiles.length === 0) {
+      if (existingRows.length > 0) {
+        await prisma.submission.deleteMany({
+          where: {
+            moduleId: parsedModuleId,
+            learnerId: targetLearnerId,
+          },
+        });
+      }
+
+      await prisma.learnerProgress.updateMany({
+        where: {
+          learnerId: targetLearnerId,
+          moduleId: parsedModuleId,
+        },
+        data: {
+          completedAt: null,
+          status: 'IN_PROGRESS',
+        },
+      }).catch(() => {});
+
+      await syncLearnerModuleProgress(targetLearnerId, parsedModuleId);
+      await safelyRemoveRetiredSubmissionFiles(previousFileUrls);
+
+      return res.json({
+        deleted: true,
+        hasSubmitted: false,
+        isRecorded: false,
+        files: [],
+        fileCount: 0,
+        status: 'In Progress',
+        moduleId: parsedModuleId,
+        learnerId: targetLearnerId,
+      });
+    }
 
     const primaryFile = mergedFiles[0] || newFilesList[0] || null;
     const plainText = extractPlainContent(content);
@@ -1077,9 +1291,10 @@ router.post('/', optionalAuth, async (req, res, next) => {
         where: { id: primaryExisting.id },
         data: {
           title: title?.trim() || primaryExisting.title || 'Module Activity Output',
-          fileUrl: primaryFile?.fileUrl || primaryExisting.fileUrl || null,
-          fileName: primaryFile?.fileName || primaryExisting.fileName || 'activity_output.pdf',
+          fileUrl: primaryFile?.fileUrl || null,
+          fileName: primaryFile?.fileName || null,
           content: serializedContent,
+          status: 'SUBMITTED',
           submittedAt: new Date(),
         },
         include: {
@@ -1095,6 +1310,13 @@ router.post('/', optionalAuth, async (req, res, next) => {
           where: { id: { in: extraIds } },
         }).catch(() => {});
       }
+
+      // Clean up any replaced or removed files on disk no longer referenced
+      const activeUrlsLower = new Set(mergedFiles.map((f) => String(f?.fileUrl || '').trim().toLowerCase()).filter(Boolean));
+      const retiredUrls = previousFileUrls.filter((u) => !activeUrlsLower.has(u.toLowerCase()));
+      if (retiredUrls.length > 0) {
+        await safelyRemoveRetiredSubmissionFiles(retiredUrls);
+      }
     } else {
       sub = await prisma.submission.create({
         data: {
@@ -1103,7 +1325,7 @@ router.post('/', optionalAuth, async (req, res, next) => {
           title: title?.trim() || 'Module Activity Output',
           content: serializedContent,
           fileUrl: primaryFile?.fileUrl || fileUrl?.trim() || null,
-          fileName: primaryFile?.fileName || fileName?.trim() || 'activity_output.pdf',
+          fileName: primaryFile?.fileName || fileName?.trim() || null,
           status: 'SUBMITTED',
         },
         include: {
@@ -1123,6 +1345,100 @@ router.post('/', optionalAuth, async (req, res, next) => {
     }).catch((e) => console.error('[Submissions] notifyActivitySubmitted error:', e));
 
     res.status(201).json(formatSubmission(sub, mergedFiles, [sub.id]));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------
+// DELETE /api/submissions/:id
+// Delete an unrecorded learner submission completely
+// ---------------------
+router.delete('/:id', authenticate, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid submission ID' });
+
+    const sub = await prisma.submission.findUnique({
+      where: { id },
+      include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            dateEnded: true,
+            teacherId: true,
+            assignments: {
+              select: { learnerId: true, dueDate: true },
+            },
+          },
+        },
+      },
+    });
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+
+    if (req.user.role === 'LEARNER' && Number(sub.learnerId) !== Number(req.user.profileId)) {
+      return res.status(403).json({ error: 'Access denied. You can only delete your own submissions.' });
+    }
+    if (req.user.role === 'TEACHER' && Number(sub.module?.teacherId) !== Number(req.user.profileId)) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
+
+    if (req.user.role === 'LEARNER') {
+      const assign = sub.module?.assignments?.find((a) => Number(a.learnerId) === Number(sub.learnerId));
+      const rawDeadline = assign?.dueDate || sub.module?.dateEnded;
+      if (rawDeadline && isSubmissionDeadlinePassed(rawDeadline)) {
+        return res.status(403).json({
+          error: 'The submission deadline has passed. You can no longer delete this submission.',
+          isDeadlinePassed: true,
+        });
+      }
+    }
+
+    const allRows = await prisma.submission.findMany({
+      where: { moduleId: sub.moduleId, learnerId: sub.learnerId },
+    });
+
+    const af2Records = readAf2Records();
+    const savedRecord = findSavedRecordForSubmission(af2Records, {
+      learnerId: sub.learnerId,
+      moduleId: sub.moduleId,
+      moduleTitle: sub.module?.title,
+      submissionIds: allRows.map((r) => r.id),
+    });
+    const af2Eval = String(savedRecord?.assessment || savedRecord?.moduleStatus || '').trim();
+    const progRow = await prisma.learnerProgress.findUnique({
+      where: { learnerId_moduleId: { learnerId: sub.learnerId, moduleId: sub.moduleId } },
+      select: { masteryStatus: true },
+    }).catch(() => null);
+
+    if (
+      af2Eval === 'Mastered' ||
+      af2Eval === 'Not Mastered' ||
+      progRow?.masteryStatus === 'MASTERED' ||
+      progRow?.masteryStatus === 'NOT_MASTERED'
+    ) {
+      return res.status(403).json({
+        error: 'Cannot delete a submission that has already been evaluated in Records.',
+        isFinalized: true,
+      });
+    }
+
+    const previousUrls = collectUrlsFromSubmissionRows(allRows);
+
+    await prisma.submission.deleteMany({
+      where: { moduleId: sub.moduleId, learnerId: sub.learnerId },
+    });
+
+    await prisma.learnerProgress.updateMany({
+      where: { moduleId: sub.moduleId, learnerId: sub.learnerId },
+      data: { completedAt: null, status: 'IN_PROGRESS' },
+    }).catch(() => {});
+
+    await syncLearnerModuleProgress(sub.learnerId, sub.moduleId);
+    await safelyRemoveRetiredSubmissionFiles(previousUrls);
+
+    res.json({ deleted: true, hasSubmitted: false, files: [], fileCount: 0 });
   } catch (err) {
     next(err);
   }

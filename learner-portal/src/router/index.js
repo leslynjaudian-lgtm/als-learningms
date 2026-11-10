@@ -9,6 +9,7 @@ import AssessmentsView from '../views/AssessmentsView.vue';
 import ProgressView from '../views/ProgressView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
 import ProfileView from '../views/ProfileView.vue';
+import { clearLearnerSessionStorage } from '../utils/learnerStorage.js';
 
 const routes = [
   // Root login — first screen for all unauthenticated users
@@ -95,9 +96,7 @@ router.beforeEach((to) => {
 
   // Direct access to localhost root / login: always show Login View cleanly
   if (to.name === 'Login') {
-    localStorage.removeItem('als_learner_authenticated');
-    localStorage.removeItem('als_learner_user');
-    localStorage.removeItem('als_learner_token');
+    clearLearnerSessionStorage();
     return;
   }
 
@@ -113,9 +112,7 @@ router.beforeEach((to) => {
   // If the route requires auth and user is not authenticated or not a LEARNER
   if (to.meta.requiresAuth) {
     if (!isAuthenticated || !user || user.role !== 'LEARNER') {
-      localStorage.removeItem('als_learner_authenticated');
-      localStorage.removeItem('als_learner_user');
-      localStorage.removeItem('als_learner_token');
+      clearLearnerSessionStorage();
       return { name: 'Login' };
     }
   }

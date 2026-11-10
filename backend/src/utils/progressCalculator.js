@@ -256,6 +256,7 @@ export async function syncLearnerModuleProgress(learnerId, moduleId, options = {
       updateData.completedPages = Math.max(prog?.completedPages || 0, totalPages);
       updateData.totalPages = totalPages;
     } else {
+      updateData.completedAt = null;
       updateData.completedPages = safeCompletedPages;
       if (totalPages > 0) {
         updateData.totalPages = totalPages;

@@ -253,14 +253,30 @@ async function loadProgress() {
   }
 }
 
+function resetProgressState() {
+  overallProgress.value = 0;
+  modulesCompleted.value = 0;
+  totalModules.value = 0;
+  assessmentsTaken.value = 0;
+  totalAssessments.value = 0;
+  strands.value = strands.value.map((s) => ({
+    ...s,
+    progress: 0,
+    modulesCompleted: 0,
+    totalModules: 0,
+  }));
+}
+
 onMounted(() => {
   loadProgress();
   window.addEventListener('als-progress-updated', loadProgress);
+  window.addEventListener('als-learner-session-changed', resetProgressState);
   window.addEventListener('focus', loadProgress);
 });
 
 onUnmounted(() => {
   window.removeEventListener('als-progress-updated', loadProgress);
+  window.removeEventListener('als-learner-session-changed', resetProgressState);
   window.removeEventListener('focus', loadProgress);
 });
 </script>

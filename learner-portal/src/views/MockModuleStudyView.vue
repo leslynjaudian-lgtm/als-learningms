@@ -1012,7 +1012,7 @@
                       <line x1="10" y1="11" x2="10" y2="17"/>
                       <line x1="14" y1="11" x2="14" y2="17"/>
                     </svg>
-                    <span>Remove File</span>
+                    <span>Delete File</span>
                   </button>
                 </div>
               </div>
@@ -1125,11 +1125,11 @@
     </div>
     </template>
 
-    <!-- Confirmation Modal: Remove File -->
+    <!-- Confirmation Modal: Delete File -->
     <div v-if="fileToRemove !== null" class="custom-modal-overlay" @click.self="cancelRemoveFile">
-      <div class="custom-modal-box" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
-        <h3 id="remove-modal-title" class="custom-modal-title">Remove this file?</h3>
-        <p class="custom-modal-text">Are you sure you want to remove this file?</p>
+      <div class="custom-modal-box delete-confirm-modal-box" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
+        <h3 id="remove-modal-title" class="custom-modal-title">Delete this file?</h3>
+        <p class="custom-modal-text">Are you sure you want to delete this file?</p>
         <div class="custom-modal-actions">
           <button
             type="button"
@@ -1144,8 +1144,8 @@
             :disabled="isUpdatingFiles"
             @click="confirmRemoveFile"
           >
-            <span v-if="isUpdatingFiles">Removing...</span>
-            <span v-else>Remove File</span>
+            <span v-if="isUpdatingFiles">Deleting...</span>
+            <span v-else>Delete File</span>
           </button>
         </div>
       </div>
@@ -1248,6 +1248,11 @@ import {
 } from '../utils/formatStrand.js';
 import { sanitizeRichText } from '../utils/sanitizeRichText.js';
 import {
+  getAuthenticatedLearnerId,
+  getModuleProgressStorageKey,
+  clearLegacySharedModuleProgressKeys,
+} from '../utils/learnerStorage.js';
+import {
   MOCK_MODULE,
   PRE_TEST_QUESTIONS,
   POST_TEST_QUESTIONS,
@@ -1272,7 +1277,7 @@ const effectiveModuleId = computed(() => {
 const isMock = computed(() => false);
 
 // Loading & error state
-const isLoading = ref(false);
+const isLoading = ref(true);
 const loadError = ref('');
 const moduleData = ref(null);
 const realPreTest = ref(null);
@@ -1339,19 +1344,56 @@ function getQuestionFeedback(q, isCorrect) {
   return q.feedback || '';
 }
 
-// Progress State
+// Progress State (strictly scoped to authenticated learnerId + moduleId)
+function getDefaultProgress() {
+  return {
+    currentStep: 0,
+    highestUnlockedStep: 1,
+    preTestCompleted: false,
+    preTestScore: null,
+    preTestAnswers: {},
+    readingStarted: false,
+    readingConfirmed: false,
+    pdfCurrentPage: 1,
+    pdfTotalPages: 29,
+    pdfViewMode: 'long',
+    pagesRead: [],
+    completedPages: 0,
+    postTestCompleted: false,
+    postTestScore: null,
+    postTestAnswers: {},
+    activitySubmitted: false,
+    submittedFilesMeta: [],
+    completedAt: null
+  };
+}
+
 function getStorageKey() {
-  return isMock.value ? 'als_ls2_mock_progress' : `als_module_progress_${effectiveModuleId.value}`;
+  return getModuleProgressStorageKey(effectiveModuleId.value, isMock.value);
 }
 
 function loadProgress() {
+  clearLegacySharedModuleProgressKeys();
   if (isMock.value) {
     return loadMockProgress();
   }
+  const activeLearnerId = getAuthenticatedLearnerId();
+  const key = getStorageKey();
+  if (!activeLearnerId || !key) {
+    return getDefaultProgress();
+  }
   try {
-    const raw = localStorage.getItem(getStorageKey());
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
+      if (
+        !parsed ||
+        String(parsed.learnerId || '') !== String(activeLearnerId) ||
+        (parsed.moduleId != null && String(parsed.moduleId) !== String(effectiveModuleId.value))
+      ) {
+        localStorage.removeItem(key);
+        return getDefaultProgress();
+      }
       const pagesReadArr = Array.isArray(parsed.pagesRead)
         ? Array.from(new Set(parsed.pagesRead.map(Number).filter(n => n > 0))).sort((a, b) => a - b)
         : [];
@@ -1382,35 +1424,27 @@ function loadProgress() {
   } catch (e) {
     console.warn('Could not read module progress from storage:', e);
   }
-  return {
-    currentStep: 0,
-    highestUnlockedStep: 1,
-    preTestCompleted: false,
-    preTestScore: null,
-    preTestAnswers: {},
-    readingStarted: false,
-    readingConfirmed: false,
-    pdfCurrentPage: 1,
-    pdfTotalPages: 29,
-    pdfViewMode: 'long',
-    pagesRead: [],
-    completedPages: 0,
-    postTestCompleted: false,
-    postTestScore: null,
-    postTestAnswers: {},
-    activitySubmitted: false,
-    submittedFilesMeta: [],
-    completedAt: null
-  };
+  return getDefaultProgress();
 }
 
 function saveProgress(val, notify = true) {
+  const activeLearnerId = getAuthenticatedLearnerId();
+  if (!activeLearnerId) return;
   const p = val || progress.value;
   if (isMock.value) {
     saveMockProgress(p);
   } else {
+    const key = getStorageKey();
+    if (!key) return;
     try {
-      localStorage.setItem(getStorageKey(), JSON.stringify(p));
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          ...p,
+          learnerId: String(activeLearnerId),
+          moduleId: String(effectiveModuleId.value)
+        })
+      );
     } catch (e) {
       console.warn('Could not save module progress to storage:', e);
     }
@@ -1419,7 +1453,7 @@ function saveProgress(val, notify = true) {
     try {
       window.dispatchEvent(
         new CustomEvent('als-progress-updated', {
-          detail: { moduleId: effectiveModuleId?.value, progress: p }
+          detail: { learnerId: activeLearnerId, moduleId: effectiveModuleId?.value, progress: p }
         })
       );
     } catch (e) {}
@@ -2493,17 +2527,18 @@ async function submitRealActivities() {
       let uploadedFileUrl = null;
       let uploadedFileSize = f.size || null;
       let uploadedFileType = f.type || '';
-      try {
+      if (!isMock.value) {
         const formData = new FormData();
         formData.append('file', f.file);
         const upRes = await api.post('/modules/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         uploadedFileUrl = upRes.data?.fileUrl;
+        if (!uploadedFileUrl) {
+          throw new Error(`Failed to upload "${f.name}". Please try again.`);
+        }
         if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
         if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
-      } catch (uploadErr) {
-        console.warn('Upload endpoint error, proceeding with submission record:', uploadErr);
       }
 
       const nowIso = new Date().toISOString();
@@ -2529,7 +2564,7 @@ async function submitRealActivities() {
       moduleId: Number(effectiveModuleId.value),
       title: `${moduleTitle.value} - Activity Output`,
       fileUrl: firstFile.fileUrl || null,
-      fileName: firstFile.fileName || 'Activity 1.jpg',
+      fileName: firstFile.fileName || null,
       fileSize: firstFile.fileSize || null,
       fileType: firstFile.fileType || '',
       files: uploadedFilesPayload,
@@ -2545,8 +2580,18 @@ async function submitRealActivities() {
       totalPages: 29
     }).catch(() => {});
 
+    const syncedMeta = Array.isArray(subRes.data?.files) && subRes.data.files.length > 0
+      ? subRes.data.files.map((sf) => ({
+          name: sf.fileName || sf.name || 'Submitted Activity',
+          size: sf.fileSize || 0,
+          type: sf.fileType || sf.mimeType || '',
+          fileUrl: sf.fileUrl || '',
+          uploadedAt: sf.submittedAt || subRes.data?.submittedAt || new Date().toISOString()
+        }))
+      : uploadedFilesMeta;
+
     progress.value.activitySubmitted = true;
-    progress.value.submittedFilesMeta = uploadedFilesMeta;
+    progress.value.submittedFilesMeta = syncedMeta;
     progress.value.completedAt = new Date().toISOString();
     saveProgress();
     selectedFiles.value = [];
@@ -2572,7 +2617,10 @@ async function confirmRemoveFile() {
   try {
     if (progress.value.activitySubmitted) {
       const currentList = [...(progress.value.submittedFilesMeta || [])];
-      currentList.splice(idx, 1);
+      const [removedItem] = currentList.splice(idx, 1);
+
+      let syncedList = currentList;
+      let isDeletedAll = currentList.length === 0;
 
       if (!isMock.value) {
         const payloadFiles = currentList.map((f) => ({
@@ -2591,12 +2639,33 @@ async function confirmRemoveFile() {
           action: 'FILE_REMOVED',
           content: `Updated activity outputs (${payloadFiles.length} file(s) remaining)`
         });
-        submissionRecord.value = res.data;
+
+        if (res.data?.deleted || !Array.isArray(res.data?.files) || res.data.files.length === 0) {
+          submissionRecord.value = null;
+          syncedList = [];
+          isDeletedAll = true;
+        } else {
+          submissionRecord.value = res.data;
+          syncedList = res.data.files.map((sf) => ({
+            name: sf.fileName || sf.name || 'Submitted Activity',
+            size: sf.fileSize || 0,
+            type: sf.fileType || sf.mimeType || '',
+            fileUrl: sf.fileUrl || '',
+            uploadedAt: sf.submittedAt || res.data?.submittedAt || new Date().toISOString()
+          }));
+          isDeletedAll = false;
+        }
       }
 
-      progress.value.submittedFilesMeta = currentList;
-      if (currentList.length === 0) {
+      if (removedItem?.previewUrl && String(removedItem.previewUrl).startsWith('blob:')) {
+        try { URL.revokeObjectURL(removedItem.previewUrl); } catch {}
+      }
+
+      progress.value.submittedFilesMeta = syncedList;
+      if (isDeletedAll) {
+        submissionRecord.value = null;
         progress.value.activitySubmitted = false;
+        progress.value.completedAt = null;
       }
       saveProgress();
       showToast('Your files have been updated.');
@@ -2649,22 +2718,22 @@ async function onReplaceFileSelected(e) {
       let uploadedFileType = file.type;
 
       if (!isMock.value) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          const upRes = await api.post('/modules/upload', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          uploadedFileUrl = upRes.data?.fileUrl;
-          if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
-          if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
-        } catch (upErr) {
-          console.warn('Upload endpoint error:', upErr);
+        const formData = new FormData();
+        formData.append('file', file);
+        const upRes = await api.post('/modules/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        uploadedFileUrl = upRes.data?.fileUrl;
+        if (!uploadedFileUrl) {
+          throw new Error(`Failed to upload "${file.name}". Please try again.`);
         }
+        if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
+        if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
       }
 
       const nowIso = new Date().toISOString();
       const updatedMeta = [...(progress.value.submittedFilesMeta || [])];
+      const previousMeta = updatedMeta[targetIdx];
       updatedMeta[targetIdx] = {
         name: file.name,
         size: uploadedFileSize,
@@ -2674,6 +2743,7 @@ async function onReplaceFileSelected(e) {
         uploadedAt: nowIso
       };
 
+      let finalMeta = updatedMeta;
       if (!isMock.value) {
         const payloadFiles = updatedMeta.map((f) => ({
           fileName: f.name || f.fileName,
@@ -2692,9 +2762,24 @@ async function onReplaceFileSelected(e) {
           content: `Replaced file "${file.name}"`
         });
         submissionRecord.value = res.data;
+        if (Array.isArray(res.data?.files) && res.data.files.length > 0) {
+          finalMeta = res.data.files.map((sf, sfIdx) => ({
+            name: sf.fileName || sf.name || 'Submitted Activity',
+            size: sf.fileSize || 0,
+            type: sf.fileType || sf.mimeType || '',
+            fileUrl: sf.fileUrl || '',
+            previewUrl: sfIdx === targetIdx ? previewUrl : (updatedMeta[sfIdx]?.previewUrl || ''),
+            uploadedAt: sf.submittedAt || nowIso
+          }));
+        }
       }
 
-      progress.value.submittedFilesMeta = updatedMeta;
+      if (previousMeta?.previewUrl && String(previousMeta.previewUrl).startsWith('blob:')) {
+        try { URL.revokeObjectURL(previousMeta.previewUrl); } catch {}
+      }
+
+      progress.value.submittedFilesMeta = finalMeta;
+      progress.value.activitySubmitted = finalMeta.length > 0;
       saveProgress();
       showToast('Your files have been updated.');
     } else {
@@ -2761,18 +2846,17 @@ async function onAddMoreFilesSelected(e) {
       let uploadedFileType = file.type;
 
       if (!isMock.value) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          const upRes = await api.post('/modules/upload', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          uploadedFileUrl = upRes.data?.fileUrl;
-          if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
-          if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
-        } catch (upErr) {
-          console.warn('Upload endpoint error:', upErr);
+        const formData = new FormData();
+        formData.append('file', file);
+        const upRes = await api.post('/modules/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        uploadedFileUrl = upRes.data?.fileUrl;
+        if (!uploadedFileUrl) {
+          throw new Error(`Failed to upload "${file.name}". Please try again.`);
         }
+        if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
+        if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
       }
 
       const nowIso = new Date().toISOString();
@@ -2788,6 +2872,7 @@ async function onAddMoreFilesSelected(e) {
 
     if (newItems.length > 0) {
       const combined = [...(progress.value.submittedFilesMeta || []), ...newItems];
+      let finalCombined = combined;
 
       if (!isMock.value) {
         const payloadFiles = combined.map((f) => ({
@@ -2807,9 +2892,20 @@ async function onAddMoreFilesSelected(e) {
           content: `Added ${newItems.length} activity file(s)`
         });
         submissionRecord.value = res.data;
+        if (Array.isArray(res.data?.files) && res.data.files.length > 0) {
+          finalCombined = res.data.files.map((sf, sfIdx) => ({
+            name: sf.fileName || sf.name || 'Submitted Activity',
+            size: sf.fileSize || 0,
+            type: sf.fileType || sf.mimeType || '',
+            fileUrl: sf.fileUrl || '',
+            previewUrl: combined[sfIdx]?.previewUrl || '',
+            uploadedAt: sf.submittedAt || new Date().toISOString()
+          }));
+        }
       }
 
-      progress.value.submittedFilesMeta = combined;
+      progress.value.submittedFilesMeta = finalCombined;
+      progress.value.activitySubmitted = finalCombined.length > 0;
       saveProgress();
       showToast('Your files have been updated.');
     }
@@ -2828,9 +2924,41 @@ async function onAddMoreFilesSelected(e) {
 let isFetchingModule = false;
 let fetchAbortController = null;
 
+function resetStudyState() {
+  moduleData.value = null;
+  submissionRecord.value = null;
+  realPreTest.value = null;
+  realPostTest.value = null;
+  rawPreQuestions.value = [];
+  rawPostQuestions.value = [];
+  progress.value = getDefaultProgress();
+  currentStep.value = 0;
+  currentPreQIndex.value = 0;
+  selectedPreAnswer.value = '';
+  isPreSubmitted.value = false;
+  showingPreTestScore.value = false;
+  isSubmittingPreAssessment.value = false;
+  currentPostQIndex.value = 0;
+  selectedPostAnswer.value = '';
+  isPostSubmitted.value = false;
+  showingPostTestScore.value = false;
+  isSubmittingPostAssessment.value = false;
+  selectedFiles.value = [];
+  uploadError.value = '';
+  deadlinePassedOverride.value = false;
+}
+
 async function fetchModuleData() {
   if (!effectiveModuleId.value || effectiveModuleId.value === 'ls2-mock-001') {
     router.replace('/modules');
+    return;
+  }
+
+  const requestLearnerId = getAuthenticatedLearnerId();
+  if (!requestLearnerId) {
+    resetStudyState();
+    isLoading.value = false;
+    router.replace({ name: 'Login' });
     return;
   }
 
@@ -2849,15 +2977,19 @@ async function fetchModuleData() {
   isFetchingModule = true;
   isLoading.value = true;
   loadError.value = '';
+  resetStudyState();
 
   try {
     const res = await api.get(`/modules/${effectiveModuleId.value}`, {
       signal: fetchAbortController.signal
     });
+    if (getAuthenticatedLearnerId() !== requestLearnerId) {
+      return;
+    }
     const mod = res.data?.data || res.data;
     moduleData.value = mod;
 
-    // Load initial local progress
+    // Load strictly learner-scoped local progress (for in-progress quiz selections/view preferences only)
     const local = loadProgress();
     progress.value = local;
 
@@ -2869,54 +3001,54 @@ async function fetchModuleData() {
     rawPreQuestions.value = realPreTest.value?.questions || [];
     rawPostQuestions.value = realPostTest.value?.questions || [];
 
-    // If pre-test has no questions, mark pre-test done & unlock module
+    // Restore Pre-Test authoritatively from backend database
+    const preAttempt = realPreTest.value?.attempts?.[0];
     if (rawPreQuestions.value.length === 0) {
       progress.value.preTestCompleted = true;
-      progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 2);
-    }
-
-    // Restore Pre-Test from backend attempts or mod score
-    const preAttempt = realPreTest.value?.attempts?.[0];
-    if (preAttempt) {
+    } else if (preAttempt) {
       progress.value.preTestCompleted = true;
       if (preAttempt.score != null) {
         progress.value.preTestScore = Number(preAttempt.score);
       }
       if (Array.isArray(preAttempt.answers) && preAttempt.answers.length > 0) {
-        if (!progress.value.preTestAnswers) progress.value.preTestAnswers = {};
+        progress.value.preTestAnswers = {};
         preAttempt.answers.forEach((ans) => {
           if (ans.questionId && (ans.selectedOptionId || ans.textAnswer)) {
             progress.value.preTestAnswers[ans.questionId] = ans.selectedOptionId || ans.textAnswer;
           }
         });
       }
-      progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 2);
     } else if (mod.preTestScore != null) {
       progress.value.preTestScore = Number(mod.preTestScore);
       progress.value.preTestCompleted = true;
-      progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 2);
+    } else {
+      progress.value.preTestCompleted = false;
+      progress.value.preTestScore = null;
     }
 
-    // Restore Post-Test from backend attempts or mod score
+    // Restore Post-Test authoritatively from backend database
     const postAttempt = realPostTest.value?.attempts?.[0];
-    if (postAttempt) {
+    if (rawPostQuestions.value.length === 0) {
+      progress.value.postTestCompleted = true;
+    } else if (postAttempt) {
       progress.value.postTestCompleted = true;
       if (postAttempt.score != null) {
         progress.value.postTestScore = Number(postAttempt.score);
       }
       if (Array.isArray(postAttempt.answers) && postAttempt.answers.length > 0) {
-        if (!progress.value.postTestAnswers) progress.value.postTestAnswers = {};
+        progress.value.postTestAnswers = {};
         postAttempt.answers.forEach((ans) => {
           if (ans.questionId && (ans.selectedOptionId || ans.textAnswer)) {
             progress.value.postTestAnswers[ans.questionId] = ans.selectedOptionId || ans.textAnswer;
           }
         });
       }
-      progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 4);
     } else if (mod.postTestScore != null) {
       progress.value.postTestScore = Number(mod.postTestScore);
       progress.value.postTestCompleted = true;
-      progress.value.highestUnlockedStep = Math.max(progress.value.highestUnlockedStep || 1, 4);
+    } else {
+      progress.value.postTestCompleted = false;
+      progress.value.postTestScore = null;
     }
 
     // Restore in-progress Pre-Test / Post-Test question state on page reload
@@ -2954,7 +3086,7 @@ async function fetchModuleData() {
       }
     }
 
-    // Restore Reading Progress from backend learnerProgress or module payload
+    // Restore Reading Progress authoritatively from backend learnerProgress or module payload
     const lp = mod.learnerProgress?.[0];
     const serverPagesRead = Array.isArray(mod.pagesRead)
       ? mod.pagesRead
@@ -2976,7 +3108,6 @@ async function fetchModuleData() {
     progress.value.pdfViewMode = mod.viewMode || lp?.viewMode || local.pdfViewMode || 'long';
 
     if (serverPagesRead.length > 0) {
-      // Highest page reached determines reading progress
       const highestServer = Math.max(...serverPagesRead.map(Number).filter((n) => n > 0 && n <= serverTotalPages));
       const localPages = Array.isArray(local.pagesRead) ? local.pagesRead.map(Number).filter(n => n > 0 && n <= serverTotalPages) : [];
       const highestLocal = localPages.length > 0 ? Math.max(...localPages) : 0;
@@ -2987,7 +3118,6 @@ async function fetchModuleData() {
       progress.value.completedPages = mergedPages.length;
       progress.value.readingStarted = mergedPages.length > 0;
 
-      // If local cache had higher progress, sync to backend quietly
       if (highest > highestServer) {
         api.post(`/modules/${effectiveModuleId.value}/progress`, {
           status: mergedPages.length >= serverTotalPages ? 'COMPLETED' : 'IN_PROGRESS',
@@ -2999,11 +3129,10 @@ async function fetchModuleData() {
         }).catch(() => {});
       }
     } else if (mod.completed || lp?.completedAt) {
-      // Legitimate prior completion of whole module
       progress.value.completedPages = serverTotalPages;
       progress.value.pagesRead = Array.from({ length: serverTotalPages }, (_, i) => i + 1);
       progress.value.readingStarted = true;
-    } else if (Array.isArray(local.pagesRead) && local.pagesRead.length > 0) {
+    } else if (progress.value.preTestCompleted && Array.isArray(local.pagesRead) && local.pagesRead.length > 0) {
       const highest = Math.min(Math.max(...local.pagesRead.map(Number).filter(n => n > 0)), serverTotalPages);
       const cleanLocal = Array.from({ length: highest }, (_, i) => i + 1);
       progress.value.pagesRead = cleanLocal;
@@ -3026,46 +3155,49 @@ async function fetchModuleData() {
     const isAllPagesRead = Boolean(progress.value.pdfTotalPages > 0 && (progress.value.pagesRead?.length || 0) >= progress.value.pdfTotalPages);
     progress.value.readingConfirmed = Boolean(isAllPagesRead || (mod.completed && progress.value.activitySubmitted));
 
-    if (mod.completed) {
-      progress.value.activitySubmitted = true;
-      progress.value.highestUnlockedStep = 4;
-    }
-
-    // Fetch existing submissions
+    // Fetch existing submissions for the authenticated learner
     try {
       const subRes = await api.get(`/submissions?moduleId=${effectiveModuleId.value}`, {
+        params: { _t: Date.now() },
         signal: fetchAbortController?.signal
       });
+      if (getAuthenticatedLearnerId() !== requestLearnerId) {
+        return;
+      }
       const subs = Array.isArray(subRes.data) ? subRes.data : [];
-      if (subs.length > 0) {
-        submissionRecord.value = subs[0];
-        progress.value.activitySubmitted = true;
-        progress.value.highestUnlockedStep = 4;
-        const allServerFiles = [];
-        subs.forEach((s) => {
-          if (Array.isArray(s.files) && s.files.length > 0) {
-            s.files.forEach((f) => {
-              allServerFiles.push({
-                name: f.fileName || f.name || 'Submitted Activity',
-                size: f.fileSize || f.size || 0,
-                type: f.mimeType || f.fileType || 'image/jpeg',
-                fileUrl: f.fileUrl || '',
-                uploadedAt: f.submittedAt || s.submittedAt || new Date().toISOString()
-              });
-            });
-          } else {
+      const activeSubs = subs.filter((s) => s && s.hasSubmitted !== false);
+      const allServerFiles = [];
+      activeSubs.forEach((s) => {
+        if (Array.isArray(s.files) && s.files.length > 0) {
+          s.files.forEach((f) => {
+            if (!f.fileUrl && !f.fileName && !f.name) return;
             allServerFiles.push({
-              name: s.fileName || s.title || 'Submitted Activity',
-              size: s.fileSize || 0,
-              type: s.fileType || 'application/pdf',
-              fileUrl: s.fileUrl || '',
-              uploadedAt: s.submittedAt || s.createdAt || new Date().toISOString()
+              name: f.fileName || f.name || 'Submitted Activity',
+              size: f.fileSize || f.size || 0,
+              type: f.mimeType || f.fileType || '',
+              fileUrl: f.fileUrl || '',
+              uploadedAt: f.submittedAt || s.submittedAt || new Date().toISOString()
             });
-          }
-        });
-        if (allServerFiles.length > 0) {
-          progress.value.submittedFilesMeta = allServerFiles;
+          });
+        } else if (s.fileUrl) {
+          allServerFiles.push({
+            name: s.fileName || s.title || 'Submitted Activity',
+            size: s.fileSize || 0,
+            type: s.fileType || '',
+            fileUrl: s.fileUrl || '',
+            uploadedAt: s.submittedAt || s.createdAt || new Date().toISOString()
+          });
         }
+      });
+
+      if (activeSubs.length > 0 && allServerFiles.length > 0) {
+        submissionRecord.value = activeSubs[0];
+        progress.value.activitySubmitted = true;
+        progress.value.submittedFilesMeta = allServerFiles;
+      } else {
+        submissionRecord.value = null;
+        progress.value.activitySubmitted = false;
+        progress.value.submittedFilesMeta = [];
       }
     } catch (subErr) {
       if (subErr?.name === 'CanceledError' || subErr?.code === 'ERR_CANCELED' || subErr?.__CANCEL__) {
@@ -3074,8 +3206,18 @@ async function fetchModuleData() {
       console.warn('Could not check submissions:', subErr);
     }
 
-    currentStep.value = progress.value.currentStep !== undefined ? progress.value.currentStep : 0;
-    // Save to local storage silently without dispatching external events
+    // Recompute unlocked steps strictly from restored backend state
+    let unlocked = 1;
+    if (progress.value.preTestCompleted) unlocked = 2;
+    if (isStepCompleted(2)) unlocked = 3;
+    if (progress.value.postTestCompleted || progress.value.activitySubmitted || mod.completed) unlocked = 4;
+    progress.value.highestUnlockedStep = unlocked;
+
+    const candidateStep = Number(progress.value.currentStep || 0);
+    currentStep.value = (candidateStep >= 0 && candidateStep <= unlocked) ? candidateStep : 0;
+    progress.value.currentStep = currentStep.value;
+
+    // Save strictly scoped local cache silently
     saveProgress(progress.value, false);
   } catch (err) {
     if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.__CANCEL__) {
@@ -3089,20 +3231,28 @@ async function fetchModuleData() {
   }
 }
 
+function handleSessionChanged() {
+  resetStudyState();
+  if (getAuthenticatedLearnerId() && effectiveModuleId.value && effectiveModuleId.value !== 'ls2-mock-001') {
+    fetchModuleData();
+  }
+}
+
 watch(
   () => effectiveModuleId.value,
   () => {
-    progress.value = loadProgress();
-    currentStep.value = progress.value.currentStep || 0;
+    resetStudyState();
     fetchModuleData();
   }
 );
 
 onMounted(() => {
+  window.addEventListener('als-learner-session-changed', handleSessionChanged);
   fetchModuleData();
 });
 
 onUnmounted(() => {
+  window.removeEventListener('als-learner-session-changed', handleSessionChanged);
   if (fetchAbortController) {
     try {
       fetchAbortController.abort();
@@ -4315,6 +4465,41 @@ onUnmounted(() => {
 
 .modal-danger-btn:hover:not(:disabled) {
   background: #b91c1c;
+}
+
+.delete-confirm-modal-box {
+  text-align: center;
+}
+
+.delete-confirm-modal-box .custom-modal-title,
+.delete-confirm-modal-box .custom-modal-text {
+  text-align: center;
+}
+
+.delete-confirm-modal-box .custom-modal-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.delete-confirm-modal-box .modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1;
+}
+
+@media (max-width: 480px) {
+  .delete-confirm-modal-box .custom-modal-actions {
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .delete-confirm-modal-box .modal-btn {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 /* Preview Modal */

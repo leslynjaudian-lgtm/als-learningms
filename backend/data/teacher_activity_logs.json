@@ -1,5 +1,18 @@
 [
   {
+    "id": "tlog-1794317991166-ow6x4p",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "knklsdnzxckdf,xm",
+    "description": "Uploaded learning module \"knklsdnzxckdf,xm\" (LS1) for A&E Elementary.",
+    "moduleId": "44",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/44",
+    "timestamp": "2026-11-10T13:39:51.161Z"
+  },
+  {
     "id": "tlog-1794304965528-qbzigk",
     "teacherId": "18",
     "type": "MODULE_UPLOADED",

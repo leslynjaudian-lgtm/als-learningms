@@ -324,11 +324,15 @@ function getModuleInstructions(mod) {
 // Published/assigned modules excluding mock dummy records
 const assignedModules = computed(() => {
   return modules.value.filter(
-    (m) => m && m.code !== 'LS2-MOCK-001' && m.id !== 'ls2-mock-001'
+    (m) =>
+      m &&
+      m.code !== 'LS2-MOCK-001' &&
+      m.id !== 'ls2-mock-001' &&
+      (!m.status || String(m.status).toUpperCase() === 'PUBLISHED')
   );
 });
 
-// New Learning Modules section shows only Not Started or In Progress modules (hides Completed)
+// Active Modules = Total Assigned Modules - Completed Modules (shown under New Learning Modules)
 const newLearningModules = computed(() => {
   return assignedModules.value.filter((mod) => !isModuleCompleted(mod));
 });
@@ -380,15 +384,15 @@ async function loadLearnerData() {
     
     const validMods = assignedModules.value;
     const completed = validMods.filter(isModuleCompleted).length;
-    const inProgress = validMods.filter(isModuleInProgress).length;
+    const activeCount = Math.max(0, validMods.length - completed);
     stats.completedModules = completed;
-    stats.modulesInProgress = inProgress;
-    
+    stats.modulesInProgress = activeCount;
+
     if (validMods.length > 0) {
-      const totalProg = validMods.reduce((acc, m) => acc + (m.progress || 0), 0);
+      const totalProg = validMods.reduce((acc, m) => acc + (Number(m.progress) || 0), 0);
       stats.overallProgress = Math.round(totalProg / validMods.length);
     } else {
-      stats.overallProgress = meData?.progress || 0;
+      stats.overallProgress = 0;
     }
 
     let pendingCount = 0;
@@ -453,14 +457,25 @@ async function loadLearnerData() {
   }
 }
 
+function resetDashboardState() {
+  modules.value = [];
+  latestAnnouncement.value = null;
+  stats.modulesInProgress = 0;
+  stats.completedModules = 0;
+  stats.pendingAssessments = 0;
+  stats.overallProgress = 0;
+}
+
 onMounted(() => {
   loadLearnerData();
   window.addEventListener('als-progress-updated', loadLearnerData);
+  window.addEventListener('als-learner-session-changed', resetDashboardState);
   window.addEventListener('focus', loadLearnerData);
 });
 
 onUnmounted(() => {
   window.removeEventListener('als-progress-updated', loadLearnerData);
+  window.removeEventListener('als-learner-session-changed', resetDashboardState);
   window.removeEventListener('focus', loadLearnerData);
 });
 </script>

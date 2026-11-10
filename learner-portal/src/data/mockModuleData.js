@@ -273,20 +273,13 @@ export const POST_TEST_QUESTIONS = [
 ];
 
 import { calculateOverallModuleProgress } from '../utils/moduleProgress.js';
+import { getAuthenticatedLearnerId, getModuleProgressStorageKey } from '../utils/learnerStorage.js';
 
-// Helper to get storage key scoped to current learner if available
+// Helper to get storage key scoped to current authenticated learner
 export function getMockProgressStorageKey() {
-  let userId = 'guest';
-  try {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const u = JSON.parse(userStr);
-      if (u?.id) userId = u.id;
-    }
-  } catch (e) {
-    // ignore
-  }
-  return `als_mock_progress_${userId}_LS2-MOCK-001`;
+  const learnerId = getAuthenticatedLearnerId();
+  if (!learnerId) return null;
+  return getModuleProgressStorageKey('LS2-MOCK-001', true);
 }
 
 // Initial default state
@@ -318,10 +311,16 @@ export function getDefaultMockProgress() {
 // Load progress from localStorage
 export function loadMockProgress() {
   const key = getMockProgressStorageKey();
+  const learnerId = getAuthenticatedLearnerId();
+  if (!key || !learnerId) return getDefaultMockProgress();
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return getDefaultMockProgress();
     const parsed = JSON.parse(raw);
+    if (!parsed || String(parsed.learnerId || '') !== String(learnerId)) {
+      localStorage.removeItem(key);
+      return getDefaultMockProgress();
+    }
     const pagesReadArr = Array.isArray(parsed.pagesRead)
       ? Array.from(new Set(parsed.pagesRead.map(Number).filter(n => n > 0))).sort((a, b) => a - b)
       : [];
@@ -344,8 +343,10 @@ export function loadMockProgress() {
 // Save progress to localStorage
 export function saveMockProgress(progress) {
   const key = getMockProgressStorageKey();
+  const learnerId = getAuthenticatedLearnerId();
+  if (!key || !learnerId) return;
   try {
-    localStorage.setItem(key, JSON.stringify(progress));
+    localStorage.setItem(key, JSON.stringify({ ...progress, learnerId }));
   } catch (e) {
     console.error('Failed to save mock progress', e);
   }

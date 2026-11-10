@@ -467,9 +467,11 @@ function formatModule(m, reqUser) {
     }
   }
 
-  // Learner Progress details if available
+  // Learner Progress details strictly scoped to the authenticated learner
   const progressRecord = Array.isArray(m.learnerProgress) && m.learnerProgress.length > 0 ? m.learnerProgress[0] : null;
-  const learnerId = reqUser?.profileId || progressRecord?.learnerId;
+  const learnerId = reqUser?.role === 'LEARNER'
+    ? (reqUser.profileId || progressRecord?.learnerId || null)
+    : (progressRecord?.learnerId || null);
   const readingState = learnerId ? getLearnerReadingState(learnerId, m.id) : null;
   const storedPages = readingState ? readingState.pagesRead : (learnerId ? getLearnerPagesRead(learnerId, m.id) : []);
   const safeTotalPages = progressRecord?.totalPages || m.pagesCount || (Array.isArray(m.pages) ? m.pages.length : 0) || 29;
@@ -656,6 +658,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
       }
     }
 
+    let resolvedLearnerProfileId = null;
+
     // 1. Role Enforcement:
     if (req.user && req.user.role === 'LEARNER') {
       let learner = req.user.learnerProfile;
@@ -670,6 +674,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
         // Learner has no assigned learning center, so no modules match
         return res.json([]);
       }
+      resolvedLearnerProfileId = learner.id;
 
       // Condition 1: Module status = PUBLISHED
       where.status = 'PUBLISHED';
@@ -741,7 +746,9 @@ router.get('/', optionalAuth, async (req, res, next) => {
       if (!isNaN(sid)) where.learningAreaId = sid;
     }
 
-    const learnerProfileId = req.user?.role === 'LEARNER' ? req.user.profileId : null;
+    const learnerProfileId = req.user?.role === 'LEARNER'
+      ? (resolvedLearnerProfileId || req.user.profileId)
+      : null;
 
     const modules = await prisma.module.findMany({
       where,
@@ -773,7 +780,14 @@ router.get('/', optionalAuth, async (req, res, next) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json(modules.map((m) => formatModule(m, req.user)));
+    res.json(
+      modules.map((m) =>
+        formatModule(
+          m,
+          learnerProfileId ? { ...req.user, profileId: learnerProfileId } : req.user
+        )
+      )
+    );
   } catch (err) {
     next(err);
   }
@@ -805,7 +819,25 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid module ID' });
 
-    const learnerProfileId = req.user?.role === 'LEARNER' ? req.user.profileId : null;
+    if (req.query.portal === 'learner' && !req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    let learner = null;
+    let learnerProfileId = null;
+    if (req.user?.role === 'LEARNER') {
+      learner = req.user.learnerProfile;
+      if (!learner) {
+        learner = await prisma.learner.findUnique({
+          where: { userId: req.user.id },
+          include: { learningCenter: true, assignedTeacher: true },
+        });
+      }
+      learnerProfileId = learner?.id || req.user.profileId || null;
+      if (!learnerProfileId) {
+        return res.status(403).json({ error: 'Learner profile not found.' });
+      }
+    }
 
     const mod = await prisma.module.findUnique({
       where: { id },
@@ -813,7 +845,10 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
         learningArea: true,
         teacher: { select: { id: true, fullName: true } },
         learningCenter: { select: { id: true, name: true } },
-        pages: { orderBy: { pageNumber: 'asc' } },
+        pages: {
+          select: { id: true, pageNumber: true, content: true },
+          orderBy: { pageNumber: 'asc' },
+        },
         assessments: {
           include: {
             questions: {
@@ -834,7 +869,6 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
           },
         },
         assignments: true,
-        pages: { select: { id: true, pageNumber: true, content: true } },
         learnerProgress: learnerProfileId ? {
           where: { learnerId: learnerProfileId },
         } : false,
@@ -862,7 +896,6 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 
     // Role check: If learner, verify module is published, matches learning center and program level, and assignments
     if (req.user && req.user.role === 'LEARNER') {
-      let learner = req.user.learnerProfile;
       if (!learner) {
         learner = await prisma.learner.findUnique({
           where: { userId: req.user.id },
@@ -888,7 +921,12 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
       }
     }
 
-    res.json(formatModule(mod, req.user));
+    res.json(
+      formatModule(
+        mod,
+        learnerProfileId ? { ...req.user, profileId: learnerProfileId } : req.user
+      )
+    );
   } catch (err) {
     next(err);
   }
