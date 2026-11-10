@@ -7,6 +7,7 @@ import {
   notifyScheduleUpdated,
   notifyScheduleCanceled,
 } from '../services/notificationService.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const router = Router();
 
@@ -479,6 +480,18 @@ router.post('/', authenticate, async (req, res, next) => {
       creatorRole: req.user?.role,
       creatorUserId: req.user?.id,
     }).catch((e) => console.error('[Schedules] notifyScheduleCreated error:', e));
+
+    if (teacherId && createdByRole === 'TEACHER') {
+      const schedDateLabel = scheduleStartDate.toISOString().split('T')[0];
+      logTeacherActivity({
+        teacherId,
+        type: 'SCHEDULE_CREATED',
+        activityTypeLabel: 'Created a Schedule',
+        relatedEntity: newSchedule.title,
+        description: `Scheduled "${newSchedule.title}" on ${schedDateLabel} (${normalizeTime(startTime)} – ${normalizeTime(endTime)}).`,
+        linkUrl: '/dashboard/schedule'
+      });
+    }
 
     res.status(201).json(formatSchedule(newSchedule));
   } catch (err) {

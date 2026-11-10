@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
+import { optionalAuth } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,7 +44,7 @@ function writeAf2Records(records) {
 // GET /api/af2
 // List AF2 records with filtering
 // ---------------------
-router.get('/', async (req, res, next) => {
+router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const {
       learningCenterId,
@@ -58,21 +59,41 @@ router.get('/', async (req, res, next) => {
       toDate,
     } = req.query;
 
+    let effectiveTeacherId = teacherId;
+    let teacherSpecialization = null;
+
+    if (req.user && req.user.role === 'TEACHER') {
+      effectiveTeacherId = req.user.profileId;
+      teacherSpecialization = req.user.teacherProfile?.specialization || 'Both';
+    } else if (teacherId) {
+      const tid = parseInt(teacherId, 10);
+      if (!isNaN(tid)) {
+        const tObj = await prisma.teacher.findFirst({
+          where: { OR: [{ id: tid }, { userId: tid }] },
+          select: { specialization: true },
+        });
+        if (tObj) teacherSpecialization = tObj.specialization || 'Both';
+      }
+    }
+
     // 1. Read manually and submission-recorded AF2 entries from JSON
     const af2Records = readAf2Records();
 
     // 2. Fetch live DB learner, teacher, center, and module info
-    const [learners, teachers, centers] = await Promise.all([
+    const [learners, teachers, centers, modules] = await Promise.all([
       prisma.learner.findMany({
         include: { learningCenter: true, assignedTeacher: true },
       }).catch(() => []),
       prisma.teacher.findMany({ select: { id: true, fullName: true, learningCenterId: true } }).catch(() => []),
       prisma.learningCenter.findMany({ select: { id: true, name: true } }).catch(() => []),
+      prisma.module.findMany({ select: { id: true, code: true, title: true } }).catch(() => []),
     ]);
 
     const learnerMap = new Map(learners.map((l) => [l.id, l]));
     const teacherMap = new Map(teachers.map((t) => [t.id, t.fullName]));
     const centerMap = new Map(centers.map((c) => [c.id, c.name]));
+    const moduleMap = new Map(modules.map((m) => [m.id, m]));
+    const moduleByTitle = new Map(modules.map((m) => [String(m.title).trim().toLowerCase(), m]));
 
     const combined = [];
     const seenRecordKeys = new Set();
@@ -104,6 +125,10 @@ router.get('/', async (req, res, next) => {
             ? rec.moduleStatus
             : 'Mastered';
 
+      const matchedMod =
+        (rec.moduleId ? moduleMap.get(Number(rec.moduleId)) : null) ||
+        (rec.moduleTitle ? moduleByTitle.get(String(rec.moduleTitle).trim().toLowerCase()) : null);
+
       combined.push({
         id: rec.id || `rec_${Date.now()}`,
         source: 'af2',
@@ -116,8 +141,9 @@ router.get('/', async (req, res, next) => {
         learningCenterId: rec.learningCenterId || learner?.learningCenterId || null,
         learningCenter: rec.learningCenter || rec.centerName || learner?.learningCenter?.name || centerMap.get(learner?.learningCenterId) || '—',
         centerName: rec.centerName || rec.learningCenter || learner?.learningCenter?.name || centerMap.get(learner?.learningCenterId) || '—',
-        moduleId: rec.moduleId || null,
-        moduleTitle: rec.moduleTitle || 'Learning Module',
+        moduleId: rec.moduleId || matchedMod?.id || null,
+        moduleCode: rec.moduleCode || matchedMod?.code || (matchedMod?.id ? `MOD-${matchedMod.id}` : (rec.moduleId ? `MOD-${rec.moduleId}` : '—')),
+        moduleTitle: rec.moduleTitle || matchedMod?.title || 'Learning Module',
         strandName: rec.strandName || '',
         preTestScore: rec.preTestScore != null && rec.preTestScore !== '' ? Number(rec.preTestScore) : null,
         preTestTotal: rec.preTestTotal != null && rec.preTestTotal !== '' ? Number(rec.preTestTotal) : null,
@@ -211,6 +237,25 @@ router.get('/', async (req, res, next) => {
         if (endRange && recordDate > endRange) return false;
         return true;
       });
+    }
+
+    // Role-based ALS Level authorization scoping for teachers
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json([]);
+      }
+
+      if (allowsElem && !allowsJhs) {
+        records = records.filter((r) => r.level && r.level.toLowerCase().includes('elem'));
+      } else if (allowsJhs && !allowsElem) {
+        records = records.filter(
+          (r) => r.level && (r.level.toLowerCase().includes('junior') || r.level.toLowerCase().includes('jhs') || r.level.toLowerCase().includes('sec'))
+        );
+      }
     }
 
     res.json(records);

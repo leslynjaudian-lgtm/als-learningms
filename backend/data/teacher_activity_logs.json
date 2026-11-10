@@ -1,0 +1,67 @@
+[
+  {
+    "id": "tlog-1794281943998-7vx74t",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "jidfjnsdfjk",
+    "description": "Uploaded learning module \"jidfjnsdfjk\" (LS1) for A&E Elementary.",
+    "moduleId": "37",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/37",
+    "timestamp": "2026-11-10T03:39:03.995Z"
+  },
+  {
+    "id": "tlog-1794277432267-kulfca",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "Keep Those Germs Away",
+    "description": "Uploaded learning module \"Keep Those Germs Away\" (LS2) for A&E Elementary.",
+    "moduleId": "36",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/36",
+    "timestamp": "2026-11-10T02:23:52.265Z"
+  },
+  {
+    "id": "tlog-1794259731618-mdfoqe",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "Pangit",
+    "description": "Uploaded learning module \"Pangit\" (LS1) for A&E Elementary.",
+    "moduleId": "35",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/35",
+    "timestamp": "2026-11-09T21:28:51.616Z"
+  },
+  {
+    "id": "tlog-1794259442379-tqvb3y",
+    "teacherId": "18",
+    "type": "MODULE_UPDATED",
+    "activityTypeLabel": "Updated a Module",
+    "relatedEntity": "Sino Ka?",
+    "description": "Updated learning module \"Sino Ka?\".",
+    "moduleId": "34",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/34",
+    "timestamp": "2026-11-09T21:24:02.360Z"
+  },
+  {
+    "id": "tlog-1794259398349-jg1y5p",
+    "teacherId": "18",
+    "type": "MODULE_UPDATED",
+    "activityTypeLabel": "Updated a Module",
+    "relatedEntity": "Sino Ka?",
+    "description": "Updated learning module \"Sino Ka?\".",
+    "moduleId": "34",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/34",
+    "timestamp": "2026-11-09T21:23:18.342Z"
+  }
+]

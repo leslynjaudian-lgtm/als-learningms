@@ -432,33 +432,19 @@
               </div>
             </div>
 
-            <div class="form-grid-2">
-              <div class="field-group">
-                <label class="field-label" for="learner-login-name">Login Name (Full Name)</label>
-                <LockedFieldTooltip message="This field cannot be edited.">
-                  <input
-                    id="learner-login-name"
-                    :value="learnerFullNamePreview || '—'"
-                    type="text"
-                    class="field-input"
-                    readonly
-                    title="This field cannot be edited."
-                    style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
-                  />
-                </LockedFieldTooltip>
-              </div>
-
-              <div class="field-group">
-                <label class="field-label" for="learner-password">Initial Password (Optional)</label>
+            <div class="field-group" style="margin-bottom: 0.85rem;">
+              <label class="field-label" for="learner-login-name">Login Name (Full Name)</label>
+              <LockedFieldTooltip message="This field cannot be edited.">
                 <input
-                  id="learner-password"
-                  v-model="learnerForm.password"
+                  id="learner-login-name"
+                  :value="learnerFullNamePreview || '—'"
                   type="text"
                   class="field-input"
-                  placeholder="Defaults to Full Name if left blank"
-                  autocomplete="new-password"
+                  readonly
+                  title="This field cannot be edited."
+                  style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
                 />
-              </div>
+              </LockedFieldTooltip>
             </div>
 
             <!-- Error message banner -->
@@ -506,8 +492,16 @@
         <div class="modal-body-scrollable" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
           <div class="details-grid">
             <div class="detail-item">
-              <span class="detail-label">Full Name</span>
-              <span class="detail-value" style="font-weight: 600; color: var(--color-primary);">{{ viewingLearner?.name || viewingLearner?.fullName }}</span>
+              <span class="detail-label">Last Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary);">{{ viewingLearner?.lastName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">First Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary);">{{ viewingLearner?.firstName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Middle Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary);">{{ viewingLearner?.middleName || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">LRN</span>
@@ -545,11 +539,11 @@
               <span class="detail-label">Contact Number</span>
               <span class="detail-value">{{ viewingLearner?.contactNumber || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Address</span>
               <span class="detail-value">{{ viewingLearner?.address || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Date Registered</span>
               <span class="detail-value">{{ viewingLearner?.dateRegistered || '—' }}</span>
             </div>
@@ -666,7 +660,6 @@ const learnerForm = reactive({
   learningCenterId: '',
   assignedTeacherId: '',
   username: '',
-  password: '',
   level: '',
   status: 'Active',
   dateRegistered: getTodayFormatted(),
@@ -769,7 +762,6 @@ function openEditModal(learner) {
   learnerForm.learningCenterId = matchedCenter?.id || learningCenters.value[0]?.id || '';
   learnerForm.assignedTeacherId = learner.assignedTeacherId || '';
   learnerForm.username = learner.username || '';
-  learnerForm.password = '';
   learnerForm.level = levelDisplay;
   learnerForm.status = learner.status || 'Active';
   learnerForm.dateRegistered = learner.dateRegistered || getTodayFormatted();
@@ -790,7 +782,6 @@ function openAddModal() {
   learnerForm.learningCenterId = learningCenters.value[0]?.id || '';
   learnerForm.assignedTeacherId = teachers.value[0]?.id || '';
   learnerForm.username = '';
-  learnerForm.password = '';
   learnerForm.level = '';
   learnerForm.status = 'Active';
   learnerForm.dateRegistered = getTodayFormatted();
@@ -896,7 +887,6 @@ async function handleRegisterLearner() {
     learningCenterId: learnerForm.learningCenterId,
     assignedTeacherId: learnerForm.assignedTeacherId ? parseInt(learnerForm.assignedTeacherId, 10) : null,
     username: learnerForm.username ? learnerForm.username.trim() : undefined,
-    password: learnerForm.password ? learnerForm.password.trim() : undefined,
     level: apiLevel,
     status: learnerForm.status,
     dateRegistered: learnerForm.dateRegistered,

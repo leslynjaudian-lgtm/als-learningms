@@ -54,8 +54,9 @@
                 class="filter-select"
               >
                 <option value="">All ALS Levels</option>
-                <option value="A&E Elementary">A&E Elementary</option>
-                <option value="A&E Junior High">A&E Junior High</option>
+                <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+                  {{ lvl }}
+                </option>
               </select>
               <span class="select-chevron">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -353,7 +354,7 @@
               <input
                 v-model="recordsSearchQuery"
                 type="text"
-                placeholder="Search module title..."
+                placeholder="Search module code or title..."
                 class="records-search-input with-icon"
               />
             </div>
@@ -368,19 +369,21 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 56px;">#</th>
-                <th>Module Title</th>
-                <th>Pre-Test Score</th>
-                <th>Post-Test Score</th>
-                <th>Status</th>
-                <th>Date Completed</th>
-                <th style="text-align: right; width: 140px;">Action</th>
+                <th style="width: 50px;">#</th>
+                <th style="width: 140px; min-width: 120px; text-align: left;">Module Code</th>
+                <th style="text-align: left;">Module Title</th>
+                <th style="width: 130px; text-align: left;">Pre-Test Score</th>
+                <th style="width: 130px; text-align: left;">Post-Test Score</th>
+                <th style="width: 125px; text-align: left;">Status</th>
+                <th style="width: 140px; text-align: left;">Date Completed</th>
+                <th style="text-align: right; width: 130px;">Action</th>
               </tr>
             </thead>
             <tbody>
               <template v-if="!loading && filteredLearnerRecords.length > 0">
                 <tr v-for="(rec, idx) in filteredLearnerRecords" :key="rec.id">
                   <td class="col-num">{{ idx + 1 }}</td>
+                  <td class="col-mod-code">{{ rec.moduleCode || '—' }}</td>
                   <td class="col-mod-title">{{ rec.moduleTitle }}</td>
                   <td>
                     <span class="score-number-val">
@@ -445,7 +448,7 @@
               </template>
 
               <tr v-else>
-                <td colspan="7" class="no-records-msg">
+                <td colspan="8" class="no-records-msg">
                   <div class="empty-table-state">
                     <template v-if="loading">
                       <span>Loading learning records...</span>
@@ -507,6 +510,10 @@
               <div>
                 <span class="summary-label">Module Title</span>
                 <strong class="summary-value">{{ viewingRecord.moduleTitle }}</strong>
+              </div>
+              <div v-if="viewingRecord.moduleCode">
+                <span class="summary-label">Module Code</span>
+                <strong class="summary-value">{{ viewingRecord.moduleCode }}</strong>
               </div>
               <div>
                 <span class="summary-label">ALS Level</span>
@@ -818,13 +825,26 @@ import { getRecords, getRecordContext, createRecord, updateRecord, deleteRecord 
 
 const route = useRoute();
 const router = useRouter();
-const { teacherId, assignedCenters } = useTeacherSession();
+const { teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 
 // Reactive Filter States (Preserved when navigating into and back from Learner Records)
 const filterLearningCenter = ref('');
 const filterProgramLevel = ref('');
 const filterLearnerId = ref('');
 const learnersSearchQuery = ref('');
+
+// When learning center changes or assigned levels change, ensure filterProgramLevel remains valid
+watch(filterLearningCenter, () => {
+  if (filterProgramLevel.value && !assignedLevelOptions.value.includes(filterProgramLevel.value)) {
+    filterProgramLevel.value = '';
+  }
+});
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (filterProgramLevel.value && !newOpts.includes(filterProgramLevel.value)) {
+    filterProgramLevel.value = '';
+  }
+}, { immediate: true });
 
 // Individual Learner Selection & Records State
 const selectedLearnerId = ref(null);
@@ -1013,7 +1033,10 @@ const filteredLearnerRecords = computed(() => {
 
   const q = recordsSearchQuery.value.trim().toLowerCase();
   if (q) {
-    list = list.filter((r) => r.moduleTitle?.toLowerCase().includes(q));
+    list = list.filter((r) =>
+      (r.moduleTitle && r.moduleTitle.toLowerCase().includes(q)) ||
+      (r.moduleCode && r.moduleCode.toLowerCase().includes(q))
+    );
   }
   return list;
 });
@@ -2189,6 +2212,12 @@ async function saveNewRecord() {
 .col-lrn-text {
   font-family: monospace;
   color: #64748b;
+}
+
+.col-mod-code {
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
 }
 
 .col-mod-title {

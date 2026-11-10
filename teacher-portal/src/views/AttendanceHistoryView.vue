@@ -72,8 +72,9 @@
             <div class="select-wrapper">
               <select id="att-filter-level" v-model="selectedProgramLevel" class="filter-select">
                 <option value="">All ALS Levels</option>
-                <option value="A&E Elementary">A&E Elementary</option>
-                <option value="A&E Junior High">A&E Junior High</option>
+                <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+                  {{ lvl }}
+                </option>
               </select>
               <span class="select-chevron">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -528,7 +529,7 @@ import { getAttendanceRecords } from '../api/attendance.js';
 
 const route = useRoute();
 const router = useRouter();
-const { currentTeacher, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 
 // Main Page Filter State (Preserved when viewing a learner and returning)
 const selectedCenter = ref('');
@@ -536,6 +537,19 @@ const selectedProgramLevel = ref('');
 const startDate = ref('');
 const endDate = ref('');
 const searchQuery = ref('');
+
+// When learning center changes or assigned levels change, ensure selectedProgramLevel remains valid
+watch(selectedCenter, () => {
+  if (selectedProgramLevel.value && !assignedLevelOptions.value.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+  }
+});
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (selectedProgramLevel.value && !newOpts.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+  }
+}, { immediate: true });
 
 // Data State
 const loading = ref(false);
@@ -1068,7 +1082,8 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 1.15rem;
+  padding: 0.55rem 1.15rem;
+  height: 40px;
   background: #2563eb;
   color: #ffffff;
   border-radius: 8px;
@@ -1077,6 +1092,8 @@ watch(
   text-decoration: none;
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.22);
   transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .btn-take-attendance:hover {
@@ -1088,18 +1105,22 @@ watch(
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.25rem 1.5rem;
+  padding: 0;
   margin-bottom: 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
 }
 
 .filter-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0.875rem 1.25rem;
+  margin: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .filter-header-left {
@@ -1107,7 +1128,7 @@ watch(
   align-items: center;
   gap: 0.5rem;
   color: #334155;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -1119,15 +1140,17 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  margin-left: auto;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   color: #64748b;
-  padding: 0.4rem 0.75rem;
+  padding: 0.375rem 0.75rem;
   border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .btn-clear-filters:hover {
@@ -1143,10 +1166,12 @@ watch(
 
 .filters-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.35fr);
-  gap: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.4fr);
+  gap: 0.875rem;
   align-items: flex-end;
+  padding: 1rem 1.25rem;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .filter-field {
@@ -1159,17 +1184,20 @@ watch(
   font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.375rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.25;
 }
 
-.select-wrapper {
+.select-wrapper,
+.search-input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
   width: 100%;
+  height: 42px;
 }
 
 .filter-select,
@@ -1178,15 +1206,23 @@ watch(
   width: 100%;
   height: 42px;
   min-height: 42px;
+  max-height: 42px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0 0.85rem;
   font-size: 0.875rem;
+  font-family: inherit;
   color: #0f172a;
   background: #ffffff;
   outline: none;
   box-sizing: border-box;
   transition: all 0.15s ease;
+  line-height: normal;
+}
+
+.filter-date-input {
+  display: flex;
+  align-items: center;
 }
 
 .filter-select {
@@ -1202,13 +1238,6 @@ watch(
   color: #64748b;
   display: flex;
   align-items: center;
-}
-
-.search-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
 }
 
 .search-input-wrapper svg {
@@ -1852,9 +1881,11 @@ watch(
 }
 
 /* Responsive Breakpoints */
-@media (max-width: 1180px) {
+@media (max-width: 1200px) {
   .filters-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem;
+    padding: 1rem 1.15rem;
   }
   .search-field {
     grid-column: 1 / -1;
@@ -1878,8 +1909,16 @@ watch(
   .page-header-row {
     align-items: stretch;
   }
+  .filter-card-header {
+    padding: 0.75rem 1rem;
+  }
   .filters-grid {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+  }
+  .search-field {
+    grid-column: auto;
   }
   .learner-date-filter-row {
     grid-template-columns: 1fr;

@@ -26,7 +26,7 @@
           <select v-model="selectedLevel" class="filter-select">
             <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior High School">A&E Junior High School</option>
+            <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 
@@ -376,36 +376,79 @@
           </div>
 
           <div v-else-if="selectedLearnerDetails">
-            <!-- Summary Stats Mini Row -->
-            <div class="modal-stats-row">
-              <div class="modal-stat-pill">
-                <span class="stat-num">{{ selectedLearnerDetails.summary?.totalModules || 0 }}</span>
-                <span class="stat-lbl">Total Modules</span>
+            <!-- Three Horizontally Aligned Summary Cards -->
+            <div class="summary-cards-grid">
+              <!-- Card 1: Recorded -->
+              <div class="summary-card card-recorded">
+                <div class="card-header-block">
+                  <span class="card-category-label">Recorded</span>
+                  <div class="card-total-row">
+                    <span class="card-total-num font-mono">{{ modalSummary.recorded }}</span>
+                    <span class="card-total-unit">{{ modalSummary.recorded === 1 ? 'module' : 'modules' }}</span>
+                  </div>
+                </div>
+                <div class="card-sub-breakdown">
+                  <div class="sub-item-row">
+                    <span class="sub-item-name">Mastered:</span>
+                    <span class="sub-item-count font-mono text-green-bold">{{ modalSummary.mastered }}</span>
+                  </div>
+                  <div class="sub-item-row">
+                    <span class="sub-item-name">Not Mastered:</span>
+                    <span class="sub-item-count font-mono text-amber-bold">{{ modalSummary.notMastered }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="modal-stat-pill stat-pill-green">
-                <span class="stat-num">{{ selectedLearnerDetails.summary?.mastered || 0 }}</span>
-                <span class="stat-lbl">Mastered</span>
+
+              <!-- Card 2: Pending -->
+              <div class="summary-card card-pending">
+                <div class="card-header-block">
+                  <span class="card-category-label">Pending</span>
+                  <div class="card-total-row">
+                    <span class="card-total-num font-mono">{{ modalSummary.pending }}</span>
+                    <span class="card-total-unit">{{ modalSummary.pending === 1 ? 'module' : 'modules' }}</span>
+                  </div>
+                </div>
+                <div class="card-sub-breakdown">
+                  <div class="sub-item-row">
+                    <span class="sub-item-name">Not Recorded:</span>
+                    <span class="sub-item-count font-mono">{{ modalSummary.notRecorded }}</span>
+                  </div>
+                  <div class="sub-item-row">
+                    <span class="sub-item-name">In Progress:</span>
+                    <span class="sub-item-count font-mono text-blue-bold">{{ modalSummary.inProgress }}</span>
+                  </div>
+                  <div class="sub-item-row">
+                    <span class="sub-item-name">Overdue:</span>
+                    <span class="sub-item-count font-mono text-red-bold">{{ modalSummary.overdue }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="modal-stat-pill stat-pill-amber">
-                <span class="stat-num">{{ selectedLearnerDetails.summary?.notMastered || 0 }}</span>
-                <span class="stat-lbl">Not Mastered</span>
-              </div>
-              <div class="modal-stat-pill stat-pill-blue">
-                <span class="stat-num">{{ selectedLearnerDetails.summary?.pending || 0 }}</span>
-                <span class="stat-lbl">Pending</span>
-              </div>
-              <div class="modal-stat-pill stat-pill-red">
-                <span class="stat-num">{{ selectedLearnerDetails.summary?.progress || 0 }}%</span>
-                <span class="stat-lbl">Overall Progress</span>
+
+              <!-- Card 3: Total Modules & Overall Progress -->
+              <div class="summary-card card-totals">
+                <div class="card-dual-section">
+                  <span class="card-category-label">Total Modules</span>
+                  <div class="card-total-row">
+                    <span class="card-total-num font-mono">{{ modalSummary.totalModules }}</span>
+                    <span class="card-total-unit">{{ modalSummary.totalModules === 1 ? 'module' : 'modules' }}</span>
+                  </div>
+                </div>
+                <div class="card-subtle-divider"></div>
+                <div class="card-dual-section">
+                  <span class="card-category-label">Overall Progress</span>
+                  <div class="card-total-row">
+                    <span class="card-total-num font-mono text-primary-bold">{{ modalSummary.progress }}%</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- Learner Meta Details -->
             <div class="modal-meta-grid">
-              <div><strong>Learning Center:</strong> {{ selectedLearnerDetails.learner?.learningCenter }}</div>
-              <div><strong>ALS Level:</strong> {{ selectedLearnerDetails.learner?.level }}</div>
-              <div><strong>Assigned Teacher:</strong> {{ selectedLearnerDetails.learner?.assignedTeacher }}</div>
-              <div><strong>Gender:</strong> {{ selectedLearnerDetails.learner?.gender }}</div>
+              <div><strong>Learning Center:</strong> {{ selectedLearnerDetails.learner?.learningCenter || '—' }}</div>
+              <div><strong>ALS Level:</strong> {{ formatLearnerLevel(selectedLearnerDetails.learner?.level) }}</div>
+              <div><strong>Assigned Teacher:</strong> {{ selectedLearnerDetails.learner?.assignedTeacher || '—' }}</div>
+              <div><strong>Gender:</strong> {{ selectedLearnerDetails.learner?.gender || '—' }}</div>
             </div>
 
             <!-- Modules Breakdown Table -->
@@ -425,26 +468,18 @@
                   <tr v-for="mod in selectedLearnerDetails.modules" :key="mod.id">
                     <td>
                       <strong>{{ mod.title }}</strong>
-                      <div class="text-xs text-muted">{{ mod.code }}</div>
                     </td>
                     <td class="text-sm">{{ mod.strand }}</td>
                     <td class="text-sm font-mono">
-                      {{ mod.preTest.score != null ? `${mod.preTest.score} / ${mod.preTest.max} (${mod.preTest.percentage}%)` : 'Not taken' }}
+                      {{ mod.preTest?.score != null ? `${mod.preTest.score} / ${mod.preTest.max} (${mod.preTest.percentage}%)` : 'Not taken' }}
                     </td>
                     <td class="text-sm font-mono">
-                      <span v-if="mod.postTest.score != null" :class="mod.postTest.isPassed ? 'text-green-bold' : 'text-amber-bold'">
-                        {{ mod.postTest.score }} / {{ mod.postTest.max }} ({{ mod.postTest.percentage }}%)
-                      </span>
-                      <span v-else class="text-muted">Not taken</span>
+                      {{ mod.postTest?.score != null ? `${mod.postTest.score} / ${mod.postTest.max} (${mod.postTest.percentage}%)` : 'Not taken' }}
                     </td>
                     <td>
                       <span
                         class="badge"
-                        :class="{
-                          'badge-green': mod.status === 'Mastered',
-                          'badge-amber': mod.status === 'Not Mastered',
-                          'badge-gray': mod.status === 'Pending'
-                        }"
+                        :class="getModuleStatusBadgeClass(mod.status)"
                       >
                         {{ mod.status }}
                       </span>
@@ -489,8 +524,16 @@
           </div>
           <div v-else-if="viewingLearner" class="details-grid">
             <div class="detail-item">
-              <span class="detail-label">Full Name</span>
-              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.name || viewingLearner?.fullName }}</span>
+              <span class="detail-label">Last Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.lastName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">First Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.firstName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Middle Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.middleName || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">LRN</span>
@@ -528,11 +571,11 @@
               <span class="detail-label">Contact Number</span>
               <span class="detail-value">{{ viewingLearner?.contactNumber || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Address</span>
               <span class="detail-value">{{ viewingLearner?.address || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Date Registered</span>
               <span class="detail-value">{{ viewingLearner?.dateRegistered || '—' }}</span>
             </div>
@@ -547,7 +590,8 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
 import { getModuleProgressReport, getLearnerModuleProgressDetails } from '../api/reports.js';
@@ -556,9 +600,10 @@ import { getLearningCenters } from '../api/learningCenters.js';
 import logoImg from '../assets/logo.png';
 import alsLogoImg from '../assets/als-logo.png';
 
+const route = useRoute();
 const reportContentRef = ref(null);
 
-// Filters State
+// 1. Current Filter Selections (Inputs)
 const selectedCenter = ref('');
 const selectedLevel = ref('');
 const fromDate = ref('');
@@ -566,20 +611,92 @@ const toDate = ref('');
 const dateError = ref('');
 const errorMessage = ref('');
 
-// Data State
-const learningCenters = ref([]);
+// 2. Last Generated Report Filters
+const lastGeneratedFilters = ref({
+  center: '',
+  level: '',
+  fromDate: '',
+  toDate: '',
+});
+
+// 3. Report Generation Status
 const loading = ref(false);
 const reportGenerated = ref(false);
 const downloadingPdf = ref(false);
 
+// 4. Generated Report Data
+const learningCenters = ref([]);
 const maleLearners = ref([]);
 const femaleLearners = ref([]);
 const reportMeta = ref({});
+
+let activeRequestId = 0;
 
 // Modal State (View Details)
 const showModal = ref(false);
 const loadingDetails = ref(false);
 const selectedLearnerDetails = ref(null);
+
+// Synchronized Category Counts & Calculations for View Details Modal
+const modalSummary = computed(() => {
+  const mods = selectedLearnerDetails.value?.modules || [];
+  let mastered = 0;
+  let notMastered = 0;
+  let notRecorded = 0;
+  let inProgress = 0;
+  let overdue = 0;
+
+  for (const m of mods) {
+    const st = String(m.status || '').trim().toLowerCase();
+    if (st === 'mastered') {
+      mastered++;
+    } else if (st === 'not mastered') {
+      notMastered++;
+    } else if (st === 'overdue') {
+      overdue++;
+    } else if (st === 'in progress' || st === 'in_progress' || st === 'started') {
+      inProgress++;
+    } else {
+      notRecorded++;
+    }
+  }
+
+  // Fallback to backend summary counts if modules array is empty but backend provided summary
+  const bSummary = selectedLearnerDetails.value?.summary;
+  if (mods.length === 0 && bSummary) {
+    mastered = Number(bSummary.mastered || 0);
+    notMastered = Number(bSummary.notMastered || 0);
+    notRecorded = Number(bSummary.notRecorded || 0);
+    inProgress = Number(bSummary.inProgress || 0);
+    overdue = Number(bSummary.overdue || 0);
+  }
+
+  const recorded = mastered + notMastered;
+  const pending = notRecorded + inProgress + overdue;
+  const totalModules = recorded + pending;
+  const progress = totalModules > 0 ? Math.round((recorded / totalModules) * 100) : 0;
+
+  return {
+    recorded,
+    mastered,
+    notMastered,
+    pending,
+    notRecorded,
+    inProgress,
+    overdue,
+    totalModules,
+    progress,
+  };
+});
+
+function getModuleStatusBadgeClass(status) {
+  const s = String(status || '').trim().toLowerCase();
+  if (s === 'mastered') return 'badge-green';
+  if (s === 'not mastered') return 'badge-amber';
+  if (s === 'in progress' || s === 'in_progress' || s === 'started') return 'badge-blue';
+  if (s === 'overdue') return 'badge-red';
+  return 'badge-gray';
+}
 
 // Modal State (Learner Information)
 const showLearnerModal = ref(false);
@@ -597,13 +714,17 @@ function formatLearnerLevel(lvl) {
 onMounted(async () => {
   try {
     const centers = await getLearningCenters();
-    learningCenters.value = Array.isArray(centers) ? centers : [];
+    learningCenters.value = Array.isArray(centers) ? centers : (Array.isArray(centers?.data) ? centers.data : []);
   } catch (err) {
     console.warn('Could not load learning centers:', err);
   }
+  if (route.query.center) {
+    selectedCenter.value = String(route.query.center);
+    await handleGenerateReport();
+  }
 });
 
-// Generate Report Action (inside the system preview, DO NOT automatically download)
+// Generate Report Action (only user click initiates report generation)
 async function handleGenerateReport() {
   dateError.value = '';
   errorMessage.value = '';
@@ -613,6 +734,7 @@ async function handleGenerateReport() {
     return;
   }
 
+  const requestId = ++activeRequestId;
   loading.value = true;
   try {
     const params = {};
@@ -622,34 +744,34 @@ async function handleGenerateReport() {
     if (toDate.value) params.toDate = toDate.value;
 
     const data = await getModuleProgressReport(params);
+
+    // Prevent stale API responses from overwriting newer generated reports
+    if (requestId !== activeRequestId) return;
+
     maleLearners.value = data.male || [];
     femaleLearners.value = data.female || [];
     reportMeta.value = data.meta || {};
+    lastGeneratedFilters.value = {
+      center: selectedCenter.value,
+      level: selectedLevel.value,
+      fromDate: fromDate.value,
+      toDate: toDate.value,
+    };
     reportGenerated.value = true;
   } catch (err) {
+    if (requestId !== activeRequestId) return;
     console.error('Error generating report:', err);
     errorMessage.value = 'Failed to generate report. Please check server connection or reload.';
   } finally {
-    loading.value = false;
+    if (requestId === activeRequestId) {
+      loading.value = false;
+    }
   }
 }
 
-// Invalidate generated report whenever any filter changes
-function invalidateReport() {
-  if (reportGenerated.value) {
-    reportGenerated.value = false;
-    maleLearners.value = [];
-    femaleLearners.value = [];
-    errorMessage.value = '';
-  }
-}
-
-watch([selectedCenter, selectedLevel, fromDate, toDate], () => {
-  invalidateReport();
-});
-
-// Reset Filters
+// Reset Filters Action: Resets filter inputs, clears generated report data, returns to blank template
 function resetFilters() {
+  activeRequestId++; // Cancel any in-flight requests
   selectedCenter.value = '';
   selectedLevel.value = '';
   fromDate.value = '';
@@ -659,6 +781,13 @@ function resetFilters() {
   reportGenerated.value = false;
   maleLearners.value = [];
   femaleLearners.value = [];
+  reportMeta.value = {};
+  lastGeneratedFilters.value = {
+    center: '',
+    level: '',
+    fromDate: '',
+    toDate: '',
+  };
 }
 
 // Scroll down to Generate PDF button
@@ -1453,39 +1582,135 @@ function closeLearnerModal() {
   overflow-y: auto;
 }
 
-.modal-stats-row {
+/* 3 Horizontally Aligned Summary Cards */
+.summary-cards-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
   margin-bottom: 1.25rem;
+  align-items: stretch;
 }
 
-.modal-stat-pill {
-  background: #f8fafc;
+.summary-card {
+  background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0.65rem 0.5rem;
-  text-align: center;
+  border-radius: 10px;
+  padding: 0.95rem 1rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 145px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.modal-stat-pill .stat-num {
-  display: block;
-  font-size: 1.15rem;
+/* Card 1: Green Accent for Recorded */
+.card-recorded {
+  border-top: 3.5px solid #16a34a;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 42%);
+}
+
+.card-recorded .card-category-label {
+  color: #15803d;
+}
+
+/* Card 2: Blue Accent for Pending */
+.card-pending {
+  border-top: 3.5px solid #2563eb;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 42%);
+}
+
+.card-pending .card-category-label {
+  color: #1d4ed8;
+}
+
+/* Card 3: Neutral System Accent for Totals & Progress */
+.card-totals {
+  border-top: 3.5px solid #475569;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 42%);
+}
+
+.card-totals .card-category-label {
+  color: #475569;
+}
+
+.card-header-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.card-category-label {
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.card-total-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.card-total-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.card-total-unit {
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.card-sub-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.sub-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+
+.sub-item-name {
+  color: #475569;
+  font-weight: 500;
+}
+
+.sub-item-count {
   font-weight: 700;
   color: #0f172a;
 }
 
-.modal-stat-pill .stat-lbl {
-  font-size: 0.675rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #64748b;
+.card-dual-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
-.stat-pill-green .stat-num { color: #15803d; }
-.stat-pill-amber .stat-num { color: #b45309; }
-.stat-pill-blue .stat-num { color: #1d4ed8; }
-.stat-pill-red .stat-num { color: #dc2626; }
+.card-subtle-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.55rem 0;
+}
+
+@media (max-width: 768px) {
+  .summary-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
 
 .modal-meta-grid {
   display: grid;
@@ -1544,20 +1769,26 @@ function closeLearnerModal() {
 
 .badge-green { background: #dcfce7; color: #15803d; }
 .badge-amber { background: #fef3c7; color: #b45309; }
+.badge-blue { background: #dbeafe; color: #1d4ed8; }
+.badge-red { background: #fee2e2; color: #b91c1c; }
 .badge-gray { background: #f1f5f9; color: #475569; }
 
-.text-green-bold { color: #15803d; font-weight: 600; }
-.text-amber-bold { color: #b45309; font-weight: 600; }
+.text-green-bold { color: #15803d; font-weight: 700; }
+.text-amber-bold { color: #b45309; font-weight: 700; }
+.text-blue-bold { color: #1d4ed8; font-weight: 700; }
+.text-red-bold { color: #dc2626; font-weight: 700; }
+.text-primary-bold { color: #2563eb; font-weight: 800; }
 .text-xs { font-size: 0.725rem; }
 .text-sm { font-size: 0.8125rem; }
 .text-muted { color: #64748b; }
 .text-muted-center { text-align: center; color: #64748b; padding: 1rem; }
 
 .modal-footer {
-  padding: 0.85rem 1.5rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: flex-end;
+  background: #f8fafc;
 }
 
 /* Learner Information Modal (Reused from Learners module) */

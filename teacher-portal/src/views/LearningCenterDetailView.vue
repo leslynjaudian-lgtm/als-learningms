@@ -69,39 +69,22 @@
               </svg>
             </div>
             <div>
-              <div class="title-with-pill">
-                <h1 class="center-title">{{ center.name }}</h1>
-                <span v-if="center.code" class="center-code-tag">{{ center.code }}</span>
-              </div>
-              <p class="center-subtitle">Learning Center assigned to you</p>
+              <h1 class="center-title">{{ center.name }}</h1>
+              <p class="center-subtitle">CENTER NAME</p>
             </div>
           </div>
-
-          <router-link to="/dashboard/learning-centers" class="btn-back-outline">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            <span>Back to Learning Centers</span>
-          </router-link>
         </div>
 
         <!-- Detail Metrics Grid -->
         <div class="center-metrics-grid">
           <div class="metric-item">
-            <span class="metric-label">Center Name</span>
-            <span class="metric-value font-semibold">{{ center.name }}</span>
-          </div>
-
-          <div class="metric-item">
             <span class="metric-label">Address</span>
-            <span class="metric-value">{{ center.address || '—' }}</span>
+            <span class="metric-value font-bold">{{ center.address || '—' }}</span>
           </div>
 
           <div class="metric-item">
             <span class="metric-label">ALS Level</span>
-            <span class="metric-value">
-              <span class="program-level-tag">{{ centerProgramLevel }}</span>
-            </span>
+            <span class="metric-value font-bold">{{ centerProgramLevel }}</span>
           </div>
 
           <div class="metric-item">
@@ -415,19 +398,19 @@ onMounted(() => {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.75rem 2rem;
-  margin-bottom: 1.75rem;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .center-header-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
   border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .center-title-row {
@@ -447,12 +430,6 @@ onMounted(() => {
   justify-content: center;
 }
 
-.title-with-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
 .center-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -460,18 +437,12 @@ onMounted(() => {
   margin: 0;
 }
 
-.center-code-tag {
+.center-subtitle {
   font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.2rem 0.55rem;
-  background: #eff6ff;
-  color: #2563eb;
-  border-radius: 6px;
-}
-
-.center-subtitle {
-  font-size: 0.875rem;
   color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 0.25rem 0 0;
 }
 
@@ -500,8 +471,9 @@ onMounted(() => {
 /* Detail Metrics Grid */
 .center-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.75rem;
+  align-items: flex-start;
 }
 
 .metric-item {
@@ -520,17 +492,9 @@ onMounted(() => {
 
 .metric-value {
   font-size: 0.95rem;
+  line-height: 1.4;
   color: #0f172a;
-}
-
-.program-level-tag {
-  display: inline-block;
-  padding: 0.25rem 0.65rem;
-  background: #f1f5f9;
-  color: #334155;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  word-break: break-word;
 }
 
 .font-semibold {
@@ -543,7 +507,13 @@ onMounted(() => {
 
 .text-blue {
   color: #2563eb;
-  font-size: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .center-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
 }
 
 /* Learners Card */

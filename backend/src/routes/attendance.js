@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../config/prisma.js';
 import { optionalAuth } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const router = Router();
 
@@ -128,6 +129,49 @@ router.get('/', optionalAuth, async (req, res, next) => {
       };
     }
 
+    // Role-based ALS Level authorization scoping for teachers
+    let teacherSpecialization = null;
+    if (req.user && req.user.role === 'TEACHER') {
+      teacherSpecialization = req.user.teacherProfile?.specialization || 'Both';
+    } else if (teacherId) {
+      const tid = parseInt(teacherId, 10);
+      if (!isNaN(tid)) {
+        const tObj = await prisma.teacher.findFirst({
+          where: { OR: [{ id: tid }, { userId: tid }] },
+          select: { specialization: true },
+        });
+        if (tObj) teacherSpecialization = tObj.specialization || 'Both';
+      }
+    }
+
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json([]);
+      }
+
+      if (allowsElem && !allowsJhs) {
+        if (where.learner?.level && where.learner.level !== 'ELEMENTARY') {
+          return res.json([]);
+        }
+        where.learner = {
+          ...(where.learner || {}),
+          level: 'ELEMENTARY',
+        };
+      } else if (allowsJhs && !allowsElem) {
+        if (where.learner?.level && where.learner.level !== 'JUNIOR') {
+          return res.json([]);
+        }
+        where.learner = {
+          ...(where.learner || {}),
+          level: 'JUNIOR',
+        };
+      }
+    }
+
     const records = await prisma.attendance.findMany({
       where,
       include: {
@@ -232,6 +276,20 @@ router.post('/batch', optionalAuth, async (req, res, next) => {
       }
     });
 
+    const recordedByTeacherId = results[0]?.recordedById || parseInt(teacherId, 10) || req.user?.profileId;
+    if (recordedByTeacherId && results.length > 0) {
+      const presentCount = results.filter((r) => r.status === 'PRESENT' || r.status === 'LATE').length;
+      const sessionDateLabel = dateObj.toISOString().split('T')[0];
+      logTeacherActivity({
+        teacherId: recordedByTeacherId,
+        type: 'ATTENDANCE_RECORDED',
+        activityTypeLabel: 'Recorded Attendance',
+        relatedEntity: `Session on ${sessionDateLabel} (${results.length} learner${results.length === 1 ? '' : 's'})`,
+        description: `Recorded attendance for ${results.length} learner${results.length === 1 ? '' : 's'} on ${sessionDateLabel} (${presentCount} present).`,
+        linkUrl: '/dashboard/attendance'
+      });
+    }
+
     res.status(201).json({ message: 'Attendance recorded successfully', count: results.length });
   } catch (err) {
     next(err);
@@ -240,21 +298,35 @@ router.post('/batch', optionalAuth, async (req, res, next) => {
 
 // ---------------------
 // GET /api/attendance/summary
-// Aggregated attendance metrics for Admin Portal
+// Aggregated attendance metrics for Admin Portal & Reports
 // ---------------------
-router.get('/summary', async (req, res, next) => {
+router.get('/summary', optionalAuth, async (req, res, next) => {
   try {
     const { learningCenterId, teacherId, level, fromDate, toDate } = req.query;
     const where = {};
 
+    let effectiveTeacherId = teacherId;
+    let teacherSpecialization = null;
+
+    if (req.user && req.user.role === 'TEACHER') {
+      effectiveTeacherId = req.user.profileId;
+      teacherSpecialization = req.user.teacherProfile?.specialization || 'Both';
+      where.recordedById = req.user.profileId;
+    } else if (teacherId) {
+      const tid = parseInt(teacherId, 10);
+      if (!isNaN(tid)) {
+        where.recordedById = tid;
+        const tObj = await prisma.teacher.findFirst({
+          where: { OR: [{ id: tid }, { userId: tid }] },
+          select: { specialization: true },
+        });
+        if (tObj) teacherSpecialization = tObj.specialization || 'Both';
+      }
+    }
+
     if (learningCenterId) {
       const cid = parseInt(learningCenterId, 10);
       if (!isNaN(cid)) where.learningCenterId = cid;
-    }
-
-    if (teacherId) {
-      const tid = parseInt(teacherId, 10);
-      if (!isNaN(tid)) where.recordedById = tid;
     }
 
     if (fromDate || toDate) {
@@ -272,6 +344,50 @@ router.get('/summary', async (req, res, next) => {
       if (prismaLevel.includes('ELEM')) prismaLevel = 'ELEMENTARY';
       else if (prismaLevel.includes('JUNIOR') || prismaLevel.includes('JHS')) prismaLevel = 'JUNIOR';
       where.learner = { level: prismaLevel };
+    }
+
+    // Role-based ALS Level authorization scoping for teachers
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json({
+          totalAttendanceRecords: 0,
+          totalSessions: 0,
+          totalLearners: 0,
+          presentRecords: 0,
+          absentRecords: 0,
+          clcAttendanceRate: 0,
+        });
+      }
+
+      if (allowsElem && !allowsJhs) {
+        if (where.learner?.level && where.learner.level !== 'ELEMENTARY') {
+          return res.json({
+            totalAttendanceRecords: 0,
+            totalSessions: 0,
+            totalLearners: 0,
+            presentRecords: 0,
+            absentRecords: 0,
+            clcAttendanceRate: 0,
+          });
+        }
+        where.learner = { ...(where.learner || {}), level: 'ELEMENTARY' };
+      } else if (allowsJhs && !allowsElem) {
+        if (where.learner?.level && where.learner.level !== 'JUNIOR') {
+          return res.json({
+            totalAttendanceRecords: 0,
+            totalSessions: 0,
+            totalLearners: 0,
+            presentRecords: 0,
+            absentRecords: 0,
+            clcAttendanceRate: 0,
+          });
+        }
+        where.learner = { ...(where.learner || {}), level: 'JUNIOR' };
+      }
     }
 
     const records = await prisma.attendance.findMany({

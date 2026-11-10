@@ -106,12 +106,21 @@ export function calculateModuleProgress({
   // 2. If post-test is completed: 75%
   // 3. If pre-test is not completed: 0%
   // 4. Otherwise: Math.round(25 + (currentPage / totalPages) * 25)
+  const hasReadingActivity = Boolean(
+    completedPages > 0 ||
+    (Array.isArray(learnerProgress?.pagesRead) && learnerProgress.pagesRead.length > 0) ||
+    Boolean(learnerProgress?.readingStarted) ||
+    (Number(learnerProgress?.highestPageReached) > 0 && Array.isArray(learnerProgress?.pagesRead) && learnerProgress.pagesRead.length > 0)
+  );
+
   let progressPct = 0;
   if (activityDone || isLegitimatePriorCompletion) {
     progressPct = 100;
-  } else if (postTestDone) {
+  } else if (postTestDone && (hasPostTest ? Boolean(postAttempt || learnerProgress?.postTestScore != null) : true) && (activityDone || postAttempt || learnerProgress?.postTestScore != null)) {
     progressPct = 75;
   } else if (!preTestDone) {
+    progressPct = 0;
+  } else if (!hasPreTest && !hasReadingActivity) {
     progressPct = 0;
   } else {
     const safeTotal = Math.max(0, totalPages);
@@ -122,19 +131,27 @@ export function calculateModuleProgress({
 
   const isCompleted = progressPct === 100;
 
+  const hasAssessmentActivity = Boolean(
+    preAttempt ||
+    postAttempt ||
+    learnerProgress?.preTestScore != null ||
+    learnerProgress?.postTestScore != null ||
+    (Array.isArray(attempts) && attempts.length > 0)
+  );
+
+  const hasSubmissionActivity = Boolean(hasSubmissions || learnerProgress?.activitySubmitted);
+
+  const hasAnyActivity = Boolean(
+    progressPct > 0 ||
+    hasReadingActivity ||
+    hasAssessmentActivity ||
+    hasSubmissionActivity
+  );
+
   let progressStatus = 'NOT_STARTED';
   if (isCompleted) {
     progressStatus = 'COMPLETED';
-  } else if (
-    progressPct > 0 ||
-    learnerProgress?.status === 'IN_PROGRESS' ||
-    curPage > 0 ||
-    completedPages > 0 ||
-    learnerProgress?.preTestScore != null ||
-    hasSubmissions ||
-    preAttempt ||
-    postAttempt
-  ) {
+  } else if (hasAnyActivity) {
     progressStatus = 'IN_PROGRESS';
   }
 
@@ -198,15 +215,31 @@ export async function syncLearnerModuleProgress(learnerId, moduleId, options = {
       : (prog?.completedPages || 0);
 
     const curPage = options.currentPage || readingState.currentPage || (safeCompletedPages > 0 ? safeCompletedPages : 1);
+    const hasReadingStarted = safeCompletedPages > 0 || (Array.isArray(storedPages) && storedPages.length > 0) || Boolean(options.currentPage);
 
     const result = calculateModuleProgress({
       module: mod,
       learnerProgress: prog
-        ? { ...prog, completedPages: safeCompletedPages, currentPage: curPage }
-        : (safeCompletedPages > 0 ? { completedPages: safeCompletedPages, currentPage: curPage } : null),
+        ? {
+            ...prog,
+            completedPages: safeCompletedPages,
+            currentPage: curPage,
+            pagesRead: storedPages,
+            highestPageReached: highestStored,
+            readingStarted: hasReadingStarted,
+          }
+        : (safeCompletedPages > 0 || hasReadingStarted
+            ? {
+                completedPages: safeCompletedPages,
+                currentPage: curPage,
+                pagesRead: storedPages,
+                highestPageReached: highestStored,
+                readingStarted: true,
+              }
+            : null),
       attempts,
       submissions,
-      currentPage: curPage,
+      currentPage: hasReadingStarted ? curPage : 0,
     });
 
     const totalPages =
@@ -227,9 +260,7 @@ export async function syncLearnerModuleProgress(learnerId, moduleId, options = {
       if (totalPages > 0) {
         updateData.totalPages = totalPages;
       }
-      if (result.progressStatus === 'IN_PROGRESS' && prog?.status === 'NOT_STARTED') {
-        updateData.status = 'IN_PROGRESS';
-      }
+      updateData.status = result.progressStatus;
     }
 
     const saved = await prisma.learnerProgress.upsert({

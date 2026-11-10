@@ -6,6 +6,7 @@ import {
   notifyAnnouncementUpdated,
   notifyAnnouncementDeleted,
 } from '../services/notificationService.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const router = Router();
 
@@ -162,9 +163,43 @@ function formatAnnouncement(a) {
       })
     : '';
 
-  const audienceLabel = a.target_learner_name
-    ? a.target_learner_name
+  const isIndividual =
+    a.audience === 'INDIVIDUAL_LEARNER' ||
+    a.audience === 'SPECIFIC_LEARNER' ||
+    Boolean(a.target_learner_id) ||
+    Boolean(a.target_learner_name);
+
+  const audienceLabel = isIndividual
+    ? (a.target_learner_name || 'Individual Learner')
     : formatAudience(a.audience);
+
+  // Deduplicate recipients by unique learner ID before returning
+  const recipients = [];
+  const seenRecipientIds = new Set();
+  if (Array.isArray(a.recipients) && a.recipients.length > 0) {
+    for (const r of a.recipients) {
+      const rid = r.id || r.learner_id || r.learnerId;
+      if (rid && !seenRecipientIds.has(rid)) {
+        seenRecipientIds.add(rid);
+        recipients.push({
+          id: rid,
+          name: r.fullName || r.full_name || r.name || `Learner #${rid}`,
+        });
+      } else if (!rid && (r.fullName || r.full_name || r.name)) {
+        const rname = r.fullName || r.full_name || r.name;
+        if (!seenRecipientIds.has(rname)) {
+          seenRecipientIds.add(rname);
+          recipients.push({ id: rname, name: rname });
+        }
+      }
+    }
+  } else if (a.target_learner_id) {
+    seenRecipientIds.add(a.target_learner_id);
+    recipients.push({
+      id: a.target_learner_id,
+      name: a.target_learner_name || 'Individual Learner',
+    });
+  }
 
   const normStatus = String(a.status || '').toUpperCase();
   let statusLabel = 'Published';
@@ -227,6 +262,7 @@ function formatAnnouncement(a) {
     programLevel: a.program_level ? normalizeProgramLevel(a.program_level) : null,
     targetLearnerId: a.target_learner_id,
     targetLearnerName: a.target_learner_name || null,
+    recipients,
     datePosted: dateFormatted,
     date: dateFormatted,
     createdAt: a.created_at,
@@ -379,7 +415,15 @@ router.get('/', async (req, res, next) => {
 
       sql += ` ORDER BY a.created_at DESC`;
       const rows = await prisma.$queryRawUnsafe(sql, ...params);
-      return res.json(rows.map(formatAnnouncement));
+      const seenIds = new Set();
+      const uniqueRows = [];
+      for (const r of rows) {
+        if (!seenIds.has(r.id)) {
+          seenIds.add(r.id);
+          uniqueRows.push(r);
+        }
+      }
+      return res.json(uniqueRows.map(formatAnnouncement));
     }
 
     // ----------------------------------------------------
@@ -435,7 +479,15 @@ router.get('/', async (req, res, next) => {
 
       sql += ` ORDER BY a.created_at DESC`;
       const rows = await prisma.$queryRawUnsafe(sql, ...params);
-      return res.json(rows.map(formatAnnouncement));
+      const seenIds = new Set();
+      const uniqueRows = [];
+      for (const r of rows) {
+        if (!seenIds.has(r.id)) {
+          seenIds.add(r.id);
+          uniqueRows.push(r);
+        }
+      }
+      return res.json(uniqueRows.map(formatAnnouncement));
     }
 
     // ----------------------------------------------------
@@ -464,7 +516,15 @@ router.get('/', async (req, res, next) => {
 
     sql += ` ORDER BY a.created_at DESC`;
     const rows = await prisma.$queryRawUnsafe(sql, ...params);
-    res.json(rows.map(formatAnnouncement));
+    const seenIds = new Set();
+    const uniqueRows = [];
+    for (const r of rows) {
+      if (!seenIds.has(r.id)) {
+        seenIds.add(r.id);
+        uniqueRows.push(r);
+      }
+    }
+    res.json(uniqueRows.map(formatAnnouncement));
   } catch (err) {
     next(err);
   }
@@ -807,6 +867,17 @@ router.post('/', async (req, res, next) => {
 
       if (inserted?.id && (inserted.status === 'PUBLISHED' || dbStatus === 'PUBLISHED')) {
         notifyAnnouncementPublished(inserted.id).catch((e) => console.error('[Announcements] notify error:', e));
+      }
+
+      if (resolvedTeacherId) {
+        logTeacherActivity({
+          teacherId: resolvedTeacherId,
+          type: 'ANNOUNCEMENT_CREATED',
+          activityTypeLabel: 'Created an Announcement',
+          relatedEntity: effectiveTitle,
+          description: `Created announcement "${effectiveTitle}" for ${normProgramLevel || 'All Learners'}.`,
+          linkUrl: '/dashboard/announcements'
+        });
       }
 
       return res.status(201).json(formatAnnouncement(inserted));

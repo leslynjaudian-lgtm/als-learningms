@@ -251,17 +251,9 @@
               <span class="detail-label">Municipality</span>
               <span class="detail-value">Naawan, Misamis Oriental</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Address</span>
               <span class="detail-value">{{ viewingCenter?.address || '—' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Contact Person / Head</span>
-              <span class="detail-value">{{ viewingCenter?.contact_person || viewingCenter?.contactPerson || '—' }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Contact Number</span>
-              <span class="detail-value">{{ viewingCenter?.contact_number || viewingCenter?.contactNumber || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">Status</span>
@@ -452,6 +444,12 @@ async function confirmDelete() {
 
 onMounted(async () => {
   await fetchCenters();
+  if (route.query.add === 'true' || route.query.add === '1') {
+    openAddModal();
+  }
+  if (route.query.search) {
+    searchQuery.value = String(route.query.search);
+  }
   if (route.query.view) {
     const targetId = Number(route.query.view);
     const found = centers.value.find((c) => Number(c.id) === targetId);

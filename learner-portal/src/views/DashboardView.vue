@@ -249,23 +249,50 @@ const latestAnnouncement = ref(null);
 // Module completion and progress checks (matching backend and My Modules)
 function isModuleCompleted(mod) {
   if (!mod) return false;
+  const pct = Number(mod.progress ?? 0);
   return Boolean(
     mod.completed === true ||
     mod.progressStatus === 'COMPLETED' ||
-    (mod.progress != null && Number(mod.progress) >= 100)
+    pct >= 100
   );
 }
 
 function isModuleInProgress(mod) {
   if (!mod || isModuleCompleted(mod)) return false;
-  return Boolean(
-    mod.progressStatus === 'IN_PROGRESS' ||
-    (mod.progress != null && Number(mod.progress) > 0)
+  const pct = Number(mod.progress ?? 0);
+  if (pct > 0) return true;
+
+  // If pct is 0% due to rounding, check for actual saved activity/start state
+  const hasReadingActivity = Boolean(
+    (mod.completedPages != null && Number(mod.completedPages) > 0) ||
+    (Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+    (Number(mod.highestPageReached) > 0 && Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+    mod.readingStarted === true
   );
+
+  const hasAssessmentActivity = Boolean(
+    mod.preTestScore != null ||
+    mod.postTestScore != null ||
+    mod.hasPreTestAttempt === true ||
+    (Array.isArray(mod.assessments) && mod.assessments.some((a) => Array.isArray(a.attempts) && a.attempts.length > 0))
+  );
+
+  const hasSubmissionActivity = Boolean(
+    (Array.isArray(mod.submissions) && mod.submissions.length > 0) ||
+    mod.activitySubmitted === true
+  );
+
+  return hasReadingActivity || hasAssessmentActivity || hasSubmissionActivity;
 }
 
 function getModuleActionLabel(mod) {
-  return isModuleInProgress(mod) ? 'Continue Module' : 'Open Module';
+  if (isModuleCompleted(mod)) {
+    return 'View Module';
+  }
+  if (isModuleInProgress(mod)) {
+    return 'Continue Module';
+  }
+  return 'Open Module';
 }
 
 function getModuleStrand(mod) {
@@ -287,9 +314,9 @@ const assignedModules = computed(() => {
   );
 });
 
-// New Learning Modules section shows only NEW and IN_PROGRESS modules (completed modules are excluded)
+// New Learning Modules section shows assigned modules
 const newLearningModules = computed(() => {
-  return assignedModules.value.filter((m) => !isModuleCompleted(m));
+  return assignedModules.value;
 });
 
 async function loadLearnerData() {

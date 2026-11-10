@@ -77,7 +77,7 @@
               id="session-center"
               v-model="selectedCenter"
               class="form-select"
-              @change="onSessionFieldChange"
+              @change="onCenterChange"
             >
               <option value="" disabled>Select Learning Center</option>
               <option v-for="center in centerOptions" :key="center" :value="center">
@@ -103,8 +103,9 @@
               @change="onSessionFieldChange"
             >
               <option value="" disabled>Select ALS Level</option>
-              <option value="A&E Elementary">A&E Elementary</option>
-              <option value="A&E Junior High">A&E Junior High</option>
+              <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+                {{ lvl }}
+              </option>
             </select>
             <span class="select-chevron">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -151,6 +152,7 @@
         <div class="table-toolbar">
           <div class="toolbar-title-wrap">
             <h3 class="toolbar-section-title">Learners</h3>
+            <p class="toolbar-section-desc">Check the boxes to select the learners you want to mark for attendance.</p>
           </div>
 
           <div class="toolbar-controls-wrap">
@@ -198,12 +200,27 @@
         <!-- Quick Batch Actions Toolbar Sub-Row -->
         <div class="batch-action-bar" v-if="filteredLearners.length > 0">
           <span class="batch-lbl">Quick mark:</span>
-          <button type="button" class="btn-batch-action btn-batch-present" @click="markAll('Present')">
+          <button
+            type="button"
+            class="btn-batch-action btn-batch-present"
+            :disabled="selectedCount === 0"
+            :title="selectedCount === 0 ? 'Select at least one learner first.' : 'Mark selected learners as Present'"
+            @click="markAll('Present')"
+          >
             Mark All Present
           </button>
-          <button type="button" class="btn-batch-action btn-batch-absent" @click="markAll('Absent')">
+          <button
+            type="button"
+            class="btn-batch-action btn-batch-absent"
+            :disabled="selectedCount === 0"
+            :title="selectedCount === 0 ? 'Select at least one learner first.' : 'Mark all selected learners as Absent'"
+            @click="markAll('Absent')"
+          >
             Mark All Absent
           </button>
+          <span class="batch-selected-count" :class="{ 'has-selected': selectedCount > 0 }">
+            {{ selectedCount }} selected
+          </span>
           <span class="batch-count">
             Showing <strong>{{ filteredLearners.length }}</strong> learner{{ filteredLearners.length === 1 ? '' : 's' }}
           </span>
@@ -233,7 +250,21 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 60px; text-align: center;">No.</th>
+                <th class="col-th-no" style="width: 85px;">
+                  <div class="attendance-number-cell">
+                    <input
+                      ref="selectAllCheckboxRef"
+                      type="checkbox"
+                      class="attendance-checkbox select-all-checkbox"
+                      :checked="isAllSelected"
+                      :indeterminate.prop="isIndeterminate"
+                      @change="toggleSelectAll"
+                      aria-label="Select all displayed learners"
+                      title="Select all displayed learners"
+                    />
+                    <span class="th-no-label">No.</span>
+                  </div>
+                </th>
                 <th>Learner Name</th>
                 <th style="width: 220px;">ALS Level</th>
                 <th style="width: 200px;">Learning Center</th>
@@ -244,9 +275,26 @@
               <tr
                 v-for="(learner, idx) in filteredLearners"
                 :key="learner.id"
-                :class="{ 'row-absent': learner.status === 'Absent' }"
+                :class="{
+                  'row-absent': learner.status === 'Absent',
+                  'row-selected': selectedLearnerIds.has(learner.id)
+                }"
               >
-                <td class="col-index" style="text-align: center;">{{ idx + 1 }}</td>
+                <td class="col-index col-td-no">
+                  <div class="attendance-number-cell">
+                    <input
+                      :id="`select-learner-${learner.id}`"
+                      type="checkbox"
+                      class="attendance-checkbox"
+                      :checked="selectedLearnerIds.has(learner.id)"
+                      @change="toggleSelectLearner(learner.id)"
+                      :aria-label="`Select ${learner.name}`"
+                    />
+                    <label :for="`select-learner-${learner.id}`" class="row-num-label">
+                      {{ idx + 1 }}
+                    </label>
+                  </div>
+                </td>
                 <td class="col-name">
                   <span class="learner-name-text">{{ learner.name }}</span>
                   <span v-if="learner.lrn" class="learner-lrn-sub">LRN: {{ learner.lrn }}</span>
@@ -323,13 +371,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
 import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 import { recordAttendanceBatch } from '../api/attendance.js';
 
-const { currentTeacher, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 
 function formatAlsLevel(val) {
   if (!val) return '—';
@@ -354,6 +402,11 @@ const saveSuccessMessage = ref('');
 const errorMessage = ref('');
 const learners = ref([]);
 
+// Learner Checkbox Selection State
+const selectedLearnerIds = ref(new Set());
+const selectAllCheckboxRef = ref(null);
+const selectedCount = computed(() => selectedLearnerIds.value.size);
+
 const centerOptions = computed(() => {
   if (assignedCenters.value && assignedCenters.value.length > 0) {
     return assignedCenters.value.map((c) => c.name);
@@ -372,6 +425,7 @@ const isSessionConfigured = computed(() => {
 
 // Load real assigned learners from API based on teacherId, center, and ALS level
 async function loadLearners() {
+  selectedLearnerIds.value = new Set();
   if (!isSessionConfigured.value) {
     learners.value = [];
     return;
@@ -415,7 +469,22 @@ async function loadLearners() {
   }
 }
 
+function onCenterChange() {
+  if (selectedProgramLevel.value && !assignedLevelOptions.value.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+  }
+  onSessionFieldChange();
+}
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (selectedProgramLevel.value && !newOpts.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+    onSessionFieldChange();
+  }
+}, { immediate: true });
+
 function onSessionFieldChange() {
+  selectedLearnerIds.value = new Set();
   if (isSessionConfigured.value) {
     loadLearners();
   } else {
@@ -456,6 +525,50 @@ const filteredLearners = computed(() => {
   return list;
 });
 
+// Selection computations based on filtered learners
+const displayedIds = computed(() => filteredLearners.value.map((l) => l.id));
+
+const selectedDisplayedCount = computed(() => {
+  if (displayedIds.value.length === 0) return 0;
+  return displayedIds.value.filter((id) => selectedLearnerIds.value.has(id)).length;
+});
+
+const isAllSelected = computed(() => {
+  return displayedIds.value.length > 0 && selectedDisplayedCount.value === displayedIds.value.length;
+});
+
+const isIndeterminate = computed(() => {
+  return selectedDisplayedCount.value > 0 && selectedDisplayedCount.value < displayedIds.value.length;
+});
+
+watch([isIndeterminate], () => {
+  if (selectAllCheckboxRef.value) {
+    selectAllCheckboxRef.value.indeterminate = isIndeterminate.value;
+  }
+});
+
+function toggleSelectLearner(id) {
+  const next = new Set(selectedLearnerIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  selectedLearnerIds.value = next;
+}
+
+function toggleSelectAll() {
+  const next = new Set(selectedLearnerIds.value);
+  if (isAllSelected.value) {
+    // Deselect all currently displayed learners
+    displayedIds.value.forEach((id) => next.delete(id));
+  } else {
+    // Select all currently displayed learners (preserving any selections outside current filter)
+    displayedIds.value.forEach((id) => next.add(id));
+  }
+  selectedLearnerIds.value = next;
+}
+
 const countPresent = computed(() => {
   return filteredLearners.value.filter((l) => l.status === 'Present').length;
 });
@@ -465,8 +578,11 @@ const countAbsent = computed(() => {
 });
 
 function markAll(status) {
-  filteredLearners.value.forEach((l) => {
-    l.status = status;
+  if (selectedLearnerIds.value.size === 0) return;
+  learners.value.forEach((l) => {
+    if (selectedLearnerIds.value.has(l.id)) {
+      l.status = status;
+    }
   });
 }
 
@@ -908,11 +1024,24 @@ async function saveAttendance() {
   gap: 0.85rem;
 }
 
+.toolbar-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
 .toolbar-section-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
+}
+
+.toolbar-section-desc {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.35;
 }
 
 .toolbar-controls-wrap {
@@ -1059,7 +1188,7 @@ async function saveAttendance() {
   color: #1d4ed8;
 }
 
-.btn-batch-present:hover {
+.btn-batch-present:hover:not(:disabled) {
   background: #dbeafe;
 }
 
@@ -1069,8 +1198,28 @@ async function saveAttendance() {
   color: #dc2626;
 }
 
-.btn-batch-absent:hover {
+.btn-batch-absent:hover:not(:disabled) {
   background: #fee2e2;
+}
+
+.btn-batch-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: auto;
+  box-shadow: none;
+}
+
+.batch-selected-count {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 0.35rem;
+  white-space: nowrap;
+}
+
+.batch-selected-count.has-selected {
+  color: #1e40af;
+  font-weight: 600;
 }
 
 .table-wrapper {
@@ -1108,6 +1257,71 @@ async function saveAttendance() {
 
 .row-absent {
   background-color: #fffbfb;
+}
+
+.row-selected {
+  background-color: #f8faff;
+}
+
+.row-absent.row-selected {
+  background-color: #fef5f5;
+}
+
+.col-th-no,
+.col-td-no {
+  width: 85px;
+  min-width: 85px;
+  text-align: left;
+  padding-left: 1.25rem;
+  padding-right: 0.75rem;
+}
+
+.attendance-number-cell,
+.th-checkbox-wrap,
+.row-checkbox-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  line-height: 1;
+}
+
+.attendance-number-cell input[type="checkbox"],
+.attendance-checkbox {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  flex-shrink: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+  margin: 0;
+  vertical-align: middle;
+  border-radius: 4px;
+}
+
+.attendance-number-cell span,
+.attendance-number-cell label {
+  line-height: 1;
+}
+
+.th-no-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.03em;
+  user-select: none;
+  line-height: 1;
+}
+
+.row-num-label {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1;
 }
 
 .col-index {

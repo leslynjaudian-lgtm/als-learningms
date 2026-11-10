@@ -8,6 +8,7 @@ import { calculateModuleProgress, syncLearnerModuleProgress } from '../utils/pro
 import { getLearnerPagesRead, saveLearnerPagesRead, setLearnerPagesRead, getLearnerReadingState, saveLearnerReadingState } from '../utils/readingPagesStore.js';
 import { notifyModulePublished } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const router = Router();
 
@@ -487,15 +488,35 @@ function formatModule(m, reqUser) {
     completedPages = 0;
   }
 
+  const hasReadingHistory = pagesRead.length > 0 || completedPages > 0 || (readingState && Array.isArray(readingState.pagesRead) && readingState.pagesRead.length > 0);
   const curPage = readingState?.currentPage || (completedPages > 0 ? completedPages : 1);
   const attempts = (m.assessments || []).flatMap((a) => a.attempts || []);
   const submissions = m.submissions || [];
   const progressCalc = calculateModuleProgress({
     module: m,
-    learnerProgress: progressRecord ? { ...progressRecord, completedPages, totalPages: safeTotalPages, currentPage: curPage } : (completedPages > 0 ? { completedPages, totalPages: safeTotalPages, currentPage: curPage } : null),
+    learnerProgress: progressRecord
+      ? {
+          ...progressRecord,
+          completedPages,
+          totalPages: safeTotalPages,
+          currentPage: curPage,
+          pagesRead,
+          highestPageReached: readingState?.highestPageReached || completedPages,
+          readingStarted: hasReadingHistory,
+        }
+      : (hasReadingHistory
+          ? {
+              completedPages,
+              totalPages: safeTotalPages,
+              currentPage: curPage,
+              pagesRead,
+              highestPageReached: readingState?.highestPageReached || completedPages,
+              readingStarted: true,
+            }
+          : null),
     attempts,
     submissions,
-    currentPage: curPage,
+    currentPage: hasReadingHistory ? curPage : 0,
   });
 
   const isCompleted = progressCalc.completed;
@@ -586,6 +607,7 @@ function formatModule(m, reqUser) {
     completedPages,
     totalPages: progressRecord?.totalPages || m.pagesCount || (Array.isArray(m.pages) ? m.pages.length : 0) || 0,
     pagesRead,
+    readingStarted: hasReadingHistory,
     learnerProgress: m.learnerProgress || [],
     createdAt: m.createdAt,
     publishedDate: formattedPublishedDate,
@@ -1265,6 +1287,18 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
       notifyModulePublished(completeModule.id).catch((e) => console.error('[Modules] notifyModulePublished error:', e));
     }
 
+    if (resolvedTeacherId) {
+      logTeacherActivity({
+        teacherId: resolvedTeacherId,
+        type: 'MODULE_UPLOADED',
+        activityTypeLabel: 'Uploaded a Module',
+        relatedEntity: completeModule.title,
+        description: `Uploaded learning module "${completeModule.title}" (${completeModule.code || 'LS'}) for ${completeModule.targetLevel === 'ELEMENTARY' ? 'A&E Elementary' : 'A&E Junior High'}.`,
+        moduleId: completeModule.id,
+        linkUrl: `/dashboard/modules/${completeModule.id}`
+      });
+    }
+
     res.status(201).json(formatModule(completeModule, req.user));
   } catch (err) {
     next(err);
@@ -1590,6 +1624,18 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
 
     if (updatedModule.status === 'PUBLISHED') {
       notifyModulePublished(updatedModule.id).catch((e) => console.error('[Modules] notifyModulePublished error:', e));
+    }
+
+    if (updatedModule.teacherId) {
+      logTeacherActivity({
+        teacherId: updatedModule.teacherId,
+        type: 'MODULE_UPDATED',
+        activityTypeLabel: 'Updated a Module',
+        relatedEntity: updatedModule.title,
+        description: `Updated learning module "${updatedModule.title}".`,
+        moduleId: updatedModule.id,
+        linkUrl: `/dashboard/modules/${updatedModule.id}`
+      });
     }
 
     res.json(formatModule(updatedModule, req.user));

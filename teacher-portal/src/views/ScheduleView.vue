@@ -1052,7 +1052,10 @@ onMounted(async () => {
   }, 60 * 1000);
   await loadSchedules();
 
-  if (route.query.id) {
+  if (route.query.action === 'create') {
+    openAddModal();
+    router.replace({ path: route.path, query: {} });
+  } else if (route.query.id) {
     const targetId = Number(route.query.id);
     const found = enrichedSchedules.value.find((s) => Number(s.id) === targetId);
     if (found) {

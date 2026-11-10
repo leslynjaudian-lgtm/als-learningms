@@ -482,12 +482,21 @@
                   <span class="gf-inline-feedback-title">Question Feedback</span>
                   <button
                     type="button"
-                    class="gf-feedback-collapse-btn"
-                    title="Hide feedback fields"
-                    @click="q.showFeedback = false"
+                    class="gf-feedback-save-btn"
+                    title="Save question feedback"
+                    @click="saveQuestionFeedback(q)"
                   >
-                    Hide
+                    Save
                   </button>
+                </div>
+
+                <div v-if="q.feedbackError" class="gf-feedback-error-msg" role="alert">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>{{ q.feedbackError }}</span>
                 </div>
 
                 <div class="gf-feedback-field">
@@ -505,6 +514,7 @@
                     rows="2"
                     class="gf-feedback-input"
                     placeholder="e.g. Great job! That's correct."
+                    @input="q.feedbackError = ''"
                   ></textarea>
                 </div>
 
@@ -524,6 +534,7 @@
                     rows="2"
                     class="gf-feedback-input"
                     placeholder="e.g. Review page 5 of the module for the correct explanation."
+                    @input="q.feedbackError = ''"
                   ></textarea>
                 </div>
               </div>
@@ -545,6 +556,16 @@
                     </svg>
                     <span>Add feedback answer</span>
                   </button>
+                  <span
+                    v-if="q.feedbackSavedMessage && !isFeedbackVisible(q)"
+                    class="gf-feedback-saved-badge"
+                    role="status"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>{{ q.feedbackSavedMessage }}</span>
+                  </span>
                 </div>
 
                 <div class="gf-footer-right">
@@ -774,12 +795,21 @@
                   <span class="gf-inline-feedback-title">Question Feedback</span>
                   <button
                     type="button"
-                    class="gf-feedback-collapse-btn"
-                    title="Hide feedback fields"
-                    @click="q.showFeedback = false"
+                    class="gf-feedback-save-btn"
+                    title="Save question feedback"
+                    @click="saveQuestionFeedback(q)"
                   >
-                    Hide
+                    Save
                   </button>
+                </div>
+
+                <div v-if="q.feedbackError" class="gf-feedback-error-msg" role="alert">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>{{ q.feedbackError }}</span>
                 </div>
 
                 <div class="gf-feedback-field">
@@ -797,6 +827,7 @@
                     rows="2"
                     class="gf-feedback-input"
                     placeholder="e.g. Great job! That's correct."
+                    @input="q.feedbackError = ''"
                   ></textarea>
                 </div>
 
@@ -816,6 +847,7 @@
                     rows="2"
                     class="gf-feedback-input"
                     placeholder="e.g. Review page 5 of the module for the correct explanation."
+                    @input="q.feedbackError = ''"
                   ></textarea>
                 </div>
               </div>
@@ -837,6 +869,16 @@
                     </svg>
                     <span>Add feedback answer</span>
                   </button>
+                  <span
+                    v-if="q.feedbackSavedMessage && !isFeedbackVisible(q)"
+                    class="gf-feedback-saved-badge"
+                    role="status"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>{{ q.feedbackSavedMessage }}</span>
+                  </span>
                 </div>
 
                 <div class="gf-footer-right">
@@ -1120,17 +1162,70 @@ function createBlankQuestion() {
     correctAnswer: null,
     correctFeedback: '',
     incorrectFeedback: '',
+    savedCorrectFeedback: '',
+    savedIncorrectFeedback: '',
     showFeedback: false,
+    feedbackError: '',
+    feedbackSavedMessage: '',
   };
 }
 
 function isFeedbackVisible(q) {
-  if (q.showFeedback !== undefined) return !!q.showFeedback;
-  return !!(q.correctFeedback?.trim() || q.incorrectFeedback?.trim());
+  return Boolean(q && q.showFeedback);
 }
 
 function toggleQuestionFeedback(q) {
-  q.showFeedback = !isFeedbackVisible(q);
+  if (!q) return;
+  q.feedbackError = '';
+  q.feedbackSavedMessage = '';
+  if (!isFeedbackVisible(q)) {
+    if (q.savedCorrectFeedback !== undefined && !q.correctFeedback) {
+      q.correctFeedback = q.savedCorrectFeedback;
+    }
+    if (q.savedIncorrectFeedback !== undefined && !q.incorrectFeedback) {
+      q.incorrectFeedback = q.savedIncorrectFeedback;
+    }
+    q.showFeedback = true;
+  } else {
+    q.showFeedback = true;
+  }
+}
+
+function saveQuestionFeedback(q) {
+  if (!q || typeof q !== 'object') return false;
+  q.feedbackError = '';
+  q.feedbackSavedMessage = '';
+
+  try {
+    const correctTxt = String(q.correctFeedback ?? '').trim();
+    const incorrectTxt = String(q.incorrectFeedback ?? '').trim();
+
+    if (!correctTxt && !incorrectTxt) {
+      q.feedbackError = 'Please enter Correct Answer Feedback or Incorrect Answer Feedback before saving.';
+      q.showFeedback = true;
+      return false;
+    }
+
+    q.correctFeedback = correctTxt;
+    q.incorrectFeedback = incorrectTxt;
+    q.savedCorrectFeedback = correctTxt;
+    q.savedIncorrectFeedback = incorrectTxt;
+    q.showFeedback = false;
+    q.feedbackSavedMessage = 'Feedback saved.';
+
+    setTimeout(() => {
+      if (q && q.feedbackSavedMessage === 'Feedback saved.') {
+        q.feedbackSavedMessage = '';
+      }
+    }, 4000);
+
+    return true;
+  } catch (err) {
+    console.error('Failed to save question feedback:', err);
+    q.feedbackError = 'Unable to save question feedback. Please try again.';
+    q.showFeedback = true;
+    return false;
+  }
 }
 
 const wizardSteps = [
@@ -1833,6 +1928,8 @@ function duplicatePreTestQuestions() {
   const copied = sourceQuestions.map((q) => {
     questionUidCounter += 1;
     const choices = Array.isArray(q.choices) && q.choices.length > 0 ? [...q.choices] : [''];
+    const cFb = q.correctFeedback ? String(q.correctFeedback) : '';
+    const iFb = q.incorrectFeedback ? String(q.incorrectFeedback) : '';
     return {
       uid: `q-${questionUidCounter}-${Date.now()}`,
       id: null,
@@ -1840,9 +1937,13 @@ function duplicatePreTestQuestions() {
       choices: choices,
       optionIds: choices.map(() => null),
       correctAnswer: q.correctAnswer !== null && q.correctAnswer !== undefined ? q.correctAnswer : null,
-      correctFeedback: q.correctFeedback ? String(q.correctFeedback) : '',
-      incorrectFeedback: q.incorrectFeedback ? String(q.incorrectFeedback) : '',
-      showFeedback: !!(q.showFeedback || q.correctFeedback?.trim() || q.incorrectFeedback?.trim()),
+      correctFeedback: cFb,
+      incorrectFeedback: iFb,
+      savedCorrectFeedback: cFb,
+      savedIncorrectFeedback: iFb,
+      showFeedback: false,
+      feedbackError: '',
+      feedbackSavedMessage: '',
     };
   });
 
@@ -2086,7 +2187,21 @@ onMounted(async () => {
   window.addEventListener('keydown', handleGlobalDropdownKeydown);
   await loadModules();
   await loadTeacherLearners();
+  if (route.query.action === 'create') {
+    startModuleCreation();
+    router.replace({ path: route.path, query: {} });
+  }
 });
+
+watch(
+  () => route.query.action,
+  (actionVal) => {
+    if (actionVal === 'create') {
+      startModuleCreation();
+      router.replace({ path: route.path, query: {} });
+    }
+  }
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateAssignDropdownPosition);
@@ -3064,22 +3179,49 @@ onBeforeUnmount(() => {
   color: #64748b;
 }
 
-.gf-feedback-collapse-btn {
-  padding: 0.15rem 0.5rem;
-  font-size: 0.725rem;
+.gf-feedback-save-btn {
+  padding: 0.28rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #64748b;
-  background: transparent;
-  border: none;
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #2563eb;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: inherit;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  line-height: 1.2;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.gf-feedback-collapse-btn:hover {
-  background: #e2e8f0;
-  color: #334155;
+.gf-feedback-save-btn:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.gf-feedback-error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.gf-feedback-saved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
 }
 
 .gf-feedback-field {

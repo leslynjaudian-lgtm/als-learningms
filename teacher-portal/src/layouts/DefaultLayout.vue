@@ -39,22 +39,7 @@
           <span class="nav-label">Dashboard</span>
         </router-link>
 
-        <!-- 2. My Learners -->
-        <router-link
-          to="/dashboard/learners"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learners' }"
-          @click="handleNavClick('learners')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-          </span>
-          <span class="nav-label">My Learners</span>
-        </router-link>
-
-        <!-- 3. Learning Centers -->
+        <!-- 2. Learning Centers -->
         <router-link
           to="/dashboard/learning-centers"
           class="nav-link"
@@ -67,6 +52,21 @@
             </svg>
           </span>
           <span class="nav-label">Learning Centers</span>
+        </router-link>
+
+        <!-- 3. My Learners -->
+        <router-link
+          to="/dashboard/learners"
+          class="nav-link"
+          :class="{ active: activeMenu === 'learners' }"
+          @click="handleNavClick('learners')"
+        >
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+          </span>
+          <span class="nav-label">My Learners</span>
         </router-link>
 
         <!-- 4. Modules (Dropdown: A&E Elementary & A&E Junior High based on assigned levels) -->
@@ -231,7 +231,10 @@
           <button
             type="button"
             class="nav-link nav-dropdown-btn"
-            :class="{ active: activeMenu === 'reports', expanded: expandedMenu === 'reports' }"
+            :class="{
+              active: activeMenu === 'reports',
+              expanded: expandedMenu === 'reports'
+            }"
             @click="handleParentClick('reports')"
             aria-haspopup="true"
             :aria-expanded="expandedMenu === 'reports'"
@@ -610,25 +613,27 @@ function getExpandedFromPath(pathname) {
   return null;
 }
 
-const activeMenu = ref(getMenuFromPath(route.path) || 'dashboard');
+const activeMenu = computed(() => {
+  if (expandedMenu.value) {
+    return expandedMenu.value;
+  }
+  return getMenuFromPath(route.path) || 'dashboard';
+});
 const expandedMenu = ref(getExpandedFromPath(route.path));
 
 // Non-expandable direct router link click handler
 function handleNavClick(menu) {
-  activeMenu.value = menu;
   expandedMenu.value = null;
   sidebarOpen.value = false;
 }
 
-// Expandable parent menu click handler: updates activeMenu and toggles expandedMenu independently
+// Expandable parent menu click handler: updates expandedMenu independently without overriding route-based active state
 function handleParentClick(menu) {
-  activeMenu.value = menu;
   expandedMenu.value = expandedMenu.value === menu ? null : menu;
 }
 
 // Child sublink click handler
 function handleSublinkClick(parentMenu, levelSlug = null) {
-  activeMenu.value = parentMenu;
   expandedMenu.value = parentMenu;
   if (parentMenu === 'modules' && levelSlug) {
     setActiveModuleLevel(levelSlug);
@@ -721,9 +726,6 @@ async function syncModuleLevelForRoute(currentPath) {
 }
 
 function isModuleLevelActive(slug) {
-  if (activeMenu.value !== 'modules') {
-    return false;
-  }
   if (!route.path.startsWith('/dashboard/modules') && !route.path.startsWith('/teacher/modules')) {
     return false;
   }
@@ -772,17 +774,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('als-notifications-updated', handleWindowFocus);
 });
 
-// Route watcher: synchronizes activeMenu, expandedMenu, and active module ALS level on route navigation
+// Route watcher: synchronizes expandedMenu and active module ALS level on route navigation
 watch(
-  () => route.fullPath,
-  () => {
-    const newPath = route.path;
+  () => route.path,
+  (newPath) => {
     notifPanelOpen.value = false;
     fetchNotifications();
-    const routeMenu = getMenuFromPath(newPath);
-    if (routeMenu) {
-      activeMenu.value = routeMenu;
-    }
 
     if (newPath.startsWith('/dashboard/attendance')) {
       expandedMenu.value = 'attendance';
@@ -1309,17 +1306,17 @@ function confirmSignout() {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.65rem;
   margin-top: 0.25rem;
-  margin-left: 0.85rem;
+  margin-left: 0.65rem;
   border-left: 2px solid rgba(255, 255, 255, 0.14);
 }
 
 .nav-sublink {
   display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
-  padding: 0.5rem 0.65rem;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
   color: #94a3b8;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -1329,34 +1326,37 @@ function confirmSignout() {
   transition: all var(--transition-fast);
 }
 
-.nav-sublink:hover {
+.nav-sublink:hover:not(.active) {
   background: var(--color-sidebar-hover);
   color: #ffffff;
 }
 
 .nav-sublink.active {
-  background: rgba(37, 99, 235, 0.3);
-  color: #ffffff;
+  background: #193B70 !important;
+  color: #ffffff !important;
   font-weight: 600;
+  box-shadow: none;
+}
+
+.nav-sublink.active:hover {
+  background: #193B70 !important;
+  color: #ffffff !important;
 }
 
 .sublink-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #64748b;
-  flex-shrink: 0;
+  background: currentColor;
+  opacity: 0.7;
   margin-top: 0.325rem;
-  transition: all var(--transition-fast);
-}
-
-.nav-sublink:hover .sublink-dot {
-  background: #93c5fd;
+  flex-shrink: 0;
 }
 
 .nav-sublink.active .sublink-dot {
-  background: #60a5fa;
-  box-shadow: 0 0 6px #60a5fa;
+  background: #ffffff;
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
 }
 
 .sublink-label {
@@ -1365,6 +1365,8 @@ function confirmSignout() {
   text-overflow: clip;
   line-height: 1.35;
   word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
   flex: 1;
 }
 

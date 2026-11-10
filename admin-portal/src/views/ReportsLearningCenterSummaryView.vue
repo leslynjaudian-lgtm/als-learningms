@@ -359,17 +359,136 @@ const filteredAvgAttendanceRate = computed(() => {
 
 <style scoped>
 .lc-summary-view {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  padding-bottom: 3rem;
+}
+
+/* Stats Cards (Single Horizontal Row) */
+.report-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 1.5rem; /* 24px consistent gap to filter bar */
+}
+
+@media (max-width: 1024px) {
+  .report-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .report-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.report-summary-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.report-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.stat-icon-blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.stat-icon-green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.stat-icon-purple {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+
+.stat-icon-amber {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.report-card-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #64748b);
+  margin-bottom: 0.25rem;
+}
+
+.report-card-value {
+  font-size: 1.625rem;
+  font-weight: 800;
+  color: var(--color-text, #0f172a);
+  line-height: 1.2;
+  margin-bottom: 0.25rem;
+}
+
+.report-card-desc {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #94a3b8);
+  margin-top: auto;
+}
+
+/* Search and Status Filter (One Row, Left-aligned, Balanced) */
+.report-filter-bar {
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem 1.25rem; /* 16-20px internal padding */
+  margin-bottom: 1.5rem; /* 24px consistent gap to table section */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.report-filter-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px; /* 12-16px horizontal spacing */
+  flex-wrap: wrap;
+}
+
+.filter-field-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.filter-field-col label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
 }
 
 .filter-field-search {
-  flex: 1 1 280px;
+  flex: 0 0 320px;
+  width: 320px;
   min-width: 220px;
   max-width: 380px;
 }
@@ -379,6 +498,70 @@ const filteredAvgAttendanceRate = computed(() => {
   width: 170px;
 }
 
+.filter-field-col input,
+.filter-field-col select {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 0.85rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-field-col select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 12px 8px;
+}
+
+.filter-field-col input:focus,
+.filter-field-col select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+.filter-actions .btn {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.filter-actions .btn:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
 /* Community Learning Centers Breakdown Section */
 .breakdown-card {
   background: #ffffff;
@@ -386,10 +569,11 @@ const filteredAvgAttendanceRate = computed(() => {
   border-radius: var(--radius-xl, 12px);
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-top: 0;
 }
 
 .breakdown-header {
-  padding: 1.35rem 1.5rem 1.25rem 1.5rem; /* Consistent 24px left and right padding */
+  padding: 1.25rem 1.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -412,7 +596,7 @@ const filteredAvgAttendanceRate = computed(() => {
 .breakdown-subtitle {
   font-size: 0.8125rem;
   color: var(--color-text-muted, #64748b);
-  margin: 8px 0 0 0; /* Exactly 8px between section title and description */
+  margin: 4px 0 0 0;
 }
 
 .breakdown-table {

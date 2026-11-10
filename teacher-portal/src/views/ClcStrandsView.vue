@@ -215,8 +215,9 @@
               <div class="field-item">
                 <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
                 <select v-model="newModule.level" class="field-select-box" required>
-                  <option value="A&E Elementary">A&amp;E Elementary</option>
-                  <option value="A&E Junior High">A&amp;E Junior High</option>
+                  <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+                    {{ lvl }}
+                  </option>
                 </select>
               </div>
 
@@ -567,7 +568,13 @@ import { useClcData } from '../composables/useClcData.js';
 
 const route = useRoute();
 const router = useRouter();
-const { assignedCenters, teacherName, assignedProgramLevel } = useTeacherSession();
+const { assignedCenters, teacherName, assignedProgramLevel, assignedLevelOptions } = useTeacherSession();
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (!newModule.level || !newOpts.includes(newModule.level)) {
+    newModule.level = newOpts[0] || '';
+  }
+}, { immediate: true });
 
 // Selected Learning Center resolution
 const selectedCenterObj = computed(() => {

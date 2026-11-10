@@ -41,7 +41,7 @@
           class="btn-primary results-primary-btn"
           @click="$emit('proceed')"
         >
-          <span>Proceed to Read Module</span>
+          <span>{{ proceedButtonLabel }}</span>
           <svg
             width="18"
             height="18"
@@ -157,11 +157,8 @@
               <!-- Option circle and text -->
               <div class="review-opt-content">
                 <div class="review-opt-circle">
-                  <span v-if="!isUserOption(q, opt) && !isCorrectOption(q, opt)">
-                    {{ opt.letter || (typeof opt.id === 'string' && opt.id.length === 1 ? opt.id : String.fromCharCode(65 + optIdx)) }}
-                  </span>
                   <svg
-                    v-else-if="isCorrectOption(q, opt)"
+                    v-if="isCorrectOption(q, opt)"
                     width="14"
                     height="14"
                     viewBox="0 0 24 24"
@@ -209,7 +206,7 @@
           class="btn-primary results-primary-btn"
           @click="$emit('proceed')"
         >
-          <span>Proceed to Read Module</span>
+          <span>{{ proceedButtonLabel }}</span>
           <svg
             width="18"
             height="18"
@@ -230,10 +227,16 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+
 const props = defineProps({
   testType: {
     type: String,
     default: 'preTest', // 'preTest' | 'postTest'
+  },
+  proceedLabel: {
+    type: String,
+    default: '',
   },
   score: {
     type: Number,
@@ -262,6 +265,18 @@ const props = defineProps({
 });
 
 defineEmits(['proceed']);
+
+const isPostTest = computed(() => {
+  const t = (props.testType || '').toLowerCase().trim();
+  return t === 'posttest' || t === 'post_test' || t === 'post-test' || t === 'post';
+});
+
+const proceedButtonLabel = computed(() => {
+  if (props.proceedLabel && props.proceedLabel.trim()) {
+    return props.proceedLabel.trim();
+  }
+  return isPostTest.value ? 'Proceed to Submit Activity' : 'Proceed to Read Module';
+});
 
 function getUserAnswer(q) {
   if (!props.answers || !q) return null;
@@ -673,15 +688,25 @@ function resolveFeedback(q) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.725rem;
-  font-weight: 800;
-  color: #475569;
   flex-shrink: 0;
   margin-top: 2px;
+  box-sizing: border-box;
+}
+
+.review-opt-item.chosen-correct .review-opt-circle,
+.review-opt-item.is-correct-target .review-opt-circle {
+  background: #dcfce7;
+  border-color: #16a34a;
+}
+
+.review-opt-item.chosen-wrong .review-opt-circle {
+  background: #fee2e2;
+  border-color: #dc2626;
 }
 
 .review-opt-text {

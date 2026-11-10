@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
@@ -59,9 +60,9 @@ function formatLearner(l) {
     id: l.id,
     userId: l.userId,
     username: l.user?.username || '',
-    firstName: l.firstName && l.firstName !== 'null' ? l.firstName : '',
-    middleName: l.middleName && l.middleName !== 'null' ? l.middleName : '',
-    lastName: l.lastName && l.lastName !== 'null' ? l.lastName : '',
+    firstName: l.firstName && l.firstName !== 'null' && l.firstName !== 'undefined' ? l.firstName.trim() : '',
+    middleName: l.middleName && l.middleName !== 'null' && l.middleName !== 'undefined' ? l.middleName.trim() : '',
+    lastName: l.lastName && l.lastName !== 'null' && l.lastName !== 'undefined' ? l.lastName.trim() : '',
     name: formattedName,
     fullName: formattedName,
     lrn: l.lrn || '',
@@ -401,6 +402,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
   try {
     const { teacherId, learningCenterId, level } = req.query;
     const where = {};
+    let teacherSpecialization = null;
 
     // 1. Role Scoping:
     // If authenticated as TEACHER, enforce that teacher ONLY sees their assigned learners!
@@ -416,6 +418,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
         }
       }
       const teacherProfile = req.user.teacherProfile;
+      teacherSpecialization = teacherProfile?.specialization || 'Both';
       const teacherCenterId = teacherProfile?.learningCenterId;
 
       where.OR = [
@@ -439,11 +442,12 @@ router.get('/', optionalAuth, async (req, res, next) => {
         where: {
           OR: [{ id: tid }, { userId: tid }],
         },
-        select: { id: true, learningCenterId: true },
+        select: { id: true, specialization: true, learningCenterId: true },
       });
       if (!resolvedTeacher) {
         return res.json([]);
       }
+      teacherSpecialization = resolvedTeacher.specialization || 'Both';
       where.OR = [{ assignedTeacherId: resolvedTeacher.id }];
       if (resolvedTeacher.learningCenterId) {
         where.OR.push({
@@ -456,7 +460,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
     }
 
     const centerFilter = learningCenterId || req.query.learningCenter || req.query.learningCenterName;
-    if (centerFilter) {
+    if (centerFilter && centerFilter !== 'All' && centerFilter !== 'All Learning Centers') {
       const trimmedCenter = String(centerFilter).trim();
       if (/^\d+$/.test(trimmedCenter)) {
         where.learningCenterId = parseInt(trimmedCenter, 10);
@@ -465,11 +469,34 @@ router.get('/', optionalAuth, async (req, res, next) => {
       }
     }
 
-    if (level) {
+    if (level && level !== 'All' && level !== 'All ALS Levels' && level !== 'All Program Levels') {
       const lvlUpper = String(level).toUpperCase();
       if (lvlUpper === 'ELEMENTARY' || lvlUpper === 'A&E ELEMENTARY' || lvlUpper.includes('ELEM')) {
         where.level = 'ELEMENTARY';
       } else if (lvlUpper === 'JUNIOR' || lvlUpper === 'A&E JUNIOR' || lvlUpper === 'A&E JUNIOR HIGH' || lvlUpper.includes('JUN') || lvlUpper.includes('SEC')) {
+        where.level = 'JUNIOR';
+      }
+    }
+
+    // Role-based ALS Level authorization enforcement for teachers
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json([]);
+      }
+
+      if (allowsElem && !allowsJhs) {
+        if (where.level && where.level !== 'ELEMENTARY') {
+          return res.json([]);
+        }
+        where.level = 'ELEMENTARY';
+      } else if (allowsJhs && !allowsElem) {
+        if (where.level && where.level !== 'JUNIOR') {
+          return res.json([]);
+        }
         where.level = 'JUNIOR';
       }
     }
@@ -505,7 +532,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
     res.json(learners.map(formatLearner));
   } catch (err) {
-    next(err);
+    console.error('Error fetching learners in GET /api/learners:', err);
+    res.status(500).json({ error: 'Failed to retrieve learners. Please try again.' });
   }
 });
 
@@ -698,7 +726,8 @@ router.post('/', optionalAuth, async (req, res, next) => {
       finalUsername = finalUsername.slice(0, 100);
     }
 
-    const rawPassword = customPassword && customPassword.trim() ? customPassword.trim() : (trimmedLrn || fullName);
+    // Use customPassword if provided; otherwise generate a secure random password (learners log in passwordlessly via full name)
+    const rawPassword = customPassword && customPassword.trim() ? customPassword.trim() : crypto.randomUUID();
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(rawPassword, salt);
 

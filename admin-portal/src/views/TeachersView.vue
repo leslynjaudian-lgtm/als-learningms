@@ -256,7 +256,7 @@
                 <label class="field-label">Assigned ALS Level <span class="required">*</span></label>
                 <div class="select-wrapper">
                   <select v-model="teacherForm.programLevel" class="field-select" required>
-                    <option value="Both">Both (A&E Elementary & Junior High)</option>
+                    <option value="Both">Both (A&E Elementary & A&E Junior High)</option>
                     <option value="A&E Elementary">A&E Elementary</option>
                     <option value="A&E Junior High">A&E Junior High</option>
                   </select>
@@ -763,6 +763,9 @@ async function handleRegisterTeacher() {
 const route = useRoute();
 
 function applyTeacherRouteQuery() {
+  if (route.query.add === 'true' || route.query.add === '1') {
+    openAddModal();
+  }
   if (route.query.search) {
     searchQuery.value = String(route.query.search);
   }
@@ -777,7 +780,7 @@ function applyTeacherRouteQuery() {
 }
 
 watch(
-  () => [route.query.search, route.query.view],
+  () => [route.query.add, route.query.search, route.query.view],
   () => {
     applyTeacherRouteQuery();
   }

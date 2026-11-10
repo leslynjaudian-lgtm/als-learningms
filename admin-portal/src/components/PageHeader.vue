@@ -146,6 +146,7 @@ defineProps({
   gap: 1.25rem;
   flex-wrap: wrap;
   width: 100%;
+  margin-bottom: 0;
 }
 
 .page-title-group {

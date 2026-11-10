@@ -132,14 +132,33 @@ export function useTeacherSession() {
     return currentTeacher.value?.programLevel || currentTeacher.value?.specialization || 'Both';
   });
 
-  // Dynamically format assigned ALS levels for Modules dropdown & navigation
-  const assignedLevels = computed(() => {
-    const raw = String(assignedProgramLevel.value || 'Both').toLowerCase().trim();
+  // Dynamically format authorized ALS level string options (e.g. ['A&E Elementary', 'A&E Junior High'])
+  const assignedLevelOptions = computed(() => {
+    const raw = String(assignedProgramLevel.value || '').toLowerCase().trim();
+    if (!raw) return [];
     const hasElem = raw.includes('elem') || raw.includes('both');
     const hasJhs = raw.includes('junior') || raw.includes('jhs') || raw.includes('sec') || raw.includes('both');
+    const opts = [];
+    if (hasElem) {
+      opts.push('A&E Elementary');
+    }
+    if (hasJhs) {
+      opts.push('A&E Junior High');
+    }
+    return opts;
+  });
+
+  // Options list for filter dropdowns that support "All ALS Levels"
+  const filterLevelOptions = computed(() => {
+    return ['All ALS Levels', ...assignedLevelOptions.value];
+  });
+
+  // Dynamically format assigned ALS levels for Modules dropdown & navigation
+  const assignedLevels = computed(() => {
+    const opts = assignedLevelOptions.value;
     const levels = [];
 
-    if (hasElem) {
+    if (opts.includes('A&E Elementary')) {
       levels.push({
         label: 'A&E Elementary',
         slug: 'elementary',
@@ -149,7 +168,7 @@ export function useTeacherSession() {
       });
     }
 
-    if (hasJhs) {
+    if (opts.includes('A&E Junior High')) {
       levels.push({
         label: 'A&E Junior High',
         slug: 'junior-high',
@@ -159,15 +178,19 @@ export function useTeacherSession() {
       });
     }
 
-    if (levels.length === 0) {
-      return [
-        { label: 'A&E Elementary', slug: 'elementary', levelKey: 'ELEMENTARY', name: 'A&E Elementary', path: '/dashboard/modules/elementary' },
-        { label: 'A&E Junior High', slug: 'junior-high', levelKey: 'JUNIOR', name: 'A&E Junior High', path: '/dashboard/modules/junior-high' },
-      ];
-    }
-
     return levels;
   });
+
+  function isLevelAuthorized(level) {
+    if (!level || level === 'All' || level === 'All ALS Levels') return true;
+    const str = String(level).toLowerCase().trim();
+    const isElem = str.includes('elem');
+    const isJhs = str.includes('junior') || str.includes('jhs') || str.includes('sec');
+    const opts = assignedLevelOptions.value;
+    if (isElem && !opts.includes('A&E Elementary')) return false;
+    if (isJhs && !opts.includes('A&E Junior High')) return false;
+    return true;
+  }
 
   // Dynamically format assigned learning centers list for sidebar & navigation
   const assignedCenters = computed(() => {
@@ -311,6 +334,9 @@ export function useTeacherSession() {
     userId,
     assignedProgramLevel,
     assignedLevels,
+    assignedLevelOptions,
+    filterLevelOptions,
+    isLevelAuthorized,
     assignedCenters,
     activeModuleLevelSlug,
     normalizeModuleLevelSlug,

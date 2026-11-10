@@ -57,6 +57,12 @@
           <h1 class="subpage-title-text">
             {{ isPreTestResultsView ? 'Pre-Test Results' : isPostTestResultsView ? 'Post-Test Results' : getSubpageTitle(currentStep) }}
           </h1>
+          <p
+            v-if="(currentStep === 1 && !isPreTestResultsView && preTestQuestions.length > 0) || (currentStep === 3 && !isPostTestResultsView && postTestQuestions.length > 0)"
+            class="subpage-instruction-text"
+          >
+            Read each question carefully. Tap the circle beside your chosen answer, then tap 'Submit Answer' to continue.
+          </p>
         </div>
       </div>
 
@@ -135,7 +141,7 @@
 
                 <div class="card-title-group">
                   <span class="card-step-label">Step 1</span>
-                  <h3 class="card-activity-title">Pre-Test</h3>
+                  <h3 class="card-activity-title">Pre-Test (Let's See What You Already Know)</h3>
                 </div>
 
                 <div class="card-status-col">
@@ -313,7 +319,7 @@
 
                 <div class="card-title-group">
                   <span class="card-step-label">Step 3</span>
-                  <h3 class="card-activity-title">Post-Test</h3>
+                  <h3 class="card-activity-title">Post-Test (What Have You Learned?)</h3>
                 </div>
 
                 <div class="card-status-col">
@@ -518,25 +524,40 @@
               type="button"
               class="option-item"
               :class="{
-                selected: selectedPreAnswer === opt.id,
+                selected: isOptionSelectedPre(opt.id),
                 correct: isPreSubmitted && opt.id === currentPreQ.correctAnswer,
-                incorrect: isPreSubmitted && selectedPreAnswer === opt.id && opt.id !== currentPreQ.correctAnswer,
+                incorrect: isPreSubmitted && isOptionSelectedPre(opt.id) && opt.id !== currentPreQ.correctAnswer,
                 locked: isPreSubmitted
               }"
               :disabled="isPreSubmitted"
               @click="onSelectPreAnswer(opt.id)"
             >
-              <div class="opt-letter-circle">
-                <span v-if="!isPreSubmitted || (opt.id !== currentPreQ.correctAnswer && selectedPreAnswer !== opt.id)">
-                  {{ opt.letter || opt.id }}
-                </span>
-                <svg v-else-if="opt.id === currentPreQ.correctAnswer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <svg v-else-if="selectedPreAnswer === opt.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+              <div
+                class="opt-choice-indicator opt-letter-circle"
+                :class="isCheckboxQuestion(currentPreQ) ? 'is-checkbox' : 'is-radio'"
+              >
+                <!-- Pre-Test Submitted Feedback States -->
+                <template v-if="isPreSubmitted">
+                  <svg v-if="opt.id === currentPreQ.correctAnswer" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <svg v-else-if="isOptionSelectedPre(opt.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </template>
+
+                <!-- Checkbox Question: Selected Checkmark -->
+                <template v-else-if="isCheckboxQuestion(currentPreQ)">
+                  <svg v-if="isOptionSelectedPre(opt.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </template>
+
+                <!-- Radio Question: Blue Filled Center Dot when selected, Empty when unselected -->
+                <template v-else>
+                  <span v-if="isOptionSelectedPre(opt.id)" class="radio-inner-dot"></span>
+                </template>
               </div>
               <span class="opt-text">{{ opt.text }}</span>
             </button>
@@ -570,7 +591,7 @@
             v-if="!isPreSubmitted"
             type="button"
             class="btn-primary action-btn"
-            :disabled="!selectedPreAnswer"
+            :disabled="hasNoPreAnswer"
             @click="submitPreAnswer"
           >
             Submit Answer
@@ -686,12 +707,25 @@
               type="button"
               class="option-item"
               :class="{
-                selected: selectedPostAnswer === opt.id
+                selected: isOptionSelectedPost(opt.id)
               }"
               @click="onSelectPostAnswer(opt.id)"
             >
-              <div class="opt-letter-circle">
-                <span>{{ opt.letter || opt.id }}</span>
+              <div
+                class="opt-choice-indicator opt-letter-circle"
+                :class="isCheckboxQuestion(currentPostQ) ? 'is-checkbox' : 'is-radio'"
+              >
+                <!-- Checkbox Question: Selected Checkmark -->
+                <template v-if="isCheckboxQuestion(currentPostQ)">
+                  <svg v-if="isOptionSelectedPost(opt.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </template>
+
+                <!-- Radio Question: Blue Filled Center Dot when selected, Empty when unselected -->
+                <template v-else>
+                  <span v-if="isOptionSelectedPost(opt.id)" class="radio-inner-dot"></span>
+                </template>
               </div>
               <span class="opt-text">{{ opt.text }}</span>
             </button>
@@ -703,7 +737,7 @@
           <button
             type="button"
             class="btn-primary action-btn"
-            :disabled="!selectedPostAnswer"
+            :disabled="hasNoPostAnswer"
             @click="submitPostAnswer"
           >
             <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : 'Submit Post-Test' }}</span>
@@ -724,7 +758,7 @@
           :questions="postTestQuestions"
           :answers="progress.postTestAnswers"
           :get-feedback="getQuestionFeedback"
-          @proceed="proceedToModuleReader"
+          @proceed="proceedToActivitySubmission"
         />
       </template>
     </div>
@@ -1209,10 +1243,12 @@ function getChoiceLetter(idx) {
 }
 
 function normalizeQuestion(q, index) {
+  const isCheckbox = q.questionType === 'CHECKBOX' || q.type === 'CHECKBOX' || q.isMultipleSelect === true;
   if (q.options && q.options[0]?.text && q.correctAnswer !== undefined) {
     return {
       id: q.id,
       question: q.question || q.questionText,
+      questionType: isCheckbox ? 'CHECKBOX' : (q.questionType || 'MULTIPLE_CHOICE'),
       options: q.options.map((opt, oIdx) => ({
         id: opt.id,
         letter: opt.letter || (typeof opt.id === 'string' && opt.id.length === 1 ? opt.id : getChoiceLetter(oIdx)),
@@ -1234,6 +1270,7 @@ function normalizeQuestion(q, index) {
   return {
     id: q.id,
     question: q.questionText || q.prompt || `Question ${index + 1}`,
+    questionType: isCheckbox ? 'CHECKBOX' : (q.questionType || 'MULTIPLE_CHOICE'),
     options: opts.map((o, oIdx) => ({
       id: o.id,
       letter: getChoiceLetter(oIdx),
@@ -1390,9 +1427,9 @@ const currentActiveStep = computed(() => {
 });
 
 function getSubpageTitle(step) {
-  if (step === 1) return 'Pre-Test';
+  if (step === 1) return "Pre-Test (Let's See What You Already Know)";
   if (step === 2) return 'Read the Module';
-  if (step === 3) return 'Post-Test';
+  if (step === 3) return "Post-Test (What Have You Learned?)";
   if (step === 4) return 'Submit Your Activity';
   return '';
 }
@@ -1678,9 +1715,9 @@ function cancelRemoveFile() {
 }
 
 const steps = [
-  { step: 1, label: 'Pre-Test' },
+  { step: 1, label: "Pre-Test (Let's See What You Already Know)" },
   { step: 2, label: 'Learning Module' },
-  { step: 3, label: 'Post-Test' },
+  { step: 3, label: "Post-Test (What Have You Learned?)" },
   { step: 4, label: 'Submit Your Activity' }
 ];
 
@@ -1695,11 +1732,61 @@ const postTestQuestions = computed(() => {
   return rawPostQuestions.value.map((q, idx) => normalizeQuestion(q, idx));
 });
 
+function isCheckboxQuestion(q) {
+  if (!q) return false;
+  const t = String(q.questionType || q.type || '').toUpperCase();
+  return t === 'CHECKBOX' || t === 'MULTIPLE_SELECT' || q.isMultipleSelect === true;
+}
+
+function isOptionSelectedPre(optId) {
+  if (Array.isArray(selectedPreAnswer.value)) {
+    return selectedPreAnswer.value.includes(optId);
+  }
+  return selectedPreAnswer.value === optId;
+}
+
+function isOptionSelectedPost(optId) {
+  if (Array.isArray(selectedPostAnswer.value)) {
+    return selectedPostAnswer.value.includes(optId);
+  }
+  return selectedPostAnswer.value === optId;
+}
+
 const currentPreQ = computed(() => preTestQuestions.value[currentPreQIndex.value] || preTestQuestions.value[0] || {});
-const isPreAnswerCorrect = computed(() => selectedPreAnswer.value === currentPreQ.value.correctAnswer);
+
+const hasNoPreAnswer = computed(() => {
+  if (Array.isArray(selectedPreAnswer.value)) {
+    return selectedPreAnswer.value.length === 0;
+  }
+  return !selectedPreAnswer.value;
+});
+
+const isPreAnswerCorrect = computed(() => {
+  if (isCheckboxQuestion(currentPreQ.value)) {
+    const userAns = Array.isArray(selectedPreAnswer.value) ? [...selectedPreAnswer.value].map(String).sort() : [String(selectedPreAnswer.value)];
+    const correctAns = Array.isArray(currentPreQ.value.correctAnswer) ? [...currentPreQ.value.correctAnswer].map(String).sort() : [String(currentPreQ.value.correctAnswer)];
+    return userAns.length === correctAns.length && userAns.every((val, i) => val === correctAns[i]);
+  }
+  return selectedPreAnswer.value === currentPreQ.value.correctAnswer;
+});
 
 const currentPostQ = computed(() => postTestQuestions.value[currentPostQIndex.value] || postTestQuestions.value[0] || {});
-const isPostAnswerCorrect = computed(() => selectedPostAnswer.value === currentPostQ.value.correctAnswer);
+
+const hasNoPostAnswer = computed(() => {
+  if (Array.isArray(selectedPostAnswer.value)) {
+    return selectedPostAnswer.value.length === 0;
+  }
+  return !selectedPostAnswer.value;
+});
+
+const isPostAnswerCorrect = computed(() => {
+  if (isCheckboxQuestion(currentPostQ.value)) {
+    const userAns = Array.isArray(selectedPostAnswer.value) ? [...selectedPostAnswer.value].map(String).sort() : [String(selectedPostAnswer.value)];
+    const correctAns = Array.isArray(currentPostQ.value.correctAnswer) ? [...currentPostQ.value.correctAnswer].map(String).sort() : [String(currentPostQ.value.correctAnswer)];
+    return userAns.length === correctAns.length && userAns.every((val, i) => val === correctAns[i]);
+  }
+  return selectedPostAnswer.value === currentPostQ.value.correctAnswer;
+});
 
 // Dynamic Module Metadata
 const moduleTitle = computed(() => {
@@ -1854,11 +1941,24 @@ function onStepClick(stepNum) {
 // ==========================================
 function onSelectPreAnswer(optId) {
   if (isPreSubmitted.value) return;
-  selectedPreAnswer.value = optId;
+  if (isCheckboxQuestion(currentPreQ.value)) {
+    const list = Array.isArray(selectedPreAnswer.value)
+      ? [...selectedPreAnswer.value]
+      : (selectedPreAnswer.value ? [selectedPreAnswer.value] : []);
+    const idx = list.indexOf(optId);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+    } else {
+      list.push(optId);
+    }
+    selectedPreAnswer.value = list;
+  } else {
+    selectedPreAnswer.value = optId;
+  }
 }
 
 function submitPreAnswer() {
-  if (!selectedPreAnswer.value) return;
+  if (hasNoPreAnswer.value) return;
   isPreSubmitted.value = true;
 
   // Record answer locally
@@ -2055,11 +2155,24 @@ function reopenPdfViewer() {
 // POST-TEST LOGIC
 // ==========================================
 function onSelectPostAnswer(optId) {
-  selectedPostAnswer.value = optId;
+  if (isCheckboxQuestion(currentPostQ.value)) {
+    const list = Array.isArray(selectedPostAnswer.value)
+      ? [...selectedPostAnswer.value]
+      : (selectedPostAnswer.value ? [selectedPostAnswer.value] : []);
+    const idx = list.indexOf(optId);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+    } else {
+      list.push(optId);
+    }
+    selectedPostAnswer.value = list;
+  } else {
+    selectedPostAnswer.value = optId;
+  }
 }
 
 async function submitPostAnswer() {
-  if (!selectedPostAnswer.value) return;
+  if (hasNoPostAnswer.value) return;
 
   // Record answer locally without revealing correct answer or feedback before Post-Test submission
   progress.value.postTestAnswers[currentPostQ.value.id] = selectedPostAnswer.value;
@@ -2109,6 +2222,7 @@ function proceedToActivitySubmission() {
   currentStep.value = 4;
   progress.value.currentStep = 4;
   saveProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ==========================================
@@ -2989,6 +3103,17 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
+.subpage-instruction-text {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0.25rem 0 0 0;
+  text-align: left;
+  font-weight: 400;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
 /* Card Content */
 .step-content-card {
   background: #ffffff;
@@ -3120,33 +3245,59 @@ onUnmounted(() => {
   background: #fef2f2;
 }
 
+.opt-choice-indicator,
 .opt-letter-circle {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 2px solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 800;
   flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
+.opt-choice-indicator.is-checkbox {
+  border-radius: 6px;
+}
+
+.option-item:hover:not(:disabled) .opt-choice-indicator,
+.option-item:hover:not(:disabled) .opt-letter-circle {
+  border-color: #94a3b8;
+}
+
+.option-item.selected .opt-choice-indicator,
 .option-item.selected .opt-letter-circle {
+  border-color: #165dfc;
+  background: #ffffff;
+}
+
+.option-item.selected .opt-choice-indicator.is-checkbox {
   background: #165dfc;
   border-color: #165dfc;
   color: #ffffff;
 }
 
+.radio-inner-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #165dfc;
+  display: block;
+  flex-shrink: 0;
+}
+
+.option-item.correct .opt-choice-indicator,
 .option-item.correct .opt-letter-circle {
   background: #16a34a;
   border-color: #16a34a;
   color: #ffffff;
 }
 
+.option-item.incorrect .opt-choice-indicator,
 .option-item.incorrect .opt-letter-circle {
   background: #ef4444;
   border-color: #ef4444;
@@ -4416,7 +4567,7 @@ onUnmounted(() => {
 /* Top Row: Icon, Title Group, Status */
 .card-top-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
   width: 100%;
 }
@@ -4433,6 +4584,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   background: #f1f5f9;
   color: #64748b;
+  margin-top: 1px;
 }
 
 .card-icon-badge.badge-active {
@@ -4454,9 +4606,9 @@ onUnmounted(() => {
 .card-title-group {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.15rem;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   margin-right: 0.5rem;
 }
 
@@ -4474,12 +4626,16 @@ onUnmounted(() => {
   font-weight: 800;
   color: #0f172a;
   margin: 0;
-  line-height: 1.25;
+  line-height: 1.3;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .card-status-col {
   margin-left: auto;
   flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 .card-status-pill {
@@ -5073,14 +5229,25 @@ onUnmounted(() => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.725rem;
-  font-weight: 800;
   flex-shrink: 0;
   margin-top: 2px;
+  box-sizing: border-box;
+}
+
+.review-opt-item.chosen-correct .review-opt-circle,
+.review-opt-item.is-correct-target .review-opt-circle {
+  background: #dcfce7;
+  border-color: #16a34a;
+}
+
+.review-opt-item.chosen-wrong .review-opt-circle {
+  background: #fee2e2;
+  border-color: #dc2626;
 }
 
 .review-opt-text {
@@ -5208,6 +5375,11 @@ onUnmounted(() => {
   .module-main-title,
   .subpage-title-text {
     font-size: 1.15rem;
+  }
+
+  .subpage-instruction-text {
+    font-size: 0.8125rem;
+    line-height: 1.45;
   }
 
   .learning-activities-section {
@@ -5369,22 +5541,34 @@ onUnmounted(() => {
   }
 
   .card-top-row {
-    gap: 0.45rem;
+    gap: 0.5rem;
+    align-items: flex-start;
   }
 
   .card-icon-badge {
     width: 28px;
     height: 28px;
     font-size: 0.75rem;
+    margin-top: 1px;
+  }
+
+  .card-title-group {
+    margin-right: 0.35rem;
   }
 
   .card-activity-title {
     font-size: 0.875rem;
+    line-height: 1.3;
+  }
+
+  .card-status-col {
+    margin-top: 1px;
   }
 
   .card-status-pill {
     font-size: 0.65rem;
     padding: 0.18rem 0.45rem;
+    white-space: nowrap;
   }
 
   .card-description {

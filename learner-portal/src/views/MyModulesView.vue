@@ -156,19 +156,24 @@
 
           <!-- Title, Instructions, Strand, Code & Status -->
           <div class="card-content-wrap">
-            <h3 class="card-module-title">{{ mod.title }}</h3>
-            <p v-if="getModuleInstructions(mod)" class="card-module-instructions">
-              {{ getModuleInstructions(mod) }}
-            </p>
-            <div class="card-module-strand">{{ getModuleStrandName(mod) }}</div>
+            <div class="card-upper-info">
+              <h3 class="card-module-title">{{ mod.title }}</h3>
+              <p v-if="getModuleInstructions(mod)" class="card-module-instructions">
+                {{ getModuleInstructions(mod) }}
+              </p>
+            </div>
 
-            <div class="card-pills-row">
-              <span v-if="getModuleBadgeCode(mod)" class="pill-code-badge">
-                {{ getModuleBadgeCode(mod) }}
-              </span>
-              <span class="pill-status-badge" :class="getStatusClass(mod)">
-                {{ getProgressStatusLabel(mod) }}
-              </span>
+            <div class="card-bottom-info">
+              <div class="card-module-strand">{{ getModuleStrandName(mod) }}</div>
+
+              <div class="card-pills-row">
+                <span v-if="getModuleBadgeCode(mod)" class="pill-code-badge">
+                  {{ getModuleBadgeCode(mod) }}
+                </span>
+                <span class="pill-status-badge" :class="getStatusClass(mod)">
+                  {{ getProgressStatusLabel(mod) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -379,11 +384,39 @@ function getModuleBadgeCode(mod) {
 // Check if a module is completed by the learner
 function isModuleCompleted(mod) {
   if (!mod || typeof mod !== 'object') return false;
+  const pct = Number(mod.progress ?? 0);
   return Boolean(
-    mod.completed ||
+    mod.completed === true ||
     mod.progressStatus === 'COMPLETED' ||
-    (mod.progress != null && Number(mod.progress) >= 100)
+    pct >= 100
   );
+}
+
+function isModuleInProgress(mod) {
+  if (!mod || isModuleCompleted(mod)) return false;
+  const pct = Number(mod.progress ?? 0);
+  if (pct > 0) return true;
+
+  const hasReadingActivity = Boolean(
+    (mod.completedPages != null && Number(mod.completedPages) > 0) ||
+    (Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+    (Number(mod.highestPageReached) > 0 && Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+    mod.readingStarted === true
+  );
+
+  const hasAssessmentActivity = Boolean(
+    mod.preTestScore != null ||
+    mod.postTestScore != null ||
+    mod.hasPreTestAttempt === true ||
+    (Array.isArray(mod.assessments) && mod.assessments.some((a) => Array.isArray(a.attempts) && a.attempts.length > 0))
+  );
+
+  const hasSubmissionActivity = Boolean(
+    (Array.isArray(mod.submissions) && mod.submissions.length > 0) ||
+    mod.activitySubmitted === true
+  );
+
+  return hasReadingActivity || hasAssessmentActivity || hasSubmissionActivity;
 }
 
 // Resolves the definitive learning strand key for a given module (e.g. 'LS1-ENG', 'LS1-FIL', 'LS2-SCI', etc.)
@@ -490,7 +523,7 @@ function getProgressStatusLabel(mod) {
   if (isModuleCompleted(mod)) {
     return 'Completed';
   }
-  if ((mod.progress || 0) > 0 || mod.progressStatus === 'IN_PROGRESS') {
+  if (isModuleInProgress(mod)) {
     return 'In Progress';
   }
   return 'Not Started';
@@ -1037,7 +1070,7 @@ onUnmounted(() => {
 
 .card-left-section {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0.85rem;
   min-width: 0;
   flex: 1;
@@ -1059,9 +1092,16 @@ onUnmounted(() => {
 .card-content-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
   min-width: 0;
   flex: 1;
+  min-height: 110px;
+}
+
+.card-upper-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .card-module-title {
@@ -1070,8 +1110,13 @@ onUnmounted(() => {
   color: #0f172a;
   line-height: 1.3;
   margin: 0;
-  white-space: normal;
-  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 
 .card-module-instructions {
@@ -1080,8 +1125,22 @@ onUnmounted(() => {
   color: #475569;
   line-height: 1.45;
   margin: 0;
-  white-space: normal;
-  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+
+.card-bottom-info {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding-top: 0.35rem;
 }
 
 .card-module-strand {
@@ -1089,6 +1148,12 @@ onUnmounted(() => {
   font-weight: 600;
   color: #64748b;
   line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-pills-row {
@@ -1096,7 +1161,6 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 0.2rem;
 }
 
 .pill-code-badge {
@@ -1171,11 +1235,15 @@ onUnmounted(() => {
 }
 
 @media (max-width: 480px) {
+  .card-content-wrap {
+    min-height: 94px;
+  }
   .card-module-title {
     font-size: 0.9rem;
   }
   .card-module-instructions {
     font-size: 0.775rem;
+    line-height: 1.35;
   }
   .card-module-strand {
     font-size: 0.75rem;

@@ -30,9 +30,9 @@
     </ReportsPageHeader>
 
     <!-- Filters Section (2-Row Structured Layout) -->
-    <div class="filters-card no-print">
-      <!-- Row 1: Dropdown filters (Learning Center, ALS Level, Learner Name) -->
-      <div class="filters-dropdowns-row">
+    <div class="filter-card filters-card no-print print-hidden">
+      <!-- Row 1: Balanced 3-Column Grid (Center, Level, Learner) -->
+      <div class="filter-dropdowns-row filters-dropdowns-row">
         <!-- 1. Learning Center Dropdown -->
         <div class="filter-field">
           <label class="filter-label">Learning Center</label>
@@ -43,6 +43,9 @@
                 {{ center }}
               </option>
             </select>
+            <span class="select-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
           </div>
         </div>
 
@@ -56,6 +59,9 @@
                 {{ lvl }}
               </option>
             </select>
+            <span class="select-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
           </div>
         </div>
 
@@ -69,63 +75,83 @@
                 {{ learner.name }}
               </option>
             </select>
+            <span class="select-chevron">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Row 2: Date Filters side-by-side & Actions -->
-      <div class="filters-bottom-row">
-        <div class="filters-dates-group">
+      <!-- Row 2: Date Filters & Action Buttons -->
+      <div class="filter-row-secondary filters-bottom-row">
+        <div class="filter-row-secondary-left filters-dates-group">
           <!-- 4. From Date -->
-          <div class="filter-field col-date">
+          <div class="filter-field filter-col-date col-date">
             <label class="filter-label">From Date</label>
             <input
               v-model="fromDate"
               type="date"
               class="filter-date-input"
               aria-label="From Date"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''"
             />
           </div>
 
           <!-- 5. To Date -->
-          <div class="filter-field col-date">
+          <div class="filter-field filter-col-date col-date">
             <label class="filter-label">To Date</label>
             <input
               v-model="toDate"
               type="date"
               class="filter-date-input"
               aria-label="To Date"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''"
             />
+          </div>
+
+          <!-- Reset Filters Button (Beside To Date) -->
+          <div class="filter-btn-col filter-col-reset">
+            <button
+              type="button"
+              class="btn-reset-filter btn-reset-filters"
+              @click="resetFilters"
+              title="Reset Filters"
+            >
+              Reset Filters
+            </button>
           </div>
         </div>
 
-        <div class="filter-actions-group">
-          <button
-            type="button"
-            class="btn-reset-filters"
-            @click="resetFilters"
-          >
-            Reset Filters
-          </button>
-          <button
-            type="button"
-            class="btn-generate-report"
-            @click="handleGenerateReport"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            <span>Generate Report</span>
-          </button>
+        <div class="filter-row-secondary-right filter-actions-group">
+          <!-- Generate Report Button (Aligned to far right) -->
+          <div class="filter-btn-col filter-col-generate">
+            <button
+              type="button"
+              class="btn-generate-report"
+              :disabled="loadingReport"
+              @click="handleGenerateReport"
+            >
+              <span v-if="loadingReport" class="btn-spinner-white"></span>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span>{{ loadingReport ? 'Generating...' : 'Generate Report' }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Date Validation Error -->
       <div v-if="dateError" class="filter-error-text">
-        {{ dateError }}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ dateError }}</span>
       </div>
     </div>
 
@@ -173,61 +199,59 @@
         </header>
 
         <!-- Attendance Summary Table Matching Attached Template -->
-        <div class="attendance-table-container">
-          <table class="summary-attendance-table">
+        <div class="attendance-table-container table-responsive-wrapper">
+          <table class="summary-attendance-table als-report-table">
             <thead>
               <tr class="header-main-row">
                 <th rowspan="2" class="col-no">No.</th>
-                <th rowspan="2" class="col-learner-name">
-                  <div class="header-name-wrap">
-                    <span class="main-title">Learner’s Name</span>
-                    <span class="sub-title">(Last Name, First Name, Middle Name)</span>
-                  </div>
+                <th rowspan="2" class="col-name col-learner-name">
+                  Learner’s Name<br />
+                  <span class="sub-header-label">(Last Name, First Name, Middle Name)</span>
                 </th>
-                <th rowspan="2" class="col-learning-center">Learning Center</th>
-                <th rowspan="2" class="col-program-level">ALS Level</th>
+                <th rowspan="2" class="col-center col-learning-center">Learning Center</th>
+                <th rowspan="2" class="col-level col-program-level">ALS Level</th>
                 <th colspan="2" class="col-attendance-summary">Attendance Summary</th>
-                <th rowspan="2" class="col-attendance-rate">Attendance Rate<br>(%)</th>
+                <th rowspan="2" class="col-rate col-attendance-rate">Attendance Rate<br>(%)</th>
                 <th rowspan="2" class="col-actions print-hidden">Actions</th>
               </tr>
               <tr class="header-sub-row">
-                <th class="col-present">Present</th>
-                <th class="col-absent">Absent</th>
+                <th class="col-sub col-present">Present</th>
+                <th class="col-sub col-absent">Absent</th>
               </tr>
             </thead>
 
             <!-- BLANK TEMPLATE PREVIEW BODY (Before Generate Report) -->
             <tbody v-if="!reportGenerated">
               <!-- Male Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Male</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Male</td>
               </tr>
               <!-- Blank rows for Male -->
-              <tr v-for="n in 5" :key="'blank-male-' + n" class="empty-line-row">
-                <td class="cell-no">&nbsp;</td>
+              <tr v-for="n in 5" :key="'blank-male-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no">&nbsp;</td>
                 <td class="cell-name">&nbsp;</td>
                 <td class="cell-center">&nbsp;</td>
-                <td class="cell-level">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-rate">&nbsp;</td>
-                <td class="cell-actions print-hidden">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
               </tr>
 
               <!-- Female Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Female</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Female</td>
               </tr>
               <!-- Blank rows for Female -->
-              <tr v-for="n in 5" :key="'blank-female-' + n" class="empty-line-row">
-                <td class="cell-no">&nbsp;</td>
+              <tr v-for="n in 5" :key="'blank-female-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no">&nbsp;</td>
                 <td class="cell-name">&nbsp;</td>
                 <td class="cell-center">&nbsp;</td>
-                <td class="cell-level">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-rate">&nbsp;</td>
-                <td class="cell-actions print-hidden">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
               </tr>
             </tbody>
 
@@ -246,23 +270,23 @@
               </tr>
 
               <!-- Male Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Male</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Male</td>
               </tr>
 
               <!-- Male Learners Rows -->
               <tr v-for="(item, idx) in maleLearners" :key="'male-' + (item.learnerId || idx)" class="data-row">
-                <td class="cell-no">{{ idx + 1 }}.</td>
+                <td class="cell-center cell-no">{{ idx + 1 }}.</td>
                 <td class="cell-name">
                   <div class="learner-name-cell">
                     <button
                       type="button"
-                      class="btn-learner-person-icon no-print"
+                      class="person-icon-btn btn-learner-person-icon no-print"
                       title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                         <circle cx="12" cy="7" r="4"/>
                       </svg>
@@ -271,16 +295,16 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
-                <td class="cell-stat">{{ item.present }}</td>
-                <td class="cell-stat">{{ item.absent }}</td>
-                <td class="cell-rate">
+                <td class="cell-center cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
+                <td class="cell-center cell-stat">{{ item.present }}</td>
+                <td class="cell-center cell-stat">{{ item.absent }}</td>
+                <td class="cell-center cell-rate">
                   <div class="rate-stack">
                     <span class="rate-percentage">{{ item.attendanceRate }}%</span>
                     <span class="rate-sessions">(out of {{ item.totalSessions }} {{ item.totalSessions === 1 ? 'session' : 'sessions' }})</span>
                   </div>
                 </td>
-                <td class="cell-actions print-hidden">
+                <td class="cell-center cell-actions print-hidden">
                   <button
                     type="button"
                     class="btn-view-details no-print"
@@ -292,35 +316,35 @@
               </tr>
 
               <!-- Empty Male Grid Lines (Matching Attached Official Form) -->
-              <tr v-for="n in emptyMaleRowsCount" :key="'empty-male-' + n" class="empty-line-row">
-                <td class="cell-no"></td>
+              <tr v-for="n in emptyMaleRowsCount" :key="'empty-male-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no"></td>
                 <td class="cell-name"></td>
                 <td class="cell-center"></td>
-                <td class="cell-level"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-rate"></td>
-                <td class="cell-actions print-hidden"></td>
+                <td class="cell-center cell-level"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-rate"></td>
+                <td class="cell-center cell-actions print-hidden"></td>
               </tr>
 
               <!-- Female Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Female</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Female</td>
               </tr>
 
               <!-- Female Learners Rows -->
               <tr v-for="(item, idx) in femaleLearners" :key="'female-' + (item.learnerId || idx)" class="data-row">
-                <td class="cell-no">{{ idx + 1 }}.</td>
+                <td class="cell-center cell-no">{{ idx + 1 }}.</td>
                 <td class="cell-name">
                   <div class="learner-name-cell">
                     <button
                       type="button"
-                      class="btn-learner-person-icon no-print"
+                      class="person-icon-btn btn-learner-person-icon no-print"
                       title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                         <circle cx="12" cy="7" r="4"/>
                       </svg>
@@ -329,16 +353,16 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
-                <td class="cell-stat">{{ item.present }}</td>
-                <td class="cell-stat">{{ item.absent }}</td>
-                <td class="cell-rate">
+                <td class="cell-center cell-level table-cell-als-level">{{ formatLearnerLevel(item.programLevel) }}</td>
+                <td class="cell-center cell-stat">{{ item.present }}</td>
+                <td class="cell-center cell-stat">{{ item.absent }}</td>
+                <td class="cell-center cell-rate">
                   <div class="rate-stack">
                     <span class="rate-percentage">{{ item.attendanceRate }}%</span>
                     <span class="rate-sessions">(out of {{ item.totalSessions }} {{ item.totalSessions === 1 ? 'session' : 'sessions' }})</span>
                   </div>
                 </td>
-                <td class="cell-actions print-hidden">
+                <td class="cell-center cell-actions print-hidden">
                   <button
                     type="button"
                     class="btn-view-details no-print"
@@ -350,15 +374,15 @@
               </tr>
 
               <!-- Empty Female Grid Lines (Matching Attached Official Form) -->
-              <tr v-for="n in emptyFemaleRowsCount" :key="'empty-female-' + n" class="empty-line-row">
-                <td class="cell-no"></td>
+              <tr v-for="n in emptyFemaleRowsCount" :key="'empty-female-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no"></td>
                 <td class="cell-name"></td>
                 <td class="cell-center"></td>
-                <td class="cell-level"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-rate"></td>
-                <td class="cell-actions print-hidden"></td>
+                <td class="cell-center cell-level"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-rate"></td>
+                <td class="cell-center cell-actions print-hidden"></td>
               </tr>
             </tbody>
           </table>
@@ -420,26 +444,24 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Remarks</th>
+                <th style="width: 50%;">Date</th>
+                <th style="width: 50%;">Status</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="log in selectedLearnerForDetails.logs" :key="log.id || log.date">
-                <td class="font-mono text-sm">{{ log.date || log.sessionDate || '—' }}</td>
-                <td>
+                <td class="font-mono text-sm" style="width: 50%;">{{ log.date || log.sessionDate || '—' }}</td>
+                <td style="width: 50%;">
                   <span
                     class="badge"
-                    :class="log.status === 'PRESENT' || log.status === 'Present' ? 'badge-green' : 'badge-amber'"
+                    :class="getStatusBadgeClass(log.status)"
                   >
-                    {{ log.status }}
+                    {{ formatStatusLabel(log.status) }}
                   </span>
                 </td>
-                <td class="text-sm">{{ log.remarks || '—' }}</td>
               </tr>
               <tr v-if="!selectedLearnerForDetails.logs || selectedLearnerForDetails.logs.length === 0">
-                <td colspan="3" class="text-center text-muted" style="padding: 1.5rem;">No session records found.</td>
+                <td colspan="2" class="text-center text-muted" style="padding: 1.5rem;">No session records found.</td>
               </tr>
             </tbody>
           </table>
@@ -474,8 +496,16 @@
           </div>
           <div v-else-if="viewingLearner" class="details-grid">
             <div class="detail-item">
-              <span class="detail-label">Full Name</span>
-              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.name || viewingLearner?.fullName }}</span>
+              <span class="detail-label">Last Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.lastName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">First Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.firstName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Middle Name</span>
+              <span class="detail-value">{{ viewingLearner?.middleName || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">LRN</span>
@@ -513,11 +543,11 @@
               <span class="detail-label">Contact Number</span>
               <span class="detail-value">{{ viewingLearner?.contactNumber || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Address</span>
-              <span class="detail-value">{{ viewingLearner?.address || '—' }}</span>
+              <span class="detail-value" style="overflow-wrap: anywhere; word-break: break-word;">{{ viewingLearner?.address || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Date Registered</span>
               <span class="detail-value">{{ viewingLearner?.dateRegistered || '—' }}</span>
             </div>
@@ -538,7 +568,7 @@ import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners, getLearner } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/attendance.js';
 
-const { currentTeacher, teacherName, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherName, teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 const reportContentRef = ref(null);
 
 const reportGenerated = ref(false);
@@ -610,6 +640,23 @@ function getLearnerGender(l) {
   return 'Male';
 }
 
+function formatStatusLabel(statusVal) {
+  if (!statusVal) return '—';
+  const s = String(statusVal).trim().toUpperCase();
+  if (s === 'ABSENT') return 'Absent';
+  if (s === 'LATE') return 'Late';
+  if (s === 'EXCUSED') return 'Excused';
+  if (s === 'PRESENT') return 'Present';
+  return statusVal.charAt(0).toUpperCase() + statusVal.slice(1).toLowerCase();
+}
+
+function getStatusBadgeClass(statusVal) {
+  const s = String(statusVal || '').trim().toUpperCase();
+  if (s === 'ABSENT' || s === 'LATE') return 'badge-amber';
+  if (s === 'EXCUSED') return 'badge-muted';
+  return 'badge-green';
+}
+
 // Available Learning Centers (Only assigned to current teacher)
 const centerOptions = computed(() => {
   const set = new Set();
@@ -629,17 +676,39 @@ const centerOptions = computed(() => {
   return Array.from(set).sort();
 });
 
-// ALS Levels applicable to assigned learners
+// ALS Levels applicable to assigned learners, strictly scoped by teacher's assigned levels
 const levelOptions = computed(() => {
+  const teacherLevels = assignedLevelOptions.value;
+  if (teacherLevels.length === 0) return [];
+
   const set = new Set();
-  assignedLearners.value.forEach((l) => {
+  const relevantLearners = selectedCenter.value
+    ? assignedLearners.value.filter((l) => (l.learningCenter || l.learningCenterDetails?.name) === selectedCenter.value)
+    : assignedLearners.value;
+
+  relevantLearners.forEach((l) => {
     if (l.level) set.add(formatLearnerLevel(l.level));
   });
+
   if (set.size === 0) {
-    set.add('A&E Elementary');
-    set.add('A&E Junior High');
+    return teacherLevels;
   }
-  return Array.from(set).sort();
+
+  const filtered = teacherLevels.filter((lvl) => set.has(lvl));
+  return filtered.length > 0 ? filtered : teacherLevels;
+});
+
+// When learning center changes or level options change, clear invalid selected level
+watch(selectedCenter, () => {
+  if (selectedProgramLevel.value && !levelOptions.value.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+  }
+});
+
+watch(levelOptions, (newOpts) => {
+  if (selectedProgramLevel.value && !newOpts.includes(selectedProgramLevel.value)) {
+    selectedProgramLevel.value = '';
+  }
 });
 
 // Learners assigned to this teacher (filtered by chosen center & level)
@@ -794,6 +863,9 @@ const summaryRows = computed(() => {
       learnerId: learner.id,
       learnerObj: learner.raw || learner,
       learnerName: learner.name,
+      firstName: learner.firstName || learner.raw?.firstName || '',
+      middleName: learner.middleName || learner.raw?.middleName || '',
+      lastName: learner.lastName || learner.raw?.lastName || '',
       lrn: learner.lrn,
       gender: learner.gender,
       programLevel: learner.level,
@@ -897,6 +969,9 @@ async function openLearnerInfoModal(learner) {
 
   viewingLearner.value = {
     ...learner,
+    firstName: learner.firstName || learner.raw?.firstName || learner.learnerObj?.firstName || '',
+    middleName: learner.middleName || learner.raw?.middleName || learner.learnerObj?.middleName || '',
+    lastName: learner.lastName || learner.raw?.lastName || learner.learnerObj?.lastName || '',
     name: formatLearnerFullName(learner),
     fullName: formatLearnerFullName(learner),
     level: learner.level || learner.programLevel,
@@ -918,6 +993,9 @@ async function openLearnerInfoModal(learner) {
         viewingLearner.value = {
           ...viewingLearner.value,
           ...data,
+          firstName: data.firstName || viewingLearner.value.firstName || '',
+          middleName: data.middleName != null && data.middleName !== 'null' && data.middleName !== 'undefined' ? data.middleName : (viewingLearner.value.middleName || ''),
+          lastName: data.lastName || viewingLearner.value.lastName || '',
           name: formatLearnerFullName(data),
           fullName: formatLearnerFullName(data),
           level: data.level || viewingLearner.value.level,
@@ -1046,59 +1124,89 @@ function printReportDirectly() {
 }
 
 /* Filters Card (2-Row Structured Layout) */
-.filters-card {
+.filters-card,
+.filter-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.25rem 1.25rem 1.15rem;
-  margin-bottom: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 1.35rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 11px;
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
 }
 
+/* Row 1: Balanced 3-column grid for Center, Level, Learner starting from the left */
+.filter-dropdowns-row,
 .filters-dropdowns-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 14px;
   width: 100%;
+  box-sizing: border-box;
 }
 
+/* Row 2: Date Filters & Action Buttons, no divider or separator, 10-12px from Row 1 */
+.filter-row-secondary,
 .filters-bottom-row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding-top: 0.25rem;
-  border-top: 1px solid #f1f5f9;
+  width: 100%;
+  gap: 14px;
+  box-sizing: border-box;
+  padding-top: 0;
+  border-top: none;
 }
 
+.filter-row-secondary-left,
 .filters-dates-group {
   display: flex;
   align-items: flex-end;
-  gap: 0.85rem;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
+.filter-row-secondary-right,
+.filter-actions-group {
+  display: flex;
+  align-items: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.filter-col-date,
 .col-date {
-  width: 165px;
-  min-width: 150px;
-  flex: none;
+  flex: 0 0 160px;
+  width: 160px;
+  min-width: 140px;
+  box-sizing: border-box;
+}
+
+.filter-btn-col {
+  display: flex;
+  align-items: flex-end;
 }
 
 .filter-error-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   color: #dc2626;
   font-size: 0.8125rem;
   font-weight: 500;
-  margin-top: -0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #fee2e2;
 }
 
 .filter-field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.375rem;
 }
 
 .filter-label {
@@ -1118,8 +1226,7 @@ function printReportDirectly() {
 .filter-date-input {
   width: 100%;
   height: 42px;
-  min-height: 42px;
-  background: #ffffff;
+  background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0 0.85rem;
@@ -1127,89 +1234,114 @@ function printReportDirectly() {
   color: #0f172a;
   outline: none;
   box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.filter-select {
-  padding-right: 2rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 12px 8px;
-  cursor: pointer;
 }
 
 .filter-select:focus,
 .filter-date-input:focus {
   border-color: #2563eb;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.filter-actions-group {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
-}
-
-.btn-reset-filters {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0 1rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.filter-select:disabled {
+  background-color: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.filter-select:disabled ~ .select-chevron {
+  color: #cbd5e1;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 0.85rem;
+  pointer-events: none;
+  color: #64748b;
+}
+
+/* Reset Filters Button */
+.btn-reset-filter,
+.btn-reset-filters {
   height: 42px;
-  min-height: 42px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 
+.btn-reset-filter:hover,
 .btn-reset-filters:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background-color: #f8fafc;
   border-color: #94a3b8;
+  color: #0f172a;
 }
 
+/* Generate Report Button */
 .btn-generate-report {
   height: 42px;
-  min-height: 42px;
-  padding: 0 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  border-radius: 8px;
-  background-color: #2563eb;
-  color: #ffffff;
-  border: 1px solid #2563eb;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  background-color: #1d4ed8;
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0 1.35rem;
+  border-radius: 8px;
   cursor: pointer;
-  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(29, 78, 216, 0.2);
+  transition: all 0.15s ease;
   box-sizing: border-box;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  white-space: nowrap;
 }
 
-.btn-generate-report:hover {
-  background-color: #1d4ed8;
-  border-color: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+.btn-generate-report:hover:not(:disabled) {
+  background-color: #1e40af;
+  border-color: #1e40af;
+  box-shadow: 0 4px 6px rgba(29, 78, 216, 0.3);
+}
+
+.btn-generate-report:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-spinner-white {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* Official Report Paper Sheet */
 .attendance-report-sheet {
   background: #ffffff;
-  padding: 2.25rem 2.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2rem 2.25rem 2.5rem 2.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   max-width: 100%;
   margin: 0 auto 1.5rem;
+  position: relative;
 }
 
 .report-official-header {
@@ -1217,47 +1349,61 @@ function printReportDirectly() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.5rem;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
 }
 
 .header-logo {
-  width: 65px;
-  height: 65px;
+  flex: 0 0 70px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
 
-.als-district-logo,
+.left-logo-box {
+  justify-content: flex-start;
+}
+
+.right-logo-box {
+  justify-content: flex-end;
+}
+
+.als-district-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
 .als-logo-image {
-  max-width: 100%;
-  max-height: 100%;
+  height: 40px;
+  width: auto;
   object-fit: contain;
 }
 
 .header-title-box {
-  text-align: center;
   flex: 1;
+  text-align: center;
+  padding: 0 1rem;
 }
 
 .official-title {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #000000;
   margin: 0;
   text-transform: none;
   letter-spacing: -0.01em;
+  line-height: 1.35;
 }
 
 /* Table Container & Borders */
-.attendance-table-container {
+.attendance-table-container,
+.table-responsive-wrapper {
   width: 100%;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-.summary-attendance-table {
+.summary-attendance-table,
+.als-report-table {
   width: 100%;
   border-collapse: collapse;
   font-family: inherit;
@@ -1267,60 +1413,59 @@ function printReportDirectly() {
 }
 
 .summary-attendance-table th,
-.summary-attendance-table td {
+.summary-attendance-table td,
+.als-report-table th,
+.als-report-table td {
   border: 1px solid #000000;
-  padding: 5px 8px;
+  padding: 6px 8px;
   vertical-align: middle;
 }
 
-.data-row td,
-.empty-line-row td {
-  height: 34px;
-  box-sizing: border-box;
-}
-
-.col-actions {
-  width: 125px;
-  min-width: 125px;
-  text-align: center;
-  vertical-align: middle;
-}
-
-.summary-attendance-table thead th {
+.summary-attendance-table thead tr th,
+.summary-attendance-table thead th,
+.als-report-table thead tr th {
   background-color: #ffffff;
   font-weight: 700;
   color: #000000;
   text-align: center;
+  vertical-align: middle;
   line-height: 1.25;
 }
 
-.header-name-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.header-name-wrap .main-title {
-  font-weight: 700;
-}
-
+.sub-header-label,
 .header-name-wrap .sub-title {
+  display: block;
   font-size: 0.725rem;
-  font-weight: 400;
+  font-weight: 500;
+  color: #333333;
 }
 
-.section-divider-row {
-  background-color: #ffffff;
-}
-
+/* Male and Female Grouping (Gray Section Headers) */
+.gender-section-header td,
+.section-divider-row td,
 .section-divider-cell {
-  font-weight: 700;
-  font-size: 0.875rem;
-  color: #000000;
-  padding: 0.45rem 0.6rem !important;
-  text-align: left;
-  border-top: 1.5px solid #000000 !important;
-  border-bottom: 1px solid #000000 !important;
+  background-color: #f3f4f6 !important; /* Gray header matching Module Progress */
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  padding: 6px 12px !important;
+  text-align: left !important;
+  border: 1px solid #000000 !important;
+}
+
+.blank-row td,
+.empty-line-row td {
+  height: 28px;
+  border: 1px solid #000000;
+  background: #ffffff;
+  padding: 6px 8px;
+}
+
+.data-row td {
+  vertical-align: middle;
+  background-color: #ffffff;
+  padding: 6px 8px;
+  border: 1px solid #000000;
 }
 
 .data-row:hover {
@@ -1329,47 +1474,13 @@ function printReportDirectly() {
 
 .cell-no {
   text-align: center;
-  width: 45px;
+  width: 42px;
   font-weight: 500;
 }
 
 .cell-name {
   text-align: left;
-}
-
-.learner-name-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.btn-learner-person-icon {
-  background: var(--action-view-bg, #EFF6FF);
-  border: 1px solid var(--action-view-border, #DCE7F6);
-  cursor: pointer;
-  padding: 3px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--action-view-color, #4169A8);
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.btn-learner-person-icon:hover {
-  background: var(--action-view-hover-bg, #E0EEFE);
-  color: var(--action-view-hover-color, #315488);
-  border-color: var(--action-view-hover-border, #B9D3F4);
-}
-
-.btn-learner-person-icon:focus-visible {
-  outline: 2px solid var(--action-view-color, #4169A8);
-  outline-offset: 1px;
-}
-
-.learner-name-text {
-  font-weight: 600;
-  color: #000000;
+  min-width: 190px;
 }
 
 .cell-center {
@@ -1378,17 +1489,18 @@ function printReportDirectly() {
 
 .cell-level {
   text-align: center;
+  min-width: 110px;
 }
 
 .cell-stat {
   text-align: center;
   font-weight: 400;
-  width: 75px;
+  width: 80px;
 }
 
 .cell-rate {
   text-align: center;
-  width: 140px;
+  width: 120px;
 }
 
 .rate-stack {
@@ -1411,50 +1523,86 @@ function printReportDirectly() {
   line-height: 1.1;
 }
 
+.col-actions,
 .cell-actions {
+  width: 100px;
+  min-width: 100px;
   text-align: center;
   vertical-align: middle;
-  width: 125px;
-  min-width: 125px;
   padding: 4px 6px !important;
-  white-space: nowrap;
 }
 
+/* Action Button: View Details */
 .btn-view-details {
+  background: transparent;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--action-view-bg, #EFF6FF);
-  color: var(--action-view-color, #4169A8);
-  border: 1px solid var(--action-view-border, #DCE7F6);
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap !important;
-  cursor: pointer;
   box-sizing: border-box;
-  height: 26px;
-  transition: all 0.15s ease;
   user-select: none;
-  margin: 0 auto;
 }
 
 .btn-view-details:hover {
-  background-color: var(--action-view-hover-bg, #E0EEFE);
-  color: var(--action-view-hover-color, #315488);
-  border-color: var(--action-view-hover-border, #B9D3F4);
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1e40af;
 }
 
 .btn-view-details:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+/* Learner Name with Functional Person Icon */
+.learner-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.person-icon-btn,
+.btn-learner-person-icon {
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  padding: 3px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--action-view-color, #4169A8);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.person-icon-btn:hover,
+.btn-learner-person-icon:hover {
+  color: var(--action-view-hover-color, #315488);
+  background-color: var(--action-view-hover-bg, #E0EEFE);
+  border-color: var(--action-view-hover-border, #B9D3F4);
+}
+
+.person-icon-btn:focus-visible,
+.btn-learner-person-icon:focus-visible {
   outline: 2px solid var(--action-view-color, #4169A8);
   outline-offset: 1px;
 }
 
-.empty-line-row td {
-  height: 34px;
-  box-sizing: border-box;
+.learner-name-text {
+  font-weight: 600;
+  color: #000000;
 }
 
 /* Modals */
@@ -1578,6 +1726,8 @@ function printReportDirectly() {
 .detail-value {
   font-size: 0.925rem;
   color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .spinner-blue {
@@ -1604,6 +1754,21 @@ function printReportDirectly() {
 
 .text-amber {
   color: #b45309 !important;
+}
+
+.badge-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge-muted {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 /* Blank Template & Preview Status Pill Styling */
@@ -1746,6 +1911,7 @@ function printReportDirectly() {
   .filters-card,
   .btn-view-details,
   .btn-learner-person-icon,
+  .person-icon-btn,
   .modal-overlay {
     display: none !important;
   }
@@ -1764,47 +1930,79 @@ function printReportDirectly() {
     max-width: 100% !important;
   }
 
-  .summary-attendance-table {
+  .summary-attendance-table,
+  .als-report-table {
     border: 1.5px solid #000000 !important;
   }
 
   .summary-attendance-table th,
-  .summary-attendance-table td {
+  .summary-attendance-table td,
+  .als-report-table th,
+  .als-report-table td {
     border: 1px solid #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .gender-section-header td,
+  .section-divider-row td,
+  .section-divider-cell {
+    background-color: #e5e7eb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 
-@media (max-width: 900px) {
-  .filters-dropdowns-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 960px) {
+  .filter-row-secondary,
+  .filters-bottom-row {
+    flex-wrap: wrap;
+    gap: 12px;
   }
 }
 
 @media (max-width: 768px) {
+  .filter-card,
   .filters-card {
     padding: 1rem;
+    gap: 12px;
   }
+  .filter-dropdowns-row,
   .filters-dropdowns-row {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
+  .filter-row-secondary,
   .filters-bottom-row {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
+  .filter-row-secondary-left,
   .filters-dates-group {
     flex-direction: column;
+    align-items: stretch;
     width: 100%;
+    gap: 0.75rem;
   }
-  .col-date {
-    width: 100%;
-  }
+  .filter-row-secondary-right,
   .filter-actions-group {
     width: 100%;
-    justify-content: stretch;
+    margin-left: 0;
   }
+  .filter-col-date,
+  .col-date {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+  .filter-btn-col {
+    width: 100%;
+  }
+  .btn-reset-filter,
   .btn-reset-filters,
   .btn-generate-report {
-    flex: 1;
+    width: 100%;
     justify-content: center;
   }
 }

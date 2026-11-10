@@ -201,7 +201,7 @@ input::-webkit-contacts-auto-fill-button {
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
 
   /* Layout */
-  --sidebar-width: 250px;
+  --sidebar-width: 260px;
   --header-height: 64px;
   --footer-height: 60px;
 
@@ -223,6 +223,9 @@ input::-webkit-contacts-auto-fill-button {
   inset-block: 0;
   left: 0;
   width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
+  flex-shrink: 0;
   background: var(--color-sidebar-bg);
   display: flex;
   flex-direction: column;
@@ -1936,7 +1939,11 @@ input::-webkit-contacts-auto-fill-button {
 }
 
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
+  .sidebar {
+    transform: translateX(-100%);
+    min-width: 0;
+    max-width: calc(100vw - 48px);
+  }
   .sidebar.open { transform: translateX(0); }
   .sidebar-close-btn { display: block; }
   .main-wrapper { margin-left: 0; }

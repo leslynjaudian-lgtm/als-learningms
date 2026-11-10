@@ -61,8 +61,9 @@
           <div class="select-wrapper">
             <select id="filter-als-level" v-model="selectedLevel" class="filter-select">
               <option value="">All ALS Levels</option>
-              <option value="A&E Elementary">A&E Elementary</option>
-              <option value="A&E Junior High">A&E Junior High</option>
+              <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+                {{ lvl }}
+              </option>
             </select>
           </div>
         </div>
@@ -203,7 +204,7 @@ import { useTeacherSession } from '../composables/useTeacherSession.js';
 import { getAssignedLearners } from '../api/learners.js';
 
 const route = useRoute();
-const { teacherId, assignedCenters } = useTeacherSession();
+const { teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 
 const loading = ref(false);
 const learners = ref([]);
@@ -212,6 +213,19 @@ const selectedCenter = ref('');
 const selectedLevel = ref('');
 const pageSize = ref(10);
 const currentPage = ref(1);
+
+// When center changes or assigned levels change, ensure selectedLevel remains valid
+watch(selectedCenter, () => {
+  if (selectedLevel.value && !assignedLevelOptions.value.includes(selectedLevel.value)) {
+    selectedLevel.value = '';
+  }
+});
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (selectedLevel.value && !newOpts.includes(selectedLevel.value)) {
+    selectedLevel.value = '';
+  }
+}, { immediate: true });
 
 // Computed available centers combining assignedCenters and distinct centers from assigned learners
 const availableCenters = computed(() => {

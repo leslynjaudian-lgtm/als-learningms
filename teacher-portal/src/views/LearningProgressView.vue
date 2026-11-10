@@ -112,9 +112,10 @@
         <div class="filter-dropdown-item">
           <label>ALS Level</label>
           <select v-model="selectedLevel" class="filter-select">
-            <option value="">All Levels</option>
-            <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior High">A&E Junior High</option>
+            <option value="">All ALS Levels</option>
+            <option v-for="lvl in assignedLevelOptions" :key="lvl" :value="lvl">
+              {{ lvl }}
+            </option>
           </select>
         </div>
 
@@ -231,13 +232,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import PageHeader from '../components/PageHeader.vue';
+import { useTeacherSession } from '../composables/useTeacherSession.js';
+
+const { assignedLevelOptions } = useTeacherSession();
 
 const searchQuery = ref('');
 const selectedLevel = ref('');
 const selectedCenter = ref('');
 const selectedCategory = ref('');
+
+watch(assignedLevelOptions, (newOpts) => {
+  if (selectedLevel.value && !newOpts.includes(selectedLevel.value)) {
+    selectedLevel.value = '';
+  }
+}, { immediate: true });
 
 function formatAlsLevel(val) {
   if (!val) return '—';

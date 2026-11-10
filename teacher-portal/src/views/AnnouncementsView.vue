@@ -104,10 +104,6 @@
               <td class="col-title" style="font-weight: 600;">
                 <span class="title-text">{{ item.title }}</span>
                 <span v-if="item.isSystem" class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.7rem; font-weight: 700; margin-left: 0.5rem;">Admin</span>
-                <span v-else-if="item.learningCenter" class="center-sub">
-                  {{ item.learningCenter }}
-                  <span v-if="item.programLevel"> • {{ item.programLevel }}</span>
-                </span>
               </td>
               <td class="col-message">
                 <span class="message-preview">{{ item.message || item.content }}</span>
@@ -647,10 +643,23 @@
             <div class="detail-item">
               <span class="detail-label">Target Audience</span>
               <span class="detail-value">
-                {{ viewingAnnouncement?.audience }}
-                <strong v-if="viewingAnnouncement?.targetLearnerName" style="color: #1d4ed8; display: block;">
-                  {{ viewingAnnouncement?.targetLearnerName }}
-                </strong>
+                <template v-if="viewingAudienceInfo.learners.length === 1">
+                  {{ viewingAudienceInfo.learners[0].name }}
+                </template>
+                <template v-else-if="viewingAudienceInfo.learners.length > 1">
+                  <div class="audience-recipient-list">
+                    <div
+                      v-for="recipient in viewingAudienceInfo.learners"
+                      :key="recipient.id || recipient.name"
+                      class="audience-recipient-item"
+                    >
+                      {{ recipient.name }}
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  {{ viewingAudienceInfo.label }}
+                </template>
               </span>
             </div>
 
@@ -755,7 +764,7 @@ import { useNotifications } from '../composables/useNotifications.js';
 
 const route = useRoute();
 const router = useRouter();
-const { currentTeacher, teacherId, teacherName, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherId, teacherName, assignedCenters, assignedLevelOptions } = useTeacherSession();
 const { markAsRead } = useNotifications();
 
 const announcements = ref([]);
@@ -794,17 +803,7 @@ const defaultCenterName = computed(() => {
 
 // ALS levels assigned to the currently logged-in teacher (never combined option)
 const teacherAvailableProgramLevels = computed(() => {
-  const spec = (currentTeacher.value?.programLevel || currentTeacher.value?.specialization || 'Both').toLowerCase();
-  if (spec.includes('both')) {
-    return ['A&E Elementary', 'A&E Junior High'];
-  }
-  if (spec.includes('elem')) {
-    return ['A&E Elementary'];
-  }
-  if (spec.includes('jun')) {
-    return ['A&E Junior High'];
-  }
-  return ['A&E Elementary', 'A&E Junior High'];
+  return assignedLevelOptions.value;
 });
 
 // Dynamic Assigned Learners list for the currently logged-in teacher
@@ -959,6 +958,9 @@ async function loadAnnouncements() {
           audienceRaw: d.audienceRaw || d.audience,
           targetLearnerId: d.targetLearnerId || null,
           targetLearnerName: d.targetLearnerName || '',
+          recipients: Array.isArray(d.recipients) && d.recipients.length > 0
+            ? d.recipients
+            : (d.targetLearnerId ? [{ id: d.targetLearnerId, name: d.targetLearnerName || audienceText }] : []),
           learningCenterId: d.learningCenterId || null,
           learningCenter: d.learningCenter || (isAdminAnnouncement ? 'System-wide' : ''),
           programLevel: d.programLevel || '',
@@ -1430,6 +1432,9 @@ function openEditModal(item) {
   if (item.targetLearnerId) {
     isAllLearnersSelected.value = false;
     selectedLearnerIds.value = [item.targetLearnerId];
+  } else if (Array.isArray(item.recipients) && item.recipients.length > 0) {
+    isAllLearnersSelected.value = false;
+    selectedLearnerIds.value = item.recipients.map((r) => r.id || r.learnerId).filter(Boolean);
   } else {
     isAllLearnersSelected.value = true;
     selectedLearnerIds.value = [];
@@ -1711,6 +1716,92 @@ async function quickPublishDraft(item) {
 // View Details Modal
 const showViewModal = ref(false);
 const viewingAnnouncement = ref(null);
+
+const viewingAudienceInfo = computed(() => {
+  const item = viewingAnnouncement.value;
+  if (!item) return { type: 'all', label: 'All Learners', learners: [] };
+
+  const rawAudience = String(item.audienceRaw || item.audience || '').toUpperCase();
+  const audienceStr = String(item.audience || '').trim();
+
+  // 1. Check if audience is All Teachers
+  if (
+    item.isSystem ||
+    rawAudience === 'ALL_TEACHERS' ||
+    rawAudience === 'TEACHERS' ||
+    audienceStr === 'All Teachers'
+  ) {
+    return { type: 'teachers', label: 'All Teachers', learners: [] };
+  }
+
+  // 2. Collect any individual recipients / target learners
+  const learnersMap = new Map();
+
+  // If item.recipients is present
+  if (Array.isArray(item.recipients) && item.recipients.length > 0) {
+    for (const r of item.recipients) {
+      const rid = r.id || r.learnerId || r.learner_id;
+      const rname = (r.fullName || r.full_name || r.name || '').trim();
+      if (rid && !learnersMap.has(rid)) {
+        learnersMap.set(rid, { id: rid, name: rname });
+      } else if (!rid && rname && !learnersMap.has(rname)) {
+        learnersMap.set(rname, { id: rname, name: rname });
+      }
+    }
+  }
+
+  // If item.targetLearnerId is present
+  if (item.targetLearnerId) {
+    const tid = item.targetLearnerId;
+    const tname = (item.targetLearnerName || (learnersMap.get(tid)?.name) || '').trim();
+    if (!learnersMap.has(tid)) {
+      learnersMap.set(tid, { id: tid, name: tname });
+    } else if (tname && !learnersMap.get(tid).name) {
+      learnersMap.set(tid, { id: tid, name: tname });
+    }
+  }
+
+  // If learnersMap is empty but item.targetLearnerName is present
+  if (learnersMap.size === 0 && item.targetLearnerName && item.targetLearnerName.trim()) {
+    const tname = item.targetLearnerName.trim();
+    learnersMap.set(tname, { id: tname, name: tname });
+  }
+
+  // If still empty, check if audience string is a specific learner name rather than "All Learners" or "Individual Learner"
+  if (
+    learnersMap.size === 0 &&
+    audienceStr &&
+    audienceStr !== 'All Learners' &&
+    audienceStr !== 'Individual Learner' &&
+    audienceStr !== 'All Teachers' &&
+    !audienceStr.toUpperCase().includes('ALL_')
+  ) {
+    learnersMap.set(audienceStr, { id: audienceStr, name: audienceStr });
+  }
+
+  // If we have resolved learner(s)
+  if (learnersMap.size > 0) {
+    const list = Array.from(learnersMap.values()).map((l) => {
+      // If name is missing or placeholder, look up in loaded learners list
+      if (!l.name || l.name === 'Individual Learner') {
+        const found = learners.value.find((lx) => Number(lx.id) === Number(l.id));
+        if (found) {
+          return { ...l, name: found.name || found.fullName };
+        }
+      }
+      return l;
+    });
+
+    return {
+      type: 'learners',
+      label: list.length === 1 ? list[0].name : '',
+      learners: list,
+    };
+  }
+
+  // 3. Fallback: All Learners
+  return { type: 'all', label: 'All Learners', learners: [] };
+});
 
 function openViewModal(item) {
   viewingAnnouncement.value = item;
@@ -2785,6 +2876,19 @@ textarea.form-input,
   font-size: 0.95rem;
   color: #0f172a;
   font-weight: 500;
+}
+
+.audience-recipient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.audience-recipient-item {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .detail-value-highlight {

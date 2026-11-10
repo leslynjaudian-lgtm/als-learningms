@@ -75,14 +75,13 @@
       </div>
     </div>
 
-    <!-- Filters Card (Organized into consistent dropdowns and date/action rows) -->
-    <div class="filters-card no-print">
-      <!-- Row 1: 4 Dropdowns with consistent sizing -->
-      <div class="filters-dropdowns-row">
-        <!-- 1. Learning Center -->
-        <div class="filter-field-col">
-          <label>Learning Center</label>
-          <select v-model="selectedCenter" @change="handleCenterChange">
+    <!-- Filters Bar (Single Clean Horizontal Row Container) -->
+    <div class="report-filter-bar no-print">
+      <div class="filter-controls-row">
+        <!-- 1. Learning Center (Widest dropdown) -->
+        <div class="filter-field-col col-center">
+          <label class="filter-label">Learning Center</label>
+          <select v-model="selectedCenter" class="filter-select" @change="handleCenterChange">
             <option value="">All Learning Centers</option>
             <option v-for="c in learningCenters" :key="c.id" :value="c.name">
               {{ c.name }}
@@ -90,74 +89,59 @@
           </select>
         </div>
 
-        <!-- 2. ALS Level -->
-        <div class="filter-field-col">
-          <label>ALS Level</label>
-          <select v-model="selectedLevel">
+        <!-- 2. ALS Level (Sufficient width) -->
+        <div class="filter-field-col col-level">
+          <label class="filter-label">ALS Level</label>
+          <select v-model="selectedLevel" class="filter-select">
             <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
             <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 
-        <!-- 3. ALS Teacher -->
-        <div class="filter-field-col">
-          <label>ALS Teacher</label>
-          <select v-model="selectedTeacher">
-            <option value="">All ALS Teachers</option>
-            <option v-for="t in filteredTeachers" :key="t.id" :value="t.fullName">
-              {{ t.fullName }}
-            </option>
-          </select>
+        <!-- 3. From (Date input, equal width) -->
+        <div class="filter-field-col col-date">
+          <label class="filter-label">From</label>
+          <input
+            v-model="fromDate"
+            type="date"
+            class="filter-input"
+            @change="dateError = ''"
+          />
         </div>
 
-        <!-- 4. Learner Name -->
-        <div class="filter-field-col">
-          <label>Learner Name</label>
-          <select v-model="selectedLearnerName">
-            <option value="">All Learners</option>
-            <option v-for="l in filteredLearnersList" :key="l.id" :value="l.fullName || l.name">
-              {{ formatLearnerFullName(l) }}
-            </option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Row 2: Date Filters & Action Buttons -->
-      <div class="filters-bottom-row">
-        <div class="filters-dates-group">
-          <!-- 5. From Date -->
-          <div class="filter-field-col col-date">
-            <label>From Date</label>
-            <input
-              v-model="fromDate"
-              type="date"
-              @change="dateError = ''"
-            />
-          </div>
-
-          <!-- 6. To Date -->
-          <div class="filter-field-col col-date">
-            <label>To Date</label>
-            <input
-              v-model="toDate"
-              type="date"
-              @change="dateError = ''"
-            />
-          </div>
+        <!-- 4. To (Date input, equal width) -->
+        <div class="filter-field-col col-date">
+          <label class="filter-label">To</label>
+          <input
+            v-model="toDate"
+            type="date"
+            class="filter-input"
+            @change="dateError = ''"
+          />
         </div>
 
-        <div class="filter-actions">
-          <button type="button" class="btn btn-secondary filter-reset-btn" @click="resetFilters">
-            Reset Filters
-          </button>
+        <!-- 5. Reset Filters (Beside date inputs, no label, aligned baseline) -->
+        <div class="filter-btn-col col-reset">
           <button
             type="button"
-            class="btn-generate-report"
+            class="filter-reset-btn"
+            @click="resetFilters"
+            title="Reset Filters"
+          >
+            Reset Filters
+          </button>
+        </div>
+
+        <!-- 6. Generate Report (Beside Reset Filters, no label, aligned baseline) -->
+        <div class="filter-btn-col col-generate">
+          <button
+            type="button"
+            class="generate-report-btn"
             :disabled="loadingReport"
             @click="handleGenerateReport"
           >
-            <span v-if="loadingReport" class="btn-spinner" style="border-top-color: #ffffff; width: 14px; height: 14px; border-width: 2px;"></span>
+            <span v-if="loadingReport" class="btn-spinner"></span>
             <svg v-else width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -182,14 +166,14 @@
     <div class="report-output-wrapper">
       <div id="report-content" ref="reportContentRef" class="report-paper-sheet attendance-report-sheet">
         <!-- Status Pill Banner (Standardized with AF2) -->
-        <div class="report-status-banner no-print">
+        <div class="report-status-banner print-hidden">
           <div v-if="!reportGenerated" class="status-pill status-blank">
             <span class="status-badge-dot"></span>
             <span class="status-badge-text">Blank Template Preview</span>
             <span class="status-badge-hint">— Select filters above and click Generate Report</span>
           </div>
           <div v-else-if="learnerAggregates.length === 0" class="status-pill status-empty">
-            <span class="status-badge-dot warning"></span>
+            <span class="status-badge-dot empty"></span>
             <span class="status-badge-text">Report Generated</span>
             <span class="status-badge-hint">— No records found for the selected filters</span>
           </div>
@@ -216,61 +200,59 @@
         </header>
 
         <!-- Attendance Summary Table Matching Attached Template -->
-        <div class="attendance-table-container">
-          <table class="summary-attendance-table">
+        <div class="table-responsive-wrapper attendance-table-container">
+          <table class="als-report-table summary-attendance-table">
             <thead>
               <tr class="header-main-row">
                 <th rowspan="2" class="col-no">No.</th>
-                <th rowspan="2" class="col-learner-name">
-                  <div class="header-name-wrap">
-                    <span class="main-title">Learner’s Name</span>
-                    <span class="sub-title">(Last Name, First Name, Middle Name)</span>
-                  </div>
+                <th rowspan="2" class="col-name col-learner-name">
+                  Learner's Name<br />
+                  <span class="sub-header-label">(Last Name, First Name, Middle Name)</span>
                 </th>
-                <th rowspan="2" class="col-learning-center">Learning Center</th>
-                <th rowspan="2" class="col-program-level">ALS Level</th>
+                <th rowspan="2" class="col-center col-learning-center">Learning Center</th>
+                <th rowspan="2" class="col-level col-program-level">ALS Level</th>
                 <th colspan="2" class="col-attendance-summary">Attendance Summary</th>
-                <th rowspan="2" class="col-attendance-rate">Attendance Rate<br>(%)</th>
+                <th rowspan="2" class="col-attendance-rate col-progress">Attendance Rate<br>(%)</th>
                 <th rowspan="2" class="col-actions print-hidden">Actions</th>
               </tr>
               <tr class="header-sub-row">
-                <th class="col-present">Present</th>
-                <th class="col-absent">Absent</th>
+                <th class="col-sub col-present">Present</th>
+                <th class="col-sub col-absent">Absent</th>
               </tr>
             </thead>
 
             <!-- BLANK TEMPLATE PREVIEW BODY (Before Generate Report) -->
             <tbody v-if="!reportGenerated">
               <!-- Male Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Male</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Male</td>
               </tr>
               <!-- Blank rows for Male -->
-              <tr v-for="n in 5" :key="'blank-male-' + n" class="empty-line-row">
-                <td class="cell-no">&nbsp;</td>
+              <tr v-for="n in 5" :key="'blank-male-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no">&nbsp;</td>
                 <td class="cell-name">&nbsp;</td>
                 <td class="cell-center">&nbsp;</td>
-                <td class="cell-level">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-rate">&nbsp;</td>
-                <td class="cell-actions print-hidden">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
               </tr>
 
               <!-- Female Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Female</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Female</td>
               </tr>
               <!-- Blank rows for Female -->
-              <tr v-for="n in 5" :key="'blank-female-' + n" class="empty-line-row">
-                <td class="cell-no">&nbsp;</td>
+              <tr v-for="n in 5" :key="'blank-female-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no">&nbsp;</td>
                 <td class="cell-name">&nbsp;</td>
                 <td class="cell-center">&nbsp;</td>
-                <td class="cell-level">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-stat">&nbsp;</td>
-                <td class="cell-rate">&nbsp;</td>
-                <td class="cell-actions print-hidden">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center">&nbsp;</td>
+                <td class="cell-center print-hidden">&nbsp;</td>
               </tr>
             </tbody>
 
@@ -289,23 +271,23 @@
               </tr>
 
               <!-- Male Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Male</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Male</td>
               </tr>
 
               <!-- Male Learners Rows -->
               <tr v-for="(item, idx) in maleLearners" :key="'male-' + (item.learnerId || idx)" class="data-row">
-                <td class="cell-no">{{ idx + 1 }}.</td>
+                <td class="cell-center cell-no">{{ idx + 1 }}.</td>
                 <td class="cell-name">
                   <div class="learner-name-cell">
                     <button
                       type="button"
-                      class="btn-learner-person-icon no-print"
+                      class="person-icon-btn btn-learner-person-icon no-print"
                       title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                         <circle cx="12" cy="7" r="4"/>
                       </svg>
@@ -314,16 +296,16 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level">{{ item.level }}</td>
-                <td class="cell-stat">{{ item.presentCount }}</td>
-                <td class="cell-stat">{{ item.absentCount }}</td>
-                <td class="cell-rate">
+                <td class="cell-center cell-level">{{ item.level }}</td>
+                <td class="cell-center cell-stat">{{ item.presentCount }}</td>
+                <td class="cell-center cell-stat">{{ item.absentCount }}</td>
+                <td class="cell-center cell-rate">
                   <div class="rate-stack">
                     <span class="rate-percentage">{{ item.rate }}%</span>
                     <span class="rate-sessions">(out of {{ item.totalSessions }} {{ item.totalSessions === 1 ? 'session' : 'sessions' }})</span>
                   </div>
                 </td>
-                <td class="cell-actions print-hidden">
+                <td class="cell-center cell-actions print-hidden">
                   <button
                     type="button"
                     class="btn-view-details no-print"
@@ -335,35 +317,35 @@
               </tr>
 
               <!-- Empty Male Grid Lines (Matching Attached Official Form) -->
-              <tr v-for="n in emptyMaleRowsCount" :key="'empty-male-' + n" class="empty-line-row">
-                <td class="cell-no"></td>
+              <tr v-for="n in emptyMaleRowsCount" :key="'empty-male-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no"></td>
                 <td class="cell-name"></td>
                 <td class="cell-center"></td>
-                <td class="cell-level"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-rate"></td>
-                <td class="cell-actions print-hidden"></td>
+                <td class="cell-center cell-level"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-rate"></td>
+                <td class="cell-center cell-actions print-hidden"></td>
               </tr>
 
               <!-- Female Section Header -->
-              <tr class="section-divider-row">
-                <td colspan="8" class="section-divider-cell">Female</td>
+              <tr class="gender-section-header section-divider-row">
+                <td colspan="8" class="section-divider-cell print-visible-span">Female</td>
               </tr>
 
               <!-- Female Learners Rows -->
               <tr v-for="(item, idx) in femaleLearners" :key="'female-' + (item.learnerId || idx)" class="data-row">
-                <td class="cell-no">{{ idx + 1 }}.</td>
+                <td class="cell-center cell-no">{{ idx + 1 }}.</td>
                 <td class="cell-name">
                   <div class="learner-name-cell">
                     <button
                       type="button"
-                      class="btn-learner-person-icon no-print"
+                      class="person-icon-btn btn-learner-person-icon no-print"
                       title="View"
                       aria-label="View Learner Information"
                       @click="openLearnerInfoModal(item.learnerObj || item)"
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                         <circle cx="12" cy="7" r="4"/>
                       </svg>
@@ -372,16 +354,16 @@
                   </div>
                 </td>
                 <td class="cell-center">{{ item.learningCenter }}</td>
-                <td class="cell-level">{{ item.level }}</td>
-                <td class="cell-stat">{{ item.presentCount }}</td>
-                <td class="cell-stat">{{ item.absentCount }}</td>
-                <td class="cell-rate">
+                <td class="cell-center cell-level">{{ item.level }}</td>
+                <td class="cell-center cell-stat">{{ item.presentCount }}</td>
+                <td class="cell-center cell-stat">{{ item.absentCount }}</td>
+                <td class="cell-center cell-rate">
                   <div class="rate-stack">
                     <span class="rate-percentage">{{ item.rate }}%</span>
                     <span class="rate-sessions">(out of {{ item.totalSessions }} {{ item.totalSessions === 1 ? 'session' : 'sessions' }})</span>
                   </div>
                 </td>
-                <td class="cell-actions print-hidden">
+                <td class="cell-center cell-actions print-hidden">
                   <button
                     type="button"
                     class="btn-view-details no-print"
@@ -393,15 +375,15 @@
               </tr>
 
               <!-- Empty Female Grid Lines (Matching Attached Official Form) -->
-              <tr v-for="n in emptyFemaleRowsCount" :key="'empty-female-' + n" class="empty-line-row">
-                <td class="cell-no"></td>
+              <tr v-for="n in emptyFemaleRowsCount" :key="'empty-female-' + n" class="blank-row empty-line-row">
+                <td class="cell-center cell-no"></td>
                 <td class="cell-name"></td>
                 <td class="cell-center"></td>
-                <td class="cell-level"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-stat"></td>
-                <td class="cell-rate"></td>
-                <td class="cell-actions print-hidden"></td>
+                <td class="cell-center cell-level"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-stat"></td>
+                <td class="cell-center cell-rate"></td>
+                <td class="cell-center cell-actions print-hidden"></td>
               </tr>
             </tbody>
           </table>
@@ -463,28 +445,26 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Remarks</th>
-                <th>Recorded By</th>
+                <th style="width: 32%;">Date</th>
+                <th style="width: 28%;">Status</th>
+                <th style="width: 40%;">Recorded By</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in selectedLearnerForDetails.logs" :key="log.id">
-                <td class="font-mono text-sm">{{ log.sessionDate || log.date || '—' }}</td>
-                <td>
+              <tr v-for="log in selectedLearnerForDetails.logs" :key="log.id || log.date">
+                <td class="font-mono text-sm" style="width: 32%;">{{ log.sessionDate || log.date || '—' }}</td>
+                <td style="width: 28%;">
                   <span
                     class="badge"
-                    :class="log.status === 'PRESENT' || log.status === 'Present' ? 'badge-green' : 'badge-amber'"
+                    :class="getStatusBadgeClass(log.status)"
                   >
-                    {{ log.status }}
+                    {{ formatStatusLabel(log.status) }}
                   </span>
                 </td>
-                <td class="text-sm">{{ log.remarks || '—' }}</td>
-                <td class="text-sm">{{ log.teacherName || selectedLearnerForDetails.teacherName || '—' }}</td>
+                <td class="text-sm" style="width: 40%;">{{ log.teacherName || selectedLearnerForDetails.teacherName || '—' }}</td>
               </tr>
               <tr v-if="!selectedLearnerForDetails.logs || selectedLearnerForDetails.logs.length === 0">
-                <td colspan="4" class="text-center text-muted" style="padding: 1.5rem;">No session records found.</td>
+                <td colspan="3" class="text-center text-muted" style="padding: 1.5rem;">No session records found.</td>
               </tr>
             </tbody>
           </table>
@@ -519,8 +499,16 @@
           </div>
           <div v-else-if="viewingLearner" class="details-grid">
             <div class="detail-item">
-              <span class="detail-label">Full Name</span>
-              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.name || viewingLearner?.fullName }}</span>
+              <span class="detail-label">Last Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.lastName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">First Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.firstName || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Middle Name</span>
+              <span class="detail-value" style="font-weight: 600; color: var(--color-primary, #2563eb);">{{ viewingLearner?.middleName || '—' }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">LRN</span>
@@ -558,11 +546,11 @@
               <span class="detail-label">Contact Number</span>
               <span class="detail-value">{{ viewingLearner?.contactNumber || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Address</span>
               <span class="detail-value">{{ viewingLearner?.address || '—' }}</span>
             </div>
-            <div class="detail-item details-full-width">
+            <div class="detail-item">
               <span class="detail-label">Date Registered</span>
               <span class="detail-value">{{ viewingLearner?.dateRegistered || '—' }}</span>
             </div>
@@ -578,6 +566,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import { useAdminSession } from '../composables/useAdminSession.js';
 import { getLearningCenters } from '../api/learningCenters.js';
@@ -585,6 +574,7 @@ import { getTeachers } from '../api/teachers.js';
 import { getLearners, getLearner } from '../api/learners.js';
 import { getAttendanceRecords } from '../api/reports.js';
 
+const route = useRoute();
 const { adminName } = useAdminSession();
 const reportContentRef = ref(null);
 
@@ -697,8 +687,12 @@ async function fetchAttendanceData() {
   }
 }
 
-onMounted(() => {
-  loadData();
+onMounted(async () => {
+  await loadData();
+  if (route.query.center) {
+    selectedCenter.value = String(route.query.center);
+    await fetchAttendanceData();
+  }
 });
 
 // Helper: Format learner name strictly as Last Name, First Name Middle Name
@@ -740,6 +734,23 @@ function getLearnerGender(l) {
   const g = String(l.sex || l.gender || '').toLowerCase().trim();
   if (g.startsWith('f')) return 'Female';
   return 'Male';
+}
+
+function formatStatusLabel(statusVal) {
+  if (!statusVal) return '—';
+  const s = String(statusVal).trim().toUpperCase();
+  if (s === 'ABSENT') return 'Absent';
+  if (s === 'LATE') return 'Late';
+  if (s === 'EXCUSED') return 'Excused';
+  if (s === 'PRESENT') return 'Present';
+  return statusVal.charAt(0).toUpperCase() + statusVal.slice(1).toLowerCase();
+}
+
+function getStatusBadgeClass(statusVal) {
+  const s = String(statusVal || '').trim().toUpperCase();
+  if (s === 'ABSENT' || s === 'LATE') return 'badge-amber';
+  if (s === 'EXCUSED') return 'badge-muted';
+  return 'badge-green';
 }
 
 // Cascading teachers
@@ -1028,9 +1039,11 @@ function printReportDirectly() {
 
 <style scoped>
 .attendance-summary-view {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-bottom: 3rem;
 }
 
 .text-green {
@@ -1050,9 +1063,11 @@ function printReportDirectly() {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 1.5rem; /* 24px consistent gap to filter bar */
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .report-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1071,6 +1086,8 @@ function printReportDirectly() {
   padding: 1.25rem;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
@@ -1099,6 +1116,11 @@ function printReportDirectly() {
   color: #16a34a;
 }
 
+.stat-icon-amber {
+  background: #fffbeb;
+  color: #b45309;
+}
+
 .report-card-label {
   font-size: 0.8rem;
   font-weight: 600;
@@ -1117,138 +1139,87 @@ function printReportDirectly() {
 .report-card-desc {
   font-size: 0.75rem;
   color: var(--color-text-muted, #94a3b8);
+  margin-top: auto;
 }
 
-/* Filters Card Layout */
-.filters-card {
+/* Filter Section Layout - Single horizontal row on desktop */
+.report-filter-bar {
   background: #ffffff;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-lg, 12px);
-  padding: 1.15rem 1.25rem;
+  padding: 1rem 1.25rem; /* 16-20px internal padding */
+  margin-bottom: 1.5rem; /* 24px consistent gap to preview table */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.filters-dropdowns-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-}
-
-@media (max-width: 1024px) {
-  .filters-dropdowns-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .filters-dropdowns-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.filters-bottom-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.filters-dates-group {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.col-date {
-  width: 155px;
-  flex: 0 0 155px;
-}
-
-@media (max-width: 640px) {
-  .col-date {
-    width: 100%;
-    flex: 1 1 calc(50% - 0.5rem);
-  }
-}
-
-.filter-reset-btn {
-  height: 42px;
-  min-height: 42px;
+  width: 100%;
   box-sizing: border-box;
-  padding: 0 1rem;
-  border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
 }
 
-.filter-reset-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
-}
-
-.filter-reset-btn:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  outline: none;
-}
-
-.filter-error-text {
+.filter-controls-row {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: #dc2626;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding-top: 0.5rem;
-  border-top: 1px solid #fee2e2;
+  align-items: flex-end;
+  gap: 14px; /* 12-16px horizontal spacing */
+  width: 100%;
 }
 
 .filter-field-col {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 140px;
 }
 
-.filter-field-col label {
+.filter-label {
   font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
   white-space: nowrap;
 }
 
-.filter-field-col select,
-.filter-field-col input {
-  width: 100%;
+.col-center {
+  flex: 1.6 1 180px;
+  min-width: 140px;
+}
+
+.col-level {
+  flex: 1.2 1 150px;
+  min-width: 130px;
+}
+
+.col-date {
+  flex: 0 0 140px;
+  width: 140px;
+}
+
+.col-reset {
+  flex: 0 0 auto;
+}
+
+.col-generate {
+  flex: 0 0 auto;
+}
+
+.filter-btn-col {
+  display: flex;
+  align-items: flex-end;
+}
+
+.filter-select,
+.filter-input {
   height: 42px;
   min-height: 42px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  width: 100%;
   padding: 0 0.85rem;
   font-size: 0.875rem;
   color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   outline: none;
   box-sizing: border-box;
   font-family: inherit;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
-.filter-field-col select {
+.filter-select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -1260,34 +1231,59 @@ function printReportDirectly() {
   background-size: 12px 8px;
 }
 
-.filter-field-col select:hover,
-.filter-field-col input:hover {
+.filter-select:hover,
+.filter-input:hover {
   border-color: #94a3b8;
 }
 
-.filter-field-col select:focus,
-.filter-field-col input:focus {
+.filter-select:focus,
+.filter-input:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-  background: #ffffff;
+  background-color: #ffffff;
 }
 
-.filter-actions {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
+.filter-reset-btn {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
 }
 
-.btn-generate-report {
+.filter-reset-btn:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.filter-reset-btn:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.generate-report-btn {
   height: 42px;
   min-height: 42px;
   padding: 0 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
   border-radius: 8px;
-  background-color: #2563eb;
+  background-color: #1d4ed8;
   color: #ffffff;
-  border: 1px solid #2563eb;
+  border: 1px solid #1d4ed8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1296,24 +1292,78 @@ function printReportDirectly() {
   white-space: nowrap;
   box-sizing: border-box;
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 1px 2px rgba(29, 78, 216, 0.2);
 }
 
-.btn-generate-report:hover {
-  background-color: #1d4ed8;
-  border-color: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+.generate-report-btn:hover:not(:disabled) {
+  background-color: #1e40af;
+  border-color: #1e40af;
+  box-shadow: 0 2px 4px rgba(29, 78, 216, 0.3);
+}
+
+.generate-report-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.filter-error-text {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #dc2626;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #fee2e2;
+}
+
+/* Tablet: balanced wrapping when space is constrained */
+@media (max-width: 1024px) {
+  .filter-controls-row {
+    flex-wrap: wrap;
+  }
+  .col-center,
+  .col-level {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 140px;
+  }
+  .col-date {
+    flex: 1 1 calc(50% - 0.5rem);
+    width: auto;
+  }
+  .col-reset,
+  .col-generate {
+    flex: 1 1 calc(50% - 0.5rem);
+  }
+  .filter-reset-btn,
+  .generate-report-btn {
+    width: 100%;
+  }
+}
+
+/* Mobile: single stacked column */
+@media (max-width: 640px) {
+  .col-center,
+  .col-level,
+  .col-date,
+  .col-reset,
+  .col-generate {
+    flex: 1 1 100%;
+    width: 100%;
+  }
 }
 
 /* Official Report Paper Sheet */
 .attendance-report-sheet {
   background: #ffffff;
-  padding: 2.25rem 2.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2rem 2.25rem 2.5rem 2.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   max-width: 100%;
-  margin: 0 auto 1.5rem;
+  margin: 0 auto;
+  position: relative;
 }
 
 .report-official-header {
@@ -1321,46 +1371,60 @@ function printReportDirectly() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.5rem;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
 }
 
 .header-logo {
-  width: 65px;
-  height: 65px;
+  flex: 0 0 70px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
 
-.als-district-logo,
+.left-logo-box {
+  justify-content: flex-start;
+}
+
+.right-logo-box {
+  justify-content: flex-end;
+}
+
+.als-district-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
 .als-logo-image {
-  max-width: 100%;
-  max-height: 100%;
+  height: 40px;
+  width: auto;
   object-fit: contain;
 }
 
 .header-title-box {
-  text-align: center;
   flex: 1;
+  text-align: center;
+  padding: 0 1rem;
 }
 
 .official-title {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #000000;
   margin: 0;
   text-transform: none;
   letter-spacing: -0.01em;
+  line-height: 1.35;
 }
 
 /* Table Container & Borders */
+.table-responsive-wrapper,
 .attendance-table-container {
   width: 100%;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
+.als-report-table,
 .summary-attendance-table {
   width: 100%;
   border-collapse: collapse;
@@ -1370,61 +1434,60 @@ function printReportDirectly() {
   border: 1.5px solid #000000;
 }
 
+.als-report-table th,
+.als-report-table td,
 .summary-attendance-table th,
 .summary-attendance-table td {
   border: 1px solid #000000;
-  padding: 5px 8px;
+  padding: 6px 8px;
   vertical-align: middle;
 }
 
-.data-row td,
-.empty-line-row td {
-  height: 34px;
-  box-sizing: border-box;
-}
-
-.col-actions {
-  width: 125px;
-  min-width: 125px;
-  text-align: center;
-  vertical-align: middle;
-}
-
+.als-report-table thead tr th,
+.summary-attendance-table thead tr th,
 .summary-attendance-table thead th {
   background-color: #ffffff;
-  font-weight: 700;
   color: #000000;
+  font-weight: 700;
   text-align: center;
+  vertical-align: middle;
   line-height: 1.25;
 }
 
-.header-name-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.header-name-wrap .main-title {
-  font-weight: 700;
-}
-
+.sub-header-label,
 .header-name-wrap .sub-title {
+  display: block;
   font-size: 0.725rem;
-  font-weight: 400;
+  font-weight: 500;
+  color: #333333;
 }
 
-.section-divider-row {
-  background-color: #ffffff;
-}
-
+/* Male and Female Grouping (Gray Section Headers) */
+.gender-section-header td,
+.section-divider-row td,
 .section-divider-cell {
-  font-weight: 700;
-  font-size: 0.875rem;
-  color: #000000;
-  padding: 0.45rem 0.6rem !important;
-  text-align: left;
-  border-top: 1.5px solid #000000 !important;
-  border-bottom: 1px solid #000000 !important;
+  background-color: #f3f4f6 !important; /* Gray header */
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  padding: 6px 12px !important;
+  text-align: left !important;
+  border: 1px solid #000000 !important;
+}
+
+.blank-row td,
+.empty-line-row td {
+  height: 28px;
+  border: 1px solid #000000;
+  background: #ffffff;
+  padding: 6px 8px;
+}
+
+.data-row td {
+  vertical-align: middle;
+  background-color: #ffffff;
+  padding: 6px 8px;
+  border: 1px solid #000000;
 }
 
 .data-row:hover {
@@ -1433,47 +1496,12 @@ function printReportDirectly() {
 
 .cell-no {
   text-align: center;
-  width: 45px;
+  width: 42px;
   font-weight: 500;
 }
 
 .cell-name {
   text-align: left;
-}
-
-.learner-name-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.btn-learner-person-icon {
-  background: var(--action-view-bg, #EFF6FF);
-  border: 1px solid var(--action-view-border, #DCE7F6);
-  cursor: pointer;
-  padding: 3px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--action-view-color, #4169A8);
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.btn-learner-person-icon:hover {
-  background: var(--action-view-hover-bg, #E0EEFE);
-  color: var(--action-view-hover-color, #315488);
-  border-color: var(--action-view-hover-border, #B9D3F4);
-}
-
-.btn-learner-person-icon:focus-visible {
-  outline: 2px solid var(--action-view-color, #4169A8);
-  outline-offset: 1px;
-}
-
-.learner-name-text {
-  font-weight: 600;
-  color: #000000;
 }
 
 .cell-center {
@@ -1487,12 +1515,12 @@ function printReportDirectly() {
 .cell-stat {
   text-align: center;
   font-weight: 400;
-  width: 75px;
+  width: 80px;
 }
 
 .cell-rate {
   text-align: center;
-  width: 140px;
+  width: 120px;
 }
 
 .rate-stack {
@@ -1515,50 +1543,78 @@ function printReportDirectly() {
   line-height: 1.1;
 }
 
+.col-actions,
 .cell-actions {
+  width: 100px;
+  min-width: 100px;
   text-align: center;
   vertical-align: middle;
-  width: 125px;
-  min-width: 125px;
   padding: 4px 6px !important;
-  white-space: nowrap;
 }
 
+/* Action Button: View Details */
 .btn-view-details {
+  background: transparent;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--action-view-bg, #EFF6FF);
-  color: var(--action-view-color, #4169A8);
-  border: 1px solid var(--action-view-border, #DCE7F6);
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap !important;
-  cursor: pointer;
-  box-sizing: border-box;
-  height: 26px;
-  transition: all 0.15s ease;
-  user-select: none;
-  margin: 0 auto;
+  line-height: 1.2;
 }
 
 .btn-view-details:hover {
-  background-color: var(--action-view-hover-bg, #E0EEFE);
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1e40af;
+}
+
+/* Learner Name with Functional Person Icon */
+.learner-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.person-icon-btn,
+.btn-learner-person-icon {
+  background: var(--action-view-bg, #EFF6FF);
+  border: 1px solid var(--action-view-border, #DCE7F6);
+  padding: 3px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--action-view-color, #4169A8);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.person-icon-btn:hover,
+.btn-learner-person-icon:hover {
   color: var(--action-view-hover-color, #315488);
+  background-color: var(--action-view-hover-bg, #E0EEFE);
   border-color: var(--action-view-hover-border, #B9D3F4);
 }
 
-.btn-view-details:focus-visible {
+.person-icon-btn:focus-visible,
+.btn-learner-person-icon:focus-visible {
   outline: 2px solid var(--action-view-color, #4169A8);
   outline-offset: 1px;
 }
 
-.empty-line-row td {
-  height: 34px;
-  box-sizing: border-box;
+.learner-name-text {
+  font-weight: 600;
+  color: #000000;
 }
 
 /* Modals */
@@ -1682,6 +1738,21 @@ function printReportDirectly() {
 .detail-value {
   font-size: 0.925rem;
   color: #0f172a;
+}
+
+.badge-green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-amber {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.badge-muted {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .spinner-blue {
@@ -1826,6 +1897,7 @@ function printReportDirectly() {
   .report-filter-bar,
   .btn-view-details,
   .btn-learner-person-icon,
+  .person-icon-btn,
   .modal-overlay {
     display: none !important;
   }
@@ -1851,6 +1923,14 @@ function printReportDirectly() {
   .summary-attendance-table th,
   .summary-attendance-table td {
     border: 1px solid #000000 !important;
+  }
+
+  .gender-section-header td,
+  .section-divider-row td,
+  .section-divider-cell {
+    background-color: #e5e7eb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 

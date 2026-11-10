@@ -118,7 +118,7 @@ const routes = [
       {
         path: 'modules',
         name: 'Modules',
-        redirect: () => {
+        redirect: (to) => {
           try {
             const raw = localStorage.getItem('als_teacher_user');
             if (raw) {
@@ -126,12 +126,12 @@ const routes = [
               const spec = String(teacher.programLevel || teacher.specialization || 'Both').toLowerCase();
               if (spec.includes('junior') || spec.includes('jhs') || spec.includes('sec')) {
                 if (!spec.includes('elem') && !spec.includes('both')) {
-                  return '/dashboard/modules/junior-high';
+                  return { path: '/dashboard/modules/junior-high', query: to.query };
                 }
               }
             }
           } catch (e) {}
-          return '/dashboard/modules/elementary';
+          return { path: '/dashboard/modules/elementary', query: to.query };
         },
       },
       {

@@ -7,6 +7,7 @@ import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddl
 import { syncLearnerModuleProgress } from '../utils/progressCalculator.js';
 import { notifyActivitySubmitted } from '../services/notificationService.js';
 import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUtils.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1174,6 +1175,21 @@ async function handleSubmissionReview(req, res, next) {
         uploadedOutputs: allFiles.map((f) => f.fileName || f.fileUrl).join(', '),
         remarks: resolvedFeedback !== undefined ? String(resolvedFeedback).trim() : '',
         dateFinished: (reviewedAt || new Date().toISOString()).split('T')[0],
+      });
+    }
+
+    const effectiveReviewTeacherId = teacherId || req.user?.profileId || sub.module?.teacherId || sub.learner?.assignedTeacherId;
+    if (effectiveReviewTeacherId) {
+      logTeacherActivity({
+        teacherId: effectiveReviewTeacherId,
+        type: 'SUBMISSION_REVIEWED',
+        activityTypeLabel: 'Reviewed a Learner Submission',
+        relatedEntity: `${sub.learner?.fullName || 'Learner'} — ${sub.module?.title || sub.title || 'Module'}`,
+        description: `Reviewed submission from ${sub.learner?.fullName || 'Learner'} for "${sub.module?.title || sub.title || 'Learning Module'}" (${normalizedStatus || updated.status}).`,
+        moduleId: sub.moduleId,
+        learnerId: sub.learnerId,
+        submissionId: updated.id,
+        linkUrl: sub.moduleId ? `/dashboard/modules/${sub.moduleId}?tab=submissions` : '/dashboard/modules'
       });
     }
 

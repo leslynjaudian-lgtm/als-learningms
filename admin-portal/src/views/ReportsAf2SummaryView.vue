@@ -103,7 +103,7 @@
           <select v-model="selectedLevel">
             <option value="">All ALS Levels</option>
             <option value="A&E Elementary">A&E Elementary</option>
-            <option value="A&E Junior High School">A&E Junior High School</option>
+            <option value="A&E Junior High">A&E Junior High</option>
           </select>
         </div>
 

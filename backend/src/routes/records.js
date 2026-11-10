@@ -6,6 +6,7 @@ import prisma from '../config/prisma.js';
 import { optionalAuth, authenticate, requireRole } from '../middleware/authMiddleware.js';
 import { formatLearnerName } from './learners.js';
 import { notifyLearnerRecordCreated } from '../services/notificationService.js';
+import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,6 +111,38 @@ router.get('/', optionalAuth, async (req, res, next) => {
       });
     }
 
+    // Role-based ALS Level authorization scoping for teachers
+    let teacherSpecialization = null;
+    if (req.user && req.user.role === 'TEACHER') {
+      teacherSpecialization = req.user.teacherProfile?.specialization || 'Both';
+    } else if (teacherId) {
+      const tObj = await prisma.teacher.findFirst({
+        where: { OR: [{ id: teacherId }, { userId: teacherId }] },
+        select: { specialization: true },
+      });
+      if (tObj) teacherSpecialization = tObj.specialization || 'Both';
+    }
+
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json([]);
+      }
+
+      if (allowsElem && !allowsJhs) {
+        assignedLearners = assignedLearners.filter(
+          (l) => l.level === 'ELEMENTARY' || String(l.level || '').toUpperCase().includes('ELEM')
+        );
+      } else if (allowsJhs && !allowsElem) {
+        assignedLearners = assignedLearners.filter(
+          (l) => l.level === 'JUNIOR' || String(l.level || '').toUpperCase().includes('JUN') || String(l.level || '').toUpperCase().includes('SEC')
+        );
+      }
+    }
+
     // Ensure the specifically requested learner is only included if assigned to this teacher (or if admin)
     if (targetLearnerId && !isNaN(targetLearnerId) && !assignedLearners.some((l) => l.id === targetLearnerId)) {
       const extraLearner = await prisma.learner.findUnique({
@@ -148,18 +181,23 @@ router.get('/', optionalAuth, async (req, res, next) => {
     });
 
     // 4. Preload module info for any saved records with a moduleId
-    const savedModuleIds = [...new Set(af2List.map((r) => Number(r.moduleId)).filter((id) => id && !isNaN(id)))];
     let loadedModulesMap = new Map();
-    if (savedModuleIds.length > 0) {
-      try {
-        const loadedModules = await prisma.module.findMany({
-          where: { id: { in: savedModuleIds } },
-          include: { learningArea: true },
-        });
-        loadedModulesMap = new Map(loadedModules.map((m) => [m.id, m]));
-      } catch (modErr) {
-        console.warn('Could not preload modules for saved records:', modErr);
-      }
+    let loadedModulesByTitle = new Map();
+    try {
+      const loadedModules = await prisma.module.findMany({
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          learningArea: { select: { id: true, name: true } },
+        },
+      });
+      loadedModulesMap = new Map(loadedModules.map((m) => [m.id, m]));
+      loadedModulesByTitle = new Map(
+        loadedModules.map((m) => [String(m.title).trim().toLowerCase(), m])
+      );
+    } catch (modErr) {
+      console.warn('Could not preload modules for saved records:', modErr);
     }
 
     // 5. Build records list STRICTLY from authoritative saved performance records
@@ -194,8 +232,14 @@ router.get('/', optionalAuth, async (req, res, next) => {
       const centerName = af.learningCenter || af.centerName || learner?.learningCenter?.name || '';
       const cid = af.learningCenterId || learner?.learningCenterId || null;
 
-      const matchedMod = af.moduleId ? loadedModulesMap.get(Number(af.moduleId)) : null;
+      const matchedMod =
+        (af.moduleId ? loadedModulesMap.get(Number(af.moduleId)) : null) ||
+        (af.moduleTitle ? loadedModulesByTitle.get(String(af.moduleTitle).trim().toLowerCase()) : null);
       const finalTitle = af.moduleTitle || matchedMod?.title || 'Learning Module';
+      const finalCode =
+        af.moduleCode ||
+        matchedMod?.code ||
+        (matchedMod?.id ? `MOD-${matchedMod.id}` : (af.moduleId ? `MOD-${af.moduleId}` : '—'));
       const finalStrand = af.strandName || matchedMod?.learningArea?.name || '';
 
       const finalStatus =
@@ -217,7 +261,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
         learningCenterId: cid,
         learningCenter: centerName,
         centerName: centerName,
-        moduleId: af.moduleId || null,
+        moduleId: af.moduleId || matchedMod?.id || null,
+        moduleCode: finalCode,
         moduleTitle: finalTitle,
         strandName: finalStrand,
         preTestScore: af.preTestScore != null && af.preTestScore !== '' ? Number(af.preTestScore) : null,
@@ -293,7 +338,8 @@ router.get('/', optionalAuth, async (req, res, next) => {
         (r) =>
           (r.learnerName && r.learnerName.toLowerCase().includes(q)) ||
           (r.lrn && r.lrn.toLowerCase().includes(q)) ||
-          (r.moduleTitle && r.moduleTitle.toLowerCase().includes(q))
+          (r.moduleTitle && r.moduleTitle.toLowerCase().includes(q)) ||
+          (r.moduleCode && r.moduleCode.toLowerCase().includes(q))
       );
     }
 
@@ -314,6 +360,29 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
         return matchesFinish || matchesStart;
       });
+    }
+
+    // Final teacher specialization safety filter
+    if (teacherSpecialization) {
+      const spec = String(teacherSpecialization).toLowerCase().trim();
+      const allowsElem = spec.includes('elem') || spec.includes('both');
+      const allowsJhs = spec.includes('junior') || spec.includes('jhs') || spec.includes('sec') || spec.includes('both');
+
+      if (!allowsElem && !allowsJhs) {
+        return res.json([]);
+      }
+
+      if (allowsElem && !allowsJhs) {
+        filtered = filtered.filter((r) => {
+          const lvl = (r.level || '').toLowerCase();
+          return lvl.includes('elem');
+        });
+      } else if (allowsJhs && !allowsElem) {
+        filtered = filtered.filter((r) => {
+          const lvl = (r.level || '').toLowerCase();
+          return lvl.includes('junior') || lvl.includes('jhs') || lvl.includes('sec');
+        });
+      }
     }
 
     res.json(filtered);
@@ -404,6 +473,7 @@ router.get('/context', optionalAuth, async (req, res, next) => {
         learningCenterId: learner.learningCenterId || null,
         learningCenter: centerName,
         moduleId: null,
+        moduleCode: '',
         moduleTitle: '',
         strandName: '',
         dateStarted: '',
@@ -428,7 +498,7 @@ router.get('/context', optionalAuth, async (req, res, next) => {
             _count: { select: { questions: true } },
             attempts: {
               where: { learnerId, status: 'SUBMITTED' },
-              orderBy: { completedAt: 'desc' },
+              orderBy: { submittedAt: 'desc' },
               take: 1,
             },
           },
@@ -557,6 +627,7 @@ router.get('/context', optionalAuth, async (req, res, next) => {
       learningCenterId: learner.learningCenterId || null,
       learningCenter: centerName,
       moduleId: mod.id,
+      moduleCode: mod.code || (mod.id ? `MOD-${mod.id}` : ''),
       moduleTitle: mod.title,
       strandName: mod.learningArea?.name || matchedAf?.strandName || '',
       dateStarted: storedDateStarted,
@@ -663,7 +734,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
               _count: { select: { questions: true } },
               attempts: {
                 where: { learnerId: parsedLearnerId, status: 'SUBMITTED' },
-                orderBy: { completedAt: 'desc' },
+                orderBy: { submittedAt: 'desc' },
                 take: 1,
               },
             },
@@ -690,7 +761,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
               _count: { select: { questions: true } },
               attempts: {
                 where: { learnerId: parsedLearnerId, status: 'SUBMITTED' },
-                orderBy: { completedAt: 'desc' },
+                orderBy: { submittedAt: 'desc' },
                 take: 1,
               },
             },
@@ -906,6 +977,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         learningCenter: authoritativeCenterName,
         centerName: authoritativeCenterName,
         moduleId: resolvedModuleId || existing.moduleId || null,
+        moduleCode: matchedModule?.code || req.body.moduleCode || existing.moduleCode || null,
         moduleTitle: finalModuleTitle,
         strandName: finalStrandName || existing.strandName || '',
         dateStarted: finalDateStarted !== '' ? finalDateStarted : existing.dateStarted || '',
@@ -938,6 +1010,7 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         learningCenter: authoritativeCenterName,
         centerName: authoritativeCenterName,
         moduleId: resolvedModuleId || null,
+        moduleCode: matchedModule?.code || req.body.moduleCode || null,
         moduleTitle: finalModuleTitle,
         strandName: finalStrandName,
         dateStarted: finalDateStarted,
@@ -1011,6 +1084,17 @@ router.post('/', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, re
         moduleTitle: finalModuleTitle,
         recordId: savedAf2.id,
       }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
+
+      logTeacherActivity({
+        teacherId: teacherId || req.user?.profileId,
+        type: existingAfIdx !== -1 ? 'RECORD_UPDATED' : 'RECORD_ADDED',
+        activityTypeLabel: 'Added or Updated a Learner Record',
+        relatedEntity: `${authoritativeLearnerName} — ${finalModuleTitle}`,
+        description: `${existingAfIdx !== -1 ? 'Updated' : 'Added'} AF2 record for ${authoritativeLearnerName} in "${finalModuleTitle}" (${finalAssessment}).`,
+        moduleId: resolvedModuleId || null,
+        learnerId: parsedLearnerId,
+        linkUrl: '/dashboard/records'
+      });
     }
 
     res.status(201).json(savedAf2);
@@ -1105,6 +1189,17 @@ router.put('/:id', authenticate, requireRole(['TEACHER', 'ADMIN']), async (req, 
           moduleTitle: records[idx].moduleTitle,
           recordId: records[idx].id,
         }).catch((e) => console.error('[Records] notifyLearnerRecordCreated error:', e));
+
+        logTeacherActivity({
+          teacherId: teacherId || req.user?.profileId || records[idx].teacherId,
+          type: 'RECORD_UPDATED',
+          activityTypeLabel: 'Added or Updated a Learner Record',
+          relatedEntity: `${records[idx].learnerName || 'Learner'} — ${records[idx].moduleTitle || 'Module'}`,
+          description: `Updated AF2 record for ${records[idx].learnerName || 'Learner'} in "${records[idx].moduleTitle || 'Module'}" (${finalAssessment}).`,
+          moduleId: records[idx].moduleId || null,
+          learnerId: records[idx].learnerId || null,
+          linkUrl: '/dashboard/records'
+        });
       }
 
       return res.json(records[idx]);

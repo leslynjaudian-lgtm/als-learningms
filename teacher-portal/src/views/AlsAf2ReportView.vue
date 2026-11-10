@@ -105,59 +105,65 @@
         </div>
       </div>
 
-      <!-- Row 2: Date Filters & Action Buttons (Aligned from the Left) -->
+      <!-- Row 2: Date Filters & Action Buttons -->
       <div class="filter-row-secondary">
-        <!-- 4. From Date -->
-        <div class="filter-field filter-col-date">
-          <label class="filter-label">From Date</label>
-          <input
-            v-model="filterDateStarted"
-            type="date"
-            class="filter-date-input"
-            placeholder="MM/DD/YYYY"
-            @change="dateError = ''; validationError = ''"
-          />
+        <div class="filter-row-secondary-left">
+          <!-- 4. From Date -->
+          <div class="filter-field filter-col-date">
+            <label class="filter-label">From Date</label>
+            <input
+              v-model="filterDateStarted"
+              type="date"
+              class="filter-date-input"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''; validationError = ''"
+            />
+          </div>
+
+          <!-- 5. To Date -->
+          <div class="filter-field filter-col-date">
+            <label class="filter-label">To Date</label>
+            <input
+              v-model="filterDateFinished"
+              type="date"
+              class="filter-date-input"
+              placeholder="MM/DD/YYYY"
+              @change="dateError = ''; validationError = ''"
+            />
+          </div>
+
+          <!-- Reset Filters Button (Beside To Date) -->
+          <div class="filter-btn-col filter-col-reset">
+            <button
+              type="button"
+              class="btn-reset-filter"
+              @click="resetFilters"
+              title="Reset Filters"
+            >
+              Reset Filters
+            </button>
+          </div>
         </div>
 
-        <!-- 5. To Date -->
-        <div class="filter-field filter-col-date">
-          <label class="filter-label">To Date</label>
-          <input
-            v-model="filterDateFinished"
-            type="date"
-            class="filter-date-input"
-            placeholder="MM/DD/YYYY"
-            @change="dateError = ''; validationError = ''"
-          />
-        </div>
-
-        <div class="filter-actions-group">
-          <!-- Reset Filters Button -->
-          <button
-            type="button"
-            class="btn-reset-filter"
-            @click="resetFilters"
-            title="Reset Filters"
-          >
-            Reset Filters
-          </button>
-
-          <!-- Generate Report Button -->
-          <button
-            type="button"
-            class="btn-generate-report"
-            :disabled="loadingReport"
-            @click="generateReport"
-          >
-            <span v-if="loadingReport" class="btn-spinner-white"></span>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            <span>{{ loadingReport ? 'Generating...' : 'Generate Report' }}</span>
-          </button>
+        <div class="filter-row-secondary-right">
+          <!-- Generate Report Button (Aligned to far right) -->
+          <div class="filter-btn-col filter-col-generate">
+            <button
+              type="button"
+              class="btn-generate-report"
+              :disabled="loadingReport"
+              @click="generateReport"
+            >
+              <span v-if="loadingReport" class="btn-spinner-white"></span>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span>{{ loadingReport ? 'Generating...' : 'Generate Report' }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -689,7 +695,7 @@ import { getTeacherProfile } from '../api/auth.js';
 import { getRecords, createRecord } from '../api/records.js';
 import api from '../api/axios.js';
 
-const { currentTeacher, teacherName, teacherId, assignedCenters } = useTeacherSession();
+const { currentTeacher, teacherName, teacherId, assignedCenters, assignedLevelOptions } = useTeacherSession();
 const { getRecordsForLearner, saveRecord, seedDefaultRecordsIfEmpty } = useAf2Records();
 
 const reportContentRef = ref(null);
@@ -741,9 +747,12 @@ const centerOptions = computed(() => {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 });
 
-// Available ALS Levels for the selected Learning Center and Teacher
+// Available ALS Levels for the selected Learning Center and Teacher (Strictly constrained by teacher's assigned levels)
 const availableLevels = computed(() => {
   if (!filterCenter.value) return [];
+  const teacherLevels = assignedLevelOptions.value;
+  if (teacherLevels.length === 0) return [];
+
   const set = new Set();
   const learnersInCenter = assignedLearnersList.value.filter(
     (l) => l.learningCenter === filterCenter.value
@@ -752,22 +761,14 @@ const availableLevels = computed(() => {
     if (l.level) set.add(normalizeLevel(l.level));
   });
 
-  // If no learners exist yet in that center, fallback to standard levels
+  // If no learners exist yet in that center, use teacher's assigned levels
   if (set.size === 0) {
-    const spec = (currentTeacher.value?.specialization || currentTeacher.value?.programLevel || '').toLowerCase();
-    if (spec.includes('elem')) {
-      set.add('A&E Elementary');
-    } else if (spec.includes('junior') || spec.includes('jhs') || spec.includes('sec')) {
-      set.add('A&E Junior High');
-    } else {
-      set.add('A&E Elementary');
-      set.add('A&E Junior High');
-    }
+    return teacherLevels;
   }
 
-  // Use exactly "A&E Elementary" and "A&E Junior High" as level labels
-  const allowed = ['A&E Elementary', 'A&E Junior High'];
-  return allowed.filter((lvl) => set.has(lvl));
+  // Intersect with teacher's assigned levels
+  const filtered = teacherLevels.filter((lvl) => set.has(lvl));
+  return filtered.length > 0 ? filtered : teacherLevels;
 });
 
 // Available Learners assigned to teacher who match BOTH selected Center and Level
@@ -1592,13 +1593,14 @@ watch(
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  margin-bottom: 1.75rem;
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 1.35rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  gap: 11px;
   width: 100%;
+  height: auto;
   box-sizing: border-box;
 }
 
@@ -1606,35 +1608,47 @@ watch(
 .filter-dropdowns-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.15rem;
+  gap: 14px;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* Row 2: Date Filters & Action Buttons, starting cleanly from the left */
+/* Row 2: Date Filters & Action Buttons, no divider or separator, 10-12px from Row 1 */
 .filter-row-secondary {
   display: flex;
   align-items: flex-end;
-  justify-content: flex-start;
-  gap: 1.15rem;
-  padding-top: 1.15rem;
-  border-top: 1px solid #f1f5f9;
-  flex-wrap: wrap;
+  justify-content: space-between;
   width: 100%;
+  gap: 14px;
   box-sizing: border-box;
+  padding-top: 0;
+  border-top: none;
+}
+
+.filter-row-secondary-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-row-secondary-right {
+  display: flex;
+  align-items: flex-end;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .filter-col-date {
-  flex: 0 0 210px;
-  min-width: 170px;
+  flex: 0 0 160px;
+  width: 160px;
+  min-width: 140px;
   box-sizing: border-box;
 }
 
-.filter-actions-group {
+.filter-btn-col {
   display: flex;
   align-items: flex-end;
-  gap: 0.75rem;
-  box-sizing: border-box;
 }
 
 .filter-error-text {
@@ -1779,29 +1793,45 @@ watch(
   animation: spin 0.8s linear infinite;
 }
 
-/* Responsiveness on smaller screens: stack filters vertically */
+/* Responsiveness on tablet and mobile screens */
+@media (max-width: 960px) {
+  .filter-row-secondary {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .filter-card {
     padding: 1rem;
+    gap: 12px;
   }
   .filter-dropdowns-row {
     grid-template-columns: 1fr;
-    gap: 0.85rem;
+    gap: 0.75rem;
   }
   .filter-row-secondary {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.85rem;
+    gap: 0.75rem;
+  }
+  .filter-row-secondary-left {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.75rem;
+  }
+  .filter-row-secondary-right {
+    width: 100%;
+    margin-left: 0;
   }
   .filter-col-date {
     width: 100%;
     max-width: 100%;
     flex: 1 1 100%;
   }
-  .filter-actions-group {
-    flex-direction: column;
+  .filter-btn-col {
     width: 100%;
-    gap: 0.75rem;
   }
   .btn-reset-filter,
   .btn-generate-report {

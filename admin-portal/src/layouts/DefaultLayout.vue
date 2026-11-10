@@ -145,7 +145,10 @@
           <button
             type="button"
             class="nav-link nav-dropdown-btn"
-            :class="{ active: activeMenu === 'reports', expanded: expandedMenu === 'reports' }"
+            :class="{
+              active: activeMenu === 'reports',
+              expanded: expandedMenu === 'reports'
+            }"
             @click="handleParentClick('reports')"
             aria-haspopup="true"
             :aria-expanded="expandedMenu === 'reports'"
@@ -489,39 +492,37 @@ function getExpandedFromPath(pathname) {
   return null;
 }
 
-const activeMenu = ref(getMenuFromPath(route.path) || 'dashboard');
+const activeMenu = computed(() => {
+  if (expandedMenu.value) {
+    return expandedMenu.value;
+  }
+  return getMenuFromPath(route.path) || 'dashboard';
+});
 const expandedMenu = ref(getExpandedFromPath(route.path));
 
 // Non-expandable direct router link click handler
 function handleNavClick(menu) {
-  activeMenu.value = menu;
   expandedMenu.value = null;
   sidebarOpen.value = false;
 }
 
-// Expandable parent menu click handler: updates activeMenu and toggles expandedMenu independently
+// Expandable parent menu click handler: updates expandedMenu independently without overriding route-based active state
 function handleParentClick(menu) {
-  activeMenu.value = menu;
   expandedMenu.value = expandedMenu.value === menu ? null : menu;
 }
 
 // Child sublink click handler
 function handleSublinkClick(parentMenu) {
-  activeMenu.value = parentMenu;
   expandedMenu.value = parentMenu;
   sidebarOpen.value = false;
 }
 
-// Route watcher: synchronizes activeMenu and expandedMenu ONLY when route path actually changes
+// Route watcher: synchronizes expandedMenu ONLY when route path actually changes
 watch(
   () => route.path,
   (newPath) => {
     notifPanelOpen.value = false;
     fetchNotifications();
-    const routeMenu = getMenuFromPath(newPath);
-    if (routeMenu) {
-      activeMenu.value = routeMenu;
-    }
 
     if (newPath.startsWith('/dashboard/reports')) {
       expandedMenu.value = 'reports';
@@ -1045,17 +1046,17 @@ function confirmSignout() {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.65rem;
   margin-top: 0.25rem;
-  margin-left: 0.85rem;
+  margin-left: 0.65rem;
   border-left: 2px solid rgba(255, 255, 255, 0.14);
 }
 
 .nav-sublink {
   display: flex;
   align-items: flex-start;
-  gap: 0.65rem;
-  padding: 0.5rem 0.65rem;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
   color: #94a3b8;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -1065,15 +1066,21 @@ function confirmSignout() {
   transition: all var(--transition-fast);
 }
 
-.nav-sublink:hover {
+.nav-sublink:hover:not(.active) {
   background: var(--color-sidebar-hover);
   color: #ffffff;
 }
 
 .nav-sublink.active {
-  background: rgba(37, 99, 235, 0.3);
-  color: #ffffff;
+  background: #193B70 !important;
+  color: #ffffff !important;
   font-weight: 600;
+  box-shadow: none;
+}
+
+.nav-sublink.active:hover {
+  background: #193B70 !important;
+  color: #ffffff !important;
 }
 
 .sublink-dot {
@@ -1087,9 +1094,9 @@ function confirmSignout() {
 }
 
 .nav-sublink.active .sublink-dot {
-  background: #60a5fa;
+  background: #ffffff;
   opacity: 1;
-  box-shadow: 0 0 6px rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.7);
 }
 
 .sublink-label {
@@ -1098,6 +1105,8 @@ function confirmSignout() {
   text-overflow: clip;
   line-height: 1.35;
   word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
   flex: 1;
 }
 

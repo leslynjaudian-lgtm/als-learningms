@@ -100,37 +100,49 @@
 
         <div class="info-card-body">
           <div class="info-grid">
-            <!-- 1. Full Name -->
+            <!-- 1. Last Name -->
             <div class="info-field">
-              <span class="info-label">Full Name</span>
-              <span class="info-value info-highlight">{{ learner.name }}</span>
+              <span class="info-label">Last Name</span>
+              <span class="info-value info-highlight">{{ learner.lastName }}</span>
             </div>
 
-            <!-- 2. LRN -->
+            <!-- 2. First Name -->
+            <div class="info-field">
+              <span class="info-label">First Name</span>
+              <span class="info-value info-highlight">{{ learner.firstName }}</span>
+            </div>
+
+            <!-- 3. Middle Name -->
+            <div class="info-field">
+              <span class="info-label">Middle Name</span>
+              <span class="info-value info-highlight">{{ learner.middleName }}</span>
+            </div>
+
+            <!-- 4. LRN -->
             <div class="info-field">
               <span class="info-label">LRN</span>
               <span class="info-value info-code">{{ learner.lrn || '—' }}</span>
             </div>
 
-            <!-- 3. ALS Level -->
+            <!-- 5. ALS Level -->
             <div class="info-field">
               <span class="info-label">ALS Level</span>
               <span class="info-value">{{ learner.programLevel || learner.level || '—' }}</span>
             </div>
 
-            <!-- 4. Learning Center -->
+            <!-- 6. Learning Center -->
             <div class="info-field">
               <span class="info-label">Learning Center</span>
               <span class="info-value">{{ learner.learningCenter || '—' }}</span>
             </div>
 
-            <!-- 5. Assigned Teacher -->
+            <!-- 7. Assigned Teacher -->
             <div class="info-field">
               <span class="info-label">Assigned Teacher</span>
               <span class="info-value teacher-val">{{ learner.assignedTeacher || '—' }}</span>
             </div>
 
-            <!-- 6. Status -->
+            <!-- 8. Status -->
             <div class="info-field">
               <span class="info-label">Status</span>
               <span class="info-value">
@@ -140,32 +152,32 @@
               </span>
             </div>
 
-            <!-- 7. Sex -->
+            <!-- 9. Sex -->
             <div class="info-field">
               <span class="info-label">Sex</span>
               <span class="info-value">{{ learner.sex || '—' }}</span>
             </div>
 
-            <!-- 8. Date of Birth -->
+            <!-- 10. Date of Birth -->
             <div class="info-field">
               <span class="info-label">Date of Birth</span>
               <span class="info-value">{{ learner.dob || '—' }}</span>
             </div>
 
-            <!-- 9. Contact Number -->
+            <!-- 11. Contact Number -->
             <div class="info-field">
               <span class="info-label">Contact Number</span>
               <span class="info-value">{{ learner.contactNumber || '—' }}</span>
             </div>
 
-            <!-- 10. Address -->
-            <div class="info-field info-field-full">
+            <!-- 12. Address -->
+            <div class="info-field">
               <span class="info-label">Address</span>
               <span class="info-value">{{ learner.address || '—' }}</span>
             </div>
 
-            <!-- 11. Date Registered -->
-            <div class="info-field info-field-full">
+            <!-- 13. Date Registered -->
+            <div class="info-field">
               <span class="info-label">Date Registered</span>
               <span class="info-value">{{ learner.dateRegistered || '—' }}</span>
             </div>
@@ -191,6 +203,9 @@ const learner = reactive({
   id: null,
   name: '',
   fullName: '',
+  lastName: '',
+  firstName: '',
+  middleName: '',
   lrn: '',
   level: '',
   programLevel: '',
@@ -205,6 +220,14 @@ const learner = reactive({
 });
 
 const loadError = ref('');
+
+function formatAlsLevel(levelVal) {
+  if (!levelVal) return 'A&E Elementary';
+  const l = String(levelVal).toLowerCase();
+  if (l.includes('elem')) return 'A&E Elementary';
+  if (l.includes('jun') || l.includes('sec')) return 'A&E Junior High';
+  return levelVal;
+}
 
 function getInitials(name) {
   if (!name) return 'L';
@@ -248,8 +271,11 @@ async function loadLearnerData() {
       learner.id = data.id;
       learner.name = data.fullName || data.name || 'Learner';
       learner.fullName = learner.name;
+      learner.lastName = data.lastName?.trim() || '—';
+      learner.firstName = data.firstName?.trim() || '—';
+      learner.middleName = data.middleName?.trim() || '—';
       learner.lrn = data.lrn || '—';
-      learner.level = data.level === 'ELEMENTARY' ? 'A&E Elementary' : (data.level === 'JUNIOR' || data.level === 'LOWER_SECONDARY' || data.level === 'A&E Junior' || data.level === 'A&E Junior High' ? 'A&E Junior High' : data.level) || 'A&E Elementary';
+      learner.level = formatAlsLevel(data.level || data.programLevel);
       learner.programLevel = learner.level;
       learner.learningCenter = data.learningCenter || (data.learningCenterDetails ? data.learningCenterDetails.name : '—');
       learner.status = data.status || 'Active';
