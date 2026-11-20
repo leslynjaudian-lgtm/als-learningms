@@ -112,12 +112,21 @@ export function useTeacherSession() {
   });
 
   const teacherPhoto = computed(() => {
-    return (
+    const raw =
       currentTeacher.value?.profilePhoto ||
       currentTeacher.value?.user?.profilePhoto ||
       currentTeacher.value?.photo ||
-      ''
-    );
+      '';
+    if (!raw) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+      return raw;
+    }
+    const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+    if (apiUrl && apiUrl.startsWith('http')) {
+      const root = apiUrl.replace(/\/api\/?$/, '');
+      return `${root}${raw.startsWith('/') ? '' : '/'}${raw}`;
+    }
+    return raw;
   });
 
   const teacherId = computed(() => {

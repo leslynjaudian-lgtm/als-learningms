@@ -19,7 +19,17 @@ export function useAdminSession() {
   });
 
   const adminPhoto = computed(() => {
-    return currentAdmin.value?.profilePhoto || currentAdmin.value?.profile?.profilePhoto || '';
+    const raw = currentAdmin.value?.profilePhoto || currentAdmin.value?.profile?.profilePhoto || '';
+    if (!raw) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+      return raw;
+    }
+    const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+    if (apiUrl && apiUrl.startsWith('http')) {
+      const root = apiUrl.replace(/\/api\/?$/, '');
+      return `${root}${raw.startsWith('/') ? '' : '/'}${raw}`;
+    }
+    return raw;
   });
 
   const adminName = computed(() => {

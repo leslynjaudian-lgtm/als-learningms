@@ -122,10 +122,14 @@ async function processQueue() {
 function resolvePdfUrl(rawUrl) {
   if (!rawUrl) return '';
   const url = String(rawUrl).trim();
-  // If url contains /uploads/, use relative path so it routes through proxy without CORS issues
+  const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+  const root = apiUrl && apiUrl.startsWith('http') ? apiUrl.replace(/\/api\/?$/, '') : '';
+
+  // If url contains /uploads/, resolve with backend origin in production or relative in local dev
   if (url.includes('/uploads/')) {
     const idx = url.indexOf('/uploads/');
-    return url.slice(idx);
+    const relative = url.slice(idx);
+    return root ? `${root}${relative}` : relative;
   }
   if (
     url.startsWith('http://') ||
@@ -136,9 +140,9 @@ function resolvePdfUrl(rawUrl) {
     return url;
   }
   if (url.startsWith('/')) {
-    return url;
+    return root ? `${root}${url}` : url;
   }
-  return `/uploads/modules/${url}`;
+  return root ? `${root}/uploads/modules/${url}` : `/uploads/modules/${url}`;
 }
 
 function isImageFile(url) {

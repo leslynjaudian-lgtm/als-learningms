@@ -52,6 +52,14 @@ app.use('/uploads', (_req, res) => {
 // ---------------------
 // Routes
 // ---------------------
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'ALS LMS Backend API',
+    health: '/api/health',
+  });
+});
+
 app.use('/api', routes);
 
 // ---------------------
@@ -65,9 +73,9 @@ app.use(errorHandler);
 let activeServer = null;
 
 function startServer(port, retriesLeft = 15) {
-  const srv = app.listen(port, () => {
+  const srv = app.listen(port, '0.0.0.0', () => {
     activeServer = srv;
-    console.log(`[ALS Backend] Server running on http://localhost:${port}`);
+    console.log(`[ALS Backend] Server running on port ${port}`);
   });
 
   srv.on('error', (err) => {

@@ -382,12 +382,21 @@ const learnerName = computed(() => {
 
 const profilePhotoUrl = computed(() => {
   if (photoError.value) return '';
-  return (
+  const raw =
     learnerUser.value?.profilePhoto ||
     learnerUser.value?.user?.profilePhoto ||
     learnerUser.value?.photo ||
-    ''
-  );
+    '';
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+    return raw;
+  }
+  const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
+  if (apiUrl && apiUrl.startsWith('http')) {
+    const root = apiUrl.replace(/\/api\/?$/, '');
+    return `${root}${raw.startsWith('/') ? '' : '/'}${raw}`;
+  }
+  return raw;
 });
 
 const hasProfilePhoto = computed(() => {

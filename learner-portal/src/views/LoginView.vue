@@ -216,7 +216,7 @@ async function handleLogin() {
     } else if (err.response?.data?.error) {
       loginError.value = err.response.data.error;
     } else if (err.message === 'Network Error' || !err.response) {
-      loginError.value = 'Cannot connect to backend server. Please verify backend is running on http://localhost:3000.';
+      loginError.value = 'Cannot connect to the backend server. Please check your internet connection or verify the server is running.';
     } else {
       loginError.value = 'Unable to find your learner account. Please enter your complete registered First Name and Last Name.';
     }
@@ -249,7 +249,7 @@ async function handleLrnVerification() {
     if (err.response?.data?.error) {
       loginError.value = err.response.data.error;
     } else if (err.message === 'Network Error' || !err.response) {
-      loginError.value = 'Cannot connect to backend server. Please verify backend is running on http://localhost:3000.';
+      loginError.value = 'Cannot connect to the backend server. Please check your internet connection or verify the server is running.';
     } else {
       loginError.value = 'Unable to verify your learner information. Please check your details or contact your ALS teacher.';
     }

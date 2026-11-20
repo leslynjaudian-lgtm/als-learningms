@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue';
+import api from '../api/axios.js';
 
 // Shared in-memory list of AF2 records
 const globalAf2Records = ref([]);
@@ -73,24 +74,22 @@ export function useAf2Records() {
 
   async function fetchBackendRecords() {
     try {
-      const res = await fetch('http://localhost:3000/api/af2');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const current = [...globalAf2Records.value];
-          const existingIds = new Set(current.map((r) => String(r.id)));
-          let changed = false;
-          for (const item of data) {
-            if (item && item.id && !existingIds.has(String(item.id))) {
-              existingIds.add(String(item.id));
-              current.push(item);
-              changed = true;
-            }
+      const res = await api.get('/af2');
+      const data = res.data;
+      if (Array.isArray(data) && data.length > 0) {
+        const current = [...globalAf2Records.value];
+        const existingIds = new Set(current.map((r) => String(r.id)));
+        let changed = false;
+        for (const item of data) {
+          if (item && item.id && !existingIds.has(String(item.id))) {
+            existingIds.add(String(item.id));
+            current.push(item);
+            changed = true;
           }
-          if (changed) {
-            globalAf2Records.value = current;
-            saveGlobalRecords(current);
-          }
+        }
+        if (changed) {
+          globalAf2Records.value = current;
+          saveGlobalRecords(current);
         }
       }
     } catch {
@@ -202,11 +201,7 @@ export function useAf2Records() {
 
     // Sync to backend API if available
     try {
-      fetch('http://localhost:3000/api/af2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRec),
-      }).catch((err) => console.warn('Could not sync AF2 to backend:', err));
+      api.post('/af2', newRec).catch((err) => console.warn('Could not sync AF2 to backend:', err));
     } catch {
       // Ignore network errors
     }
