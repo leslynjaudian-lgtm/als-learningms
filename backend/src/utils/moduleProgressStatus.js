@@ -516,6 +516,9 @@ export function buildLearnerModuleProgressSummary({
       totalPages: evalRes.totalPages,
       completedAt: r.dateFinished || r.dateCompleted || prog?.completedAt || null,
       dateStarted: r.dateStarted || prog?.createdAt || null,
+      remarks: r.remarks || evalRes.activity?.remarks || '',
+      assessment: r.assessment || (evalRes.status === 'Mastered' ? 'Mastered' : (evalRes.status === 'Not Mastered' ? 'Not Mastered' : evalRes.status)),
+      otherActivities: r.otherActivities || '',
     });
   }
 
@@ -618,6 +621,9 @@ export function buildLearnerModuleProgressSummary({
       totalPages: evalRes.totalPages,
       completedAt: prog?.completedAt || null,
       dateStarted: prog?.createdAt || mod.dateStarted || null,
+      remarks: evalRes.activity?.remarks || '',
+      assessment: evalRes.status === 'Mastered' ? 'Mastered' : (evalRes.status === 'Not Mastered' ? 'Not Mastered' : evalRes.status),
+      otherActivities: '',
     });
   }
 

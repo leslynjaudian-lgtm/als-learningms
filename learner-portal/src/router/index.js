@@ -6,9 +6,9 @@ import MyModulesView from '../views/MyModulesView.vue';
 import ModuleDetailView from '../views/ModuleDetailView.vue';
 import MockModuleStudyView from '../views/MockModuleStudyView.vue';
 import AssessmentsView from '../views/AssessmentsView.vue';
-import ProgressView from '../views/ProgressView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
 import ProfileView from '../views/ProfileView.vue';
+import HelpView from '../views/HelpView.vue';
 import { clearLearnerSessionStorage } from '../utils/learnerStorage.js';
 
 const routes = [
@@ -58,9 +58,7 @@ const routes = [
       },
       {
         path: '/progress',
-        name: 'Progress',
-        component: ProgressView,
-        meta: { title: 'My Progress', requiresAuth: true },
+        redirect: '/home',
       },
       {
         path: '/notifications',
@@ -74,6 +72,12 @@ const routes = [
         name: 'Profile',
         component: ProfileView,
         meta: { title: 'My Profile', requiresAuth: true },
+      },
+      {
+        path: '/help',
+        name: 'Help',
+        component: HelpView,
+        meta: { title: 'Tabang / Giya', requiresAuth: true },
       },
     ],
   },

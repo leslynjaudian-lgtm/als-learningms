@@ -444,8 +444,77 @@
               <div><strong>Gender:</strong> {{ selectedLearnerDetails.learner?.gender || '—' }}</div>
             </div>
 
+            <!-- Targeted Performance Record Spotlight (when targeted from notification or clicked) -->
+            <div v-if="selectedTargetedRecord" class="targeted-record-card">
+              <div class="tr-card-header">
+                <div class="tr-card-title-group">
+                  <span class="tr-badge-label">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 14 14"></polyline>
+                    </svg>
+                    <span>Recorded Module Details</span>
+                  </span>
+                  <h4 class="tr-module-title">{{ selectedTargetedRecord.title }}</h4>
+                </div>
+                <span
+                  class="badge badge-lg"
+                  :class="getModuleStatusBadgeClass(selectedTargetedRecord.status || selectedTargetedRecord.assessment)"
+                >
+                  {{ formatModuleStatusLabel(selectedTargetedRecord.status || selectedTargetedRecord.assessment) }}
+                </span>
+              </div>
+
+              <div class="tr-details-grid">
+                <div class="tr-detail-item">
+                  <span class="tr-detail-label">Learning Strand</span>
+                  <span class="tr-detail-val">{{ selectedTargetedRecord.strand || 'General' }}</span>
+                </div>
+                <div class="tr-detail-item">
+                  <span class="tr-detail-label">ALS Level</span>
+                  <span class="tr-detail-val">{{ formatLearnerLevel(selectedLearnerDetails.learner?.level) }}</span>
+                </div>
+                <div class="tr-detail-item">
+                  <span class="tr-detail-label">Pre-Test Result</span>
+                  <span class="tr-detail-val font-mono">
+                    {{ selectedTargetedRecord.preTest?.score != null ? `${selectedTargetedRecord.preTest.score} / ${selectedTargetedRecord.preTest.max} (${selectedTargetedRecord.preTest.percentage}%)` : 'Not taken' }}
+                  </span>
+                </div>
+                <div class="tr-detail-item">
+                  <span class="tr-detail-label">Post-Test Result</span>
+                  <span class="tr-detail-val font-mono">
+                    {{ selectedTargetedRecord.postTest?.score != null ? `${selectedTargetedRecord.postTest.score} / ${selectedTargetedRecord.postTest.max} (${selectedTargetedRecord.postTest.percentage}%)` : 'Not taken' }}
+                  </span>
+                </div>
+                <div class="tr-detail-item">
+                  <span class="tr-detail-label">Module Assessment</span>
+                  <span class="tr-detail-val" :class="isMasteredStatus(selectedTargetedRecord.status || selectedTargetedRecord.assessment) ? 'text-green-bold' : 'text-amber-bold'">
+                    {{ formatModuleStatusLabel(selectedTargetedRecord.status || selectedTargetedRecord.assessment) }}
+                  </span>
+                </div>
+                <div v-if="selectedTargetedRecord.dateStarted || selectedTargetedRecord.completedAt" class="tr-detail-item">
+                  <span class="tr-detail-label">Completion Date</span>
+                  <span class="tr-detail-val">{{ selectedTargetedRecord.completedAt || selectedTargetedRecord.dateStarted || '—' }}</span>
+                </div>
+                <div class="tr-detail-item tr-full-width">
+                  <span class="tr-detail-label">Teacher Remarks</span>
+                  <div class="tr-remarks-content">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>{{ selectedTargetedRecord.remarks || 'No teacher remarks recorded for this module.' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Modules Breakdown Table -->
-            <h4 class="modules-breakdown-title">Assigned Modules &amp; Assessment Results</h4>
+            <div class="modules-breakdown-header-row">
+              <h4 class="modules-breakdown-title">Assigned Modules &amp; Assessment Results</h4>
+              <span class="modules-click-hint" v-if="selectedLearnerDetails.modules && selectedLearnerDetails.modules.length > 1">
+                Click any module row to view full details
+              </span>
+            </div>
             <div class="modal-table-responsive">
               <table class="modal-detail-table">
                 <thead>
@@ -454,13 +523,22 @@
                     <th>Strand</th>
                     <th>Pre-Test</th>
                     <th>Post-Test</th>
-                    <th>Status</th>
+                    <th>Assessment</th>
+                    <th>Teacher Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="mod in selectedLearnerDetails.modules" :key="mod.id">
+                  <tr
+                    v-for="mod in selectedLearnerDetails.modules"
+                    :key="mod.id"
+                    :class="{ 'row-targeted-record': isRecordTargeted(mod), 'cursor-pointer': true }"
+                    @click="selectModuleRecord(mod)"
+                  >
                     <td>
-                      <strong>{{ mod.title }}</strong>
+                      <div class="module-title-cell-flex">
+                        <strong>{{ mod.title }}</strong>
+                        <span v-if="isRecordTargeted(mod)" class="target-row-badge">Selected</span>
+                      </div>
                     </td>
                     <td class="text-sm">{{ mod.strand }}</td>
                     <td class="text-sm font-mono">
@@ -472,14 +550,17 @@
                     <td>
                       <span
                         class="badge"
-                        :class="getModuleStatusBadgeClass(mod.status)"
+                        :class="getModuleStatusBadgeClass(mod.status || mod.assessment)"
                       >
-                        {{ formatModuleStatusLabel(mod.status) }}
+                        {{ formatModuleStatusLabel(mod.status || mod.assessment) }}
                       </span>
+                    </td>
+                    <td class="text-sm remarks-cell">
+                      {{ mod.remarks || '—' }}
                     </td>
                   </tr>
                   <tr v-if="!selectedLearnerDetails.modules || selectedLearnerDetails.modules.length === 0">
-                    <td colspan="5" class="text-muted-center">No module records recorded for this learner.</td>
+                    <td colspan="6" class="text-muted-center">No module records recorded for this learner.</td>
                   </tr>
                 </tbody>
               </table>
@@ -584,7 +665,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import ReportsPageHeader from '../components/ReportsPageHeader.vue';
 import ClearFiltersButton from '../components/ClearFiltersButton.vue';
 import { exportReportToPdf } from '../utils/pdfExport.js';
@@ -595,6 +676,7 @@ import logoImg from '../assets/logo.png';
 import alsLogoImg from '../assets/als-logo.png';
 
 const route = useRoute();
+const router = useRouter();
 const reportContentRef = ref(null);
 
 // 1. Current Filter Selections (Inputs)
@@ -630,6 +712,45 @@ let activeRequestId = 0;
 const showModal = ref(false);
 const loadingDetails = ref(false);
 const selectedLearnerDetails = ref(null);
+const targetRecordId = ref(null);
+const targetModuleId = ref(null);
+const selectedTargetedRecord = ref(null);
+
+function isMasteredStatus(status) {
+  const s = String(status || '').trim().toLowerCase().replace(/_/g, ' ');
+  return s === 'mastered' || s === 'passed' || s === 'completed';
+}
+
+function selectModuleRecord(mod) {
+  selectedTargetedRecord.value = mod;
+}
+
+function isRecordTargeted(mod) {
+  if (!mod || !selectedTargetedRecord.value) return false;
+  if (mod.recordId && selectedTargetedRecord.value.recordId) {
+    return String(mod.recordId) === String(selectedTargetedRecord.value.recordId);
+  }
+  return String(mod.id || mod.moduleId) === String(selectedTargetedRecord.value.id || selectedTargetedRecord.value.moduleId);
+}
+
+watch(selectedLearnerDetails, (newDetails) => {
+  if (!newDetails || !Array.isArray(newDetails.modules)) {
+    selectedTargetedRecord.value = null;
+    return;
+  }
+  const mods = newDetails.modules;
+  let match = null;
+  if (targetRecordId.value) {
+    match = mods.find((m) => String(m.recordId) === String(targetRecordId.value));
+  }
+  if (!match && targetModuleId.value) {
+    match = mods.find((m) => String(m.moduleId) === String(targetModuleId.value) || String(m.id) === String(targetModuleId.value));
+  }
+  if (!match && (targetRecordId.value || targetModuleId.value) && mods.length > 0) {
+    match = mods[0];
+  }
+  selectedTargetedRecord.value = match;
+});
 
 // Synchronized Category Counts & Calculations for View Details Modal
 const modalSummary = computed(() => {
@@ -725,7 +846,23 @@ onMounted(async () => {
     selectedCenter.value = String(route.query.center);
     await handleGenerateReport();
   }
+  if (route.query.learnerId) {
+    targetRecordId.value = route.query.recordId ? String(route.query.recordId) : null;
+    targetModuleId.value = route.query.moduleId ? String(route.query.moduleId) : null;
+    await openDetailsModal({ id: Number(route.query.learnerId) });
+  }
 });
+
+watch(
+  () => [route.query.learnerId, route.query.recordId, route.query.moduleId],
+  async ([newLearnerId, newRecordId, newModuleId]) => {
+    if (newLearnerId) {
+      targetRecordId.value = newRecordId ? String(newRecordId) : null;
+      targetModuleId.value = newModuleId ? String(newModuleId) : null;
+      await openDetailsModal({ id: Number(newLearnerId) });
+    }
+  }
+);
 
 // Generate Report Action (only user click initiates report generation)
 async function handleGenerateReport() {
@@ -852,6 +989,12 @@ async function openDetailsModal(learner) {
 function closeDetailsModal() {
   showModal.value = false;
   selectedLearnerDetails.value = null;
+  selectedTargetedRecord.value = null;
+  targetRecordId.value = null;
+  targetModuleId.value = null;
+  if (route.query.learnerId || route.query.recordId || route.query.moduleId) {
+    router.replace({ path: route.path, query: {} });
+  }
 }
 
 // Open Learner Information modal with actual data
@@ -1699,11 +1842,166 @@ function closeLearnerModal() {
   margin-bottom: 1.25rem;
 }
 
+.modules-breakdown-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
 .modules-breakdown-title {
   font-size: 0.9rem;
   font-weight: 700;
   color: #1e293b;
-  margin: 0 0 0.75rem 0;
+  margin: 0;
+}
+
+.modules-click-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* Targeted Performance Record Spotlight */
+.targeted-record-card {
+  margin-bottom: 1.25rem;
+  background: #f0f7ff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.tr-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.tr-card-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tr-badge-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1d4ed8;
+}
+
+.tr-module-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.badge-lg {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+}
+
+.tr-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.tr-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tr-detail-item.tr-full-width {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+}
+
+.tr-detail-label {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.tr-detail-val {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.tr-remarks-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  line-height: 1.45;
+}
+
+.modal.modal-lg {
+  max-width: 820px;
+  width: 92%;
+}
+
+.module-title-cell-flex {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.target-row-badge {
+  display: inline-block;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.modal-detail-table tr.row-targeted-record td {
+  background: #eff6ff !important;
+  border-top: 1px solid #93c5fd;
+  border-bottom: 1.5px solid #93c5fd;
+  color: #1e40af;
+}
+
+.modal-detail-table tr.cursor-pointer {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.modal-detail-table tr.cursor-pointer:hover td {
+  background: #f8fafc;
+}
+
+.modal-detail-table tr.row-targeted-record:hover td {
+  background: #e0f2fe !important;
+}
+
+.remarks-cell {
+  max-width: 200px;
+  white-space: normal;
+  word-break: break-word;
+  color: #334155;
 }
 
 .modal-table-responsive {

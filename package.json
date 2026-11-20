@@ -14,7 +14,8 @@
     "dev:backend": "npm run dev -w backend",
     "dev:admin": "npm run dev -w admin-portal",
     "dev:teacher": "npm run dev -w teacher-portal",
-    "dev:learner": "npm run dev -w learner-portal"
+    "dev:learner": "npm run dev -w learner-portal",
+    "dev:translate": "translation-service\\.venv\\Scripts\\python.exe -u -m uvicorn app:app --app-dir translation-service --host 127.0.0.1 --port 8001"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

@@ -436,6 +436,11 @@ export async function notifyLearnerRecordCreated({ teacherId, learnerId, moduleT
 
     const modSuffix = moduleTitle ? ` for ${moduleTitle}` : '';
 
+    const qParams = new URLSearchParams();
+    if (learnerId) qParams.set('learnerId', String(learnerId));
+    if (recordId) qParams.set('recordId', String(recordId));
+    const linkUrl = `/dashboard/reports/module-progress?${qParams.toString()}`;
+
     for (const admin of admins) {
       const notifKey = `record_added:${recordId || Date.now()}:admin:${admin.id}`;
       await createNotification({
@@ -447,9 +452,10 @@ export async function notifyLearnerRecordCreated({ teacherId, learnerId, moduleT
         isImportant: false,
         targetRole: 'ADMIN',
         targetUserId: admin.id,
+        targetLearnerId: learnerId ? Number(learnerId) : null,
         sourceType: 'record',
-        sourceId: recordId ? Number(recordId) : null,
-        linkUrl: '/dashboard/reports/learner-records',
+        sourceId: null,
+        linkUrl,
         createdByName: teacherName,
         createdByRole: 'TEACHER',
       });

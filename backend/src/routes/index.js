@@ -15,6 +15,7 @@ import recordRoutes from './records.js';
 import reportRoutes from './reports.js';
 import searchRoutes from './search.js';
 import notificationRoutes from './notifications.js';
+import translationRoutes from './translations.js';
 
 const router = Router();
 
@@ -48,5 +49,6 @@ router.use('/records', recordRoutes);
 router.use('/reports', reportRoutes);
 router.use('/search', searchRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/translations', translationRoutes);
 
 export default router;

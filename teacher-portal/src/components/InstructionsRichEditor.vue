@@ -185,6 +185,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .rte-wrapper {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -200,6 +202,7 @@ onBeforeUnmount(() => {
 
 .rte-content {
   width: 100%;
+  min-width: 0;
   background: #ffffff;
   cursor: text;
   box-sizing: border-box;
@@ -217,7 +220,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   overflow-y: hidden;
   overflow-x: hidden;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-wrap: break-word;
   white-space: pre-wrap;
 }

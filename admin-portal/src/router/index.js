@@ -8,7 +8,6 @@ import LearningCentersView from '../views/LearningCentersView.vue';
 import LearningAreasView from '../views/LearningAreasView.vue';
 import ReportsView from '../views/ReportsView.vue';
 import ReportsModuleProgressView from '../views/ReportsModuleProgressView.vue';
-import ReportsAf2SummaryView from '../views/ReportsAf2SummaryView.vue';
 import ReportsAttendanceSummaryView from '../views/ReportsAttendanceSummaryView.vue';
 import ReportsLearningCenterSummaryView from '../views/ReportsLearningCenterSummaryView.vue';
 import AnnouncementsView from '../views/AnnouncementsView.vue';
@@ -104,14 +103,12 @@ const routes = [
         meta: { title: "Summary of Module Use and Learner's Progress", requiresAuth: true },
       },
       {
-        path: 'reports/af2-summary',
-        name: 'ReportsAf2Summary',
-        component: ReportsAf2SummaryView,
-        meta: { title: 'ALS AF2 Summary', requiresAuth: true },
+        path: 'reports/af2',
+        redirect: (to) => ({ path: '/dashboard/reports/module-progress', query: to.query }),
       },
       {
-        path: 'reports/af2',
-        redirect: '/dashboard/reports/af2-summary',
+        path: 'reports/af2-summary',
+        redirect: (to) => ({ path: '/dashboard/reports/module-progress', query: to.query }),
       },
       {
         path: 'reports/attendance-summary',
@@ -131,7 +128,7 @@ const routes = [
       },
       {
         path: 'reports/learner-records',
-        redirect: '/dashboard/reports/af2-summary',
+        redirect: (to) => ({ path: '/dashboard/reports/module-progress', query: to.query }),
       },
       {
         path: 'settings',

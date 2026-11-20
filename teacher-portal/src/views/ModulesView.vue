@@ -384,15 +384,11 @@
           </div>
 
           <div class="assessment-instructions-block">
-            <label class="field-lbl" for="create-pretest-instructions">Instructions</label>
-            <textarea
-              id="create-pretest-instructions"
+            <label class="field-lbl">Instructions</label>
+            <InstructionsRichEditor
               v-model="newModule.preTestInstructions"
-              rows="3"
-              class="field-textarea-box assessment-instructions-textarea"
               placeholder="Enter instructions for the pre-test..."
-              @input="autoExpandAssessmentTextarea"
-            ></textarea>
+            />
           </div>
 
           <!-- Step 2 Validation Warning Message -->
@@ -709,15 +705,11 @@
           </div>
 
           <div class="assessment-instructions-block">
-            <label class="field-lbl" for="create-posttest-instructions">Instructions</label>
-            <textarea
-              id="create-posttest-instructions"
+            <label class="field-lbl">Instructions</label>
+            <InstructionsRichEditor
               v-model="newModule.postTestInstructions"
-              rows="3"
-              class="field-textarea-box assessment-instructions-textarea"
               placeholder="Enter instructions for the post-test..."
-              @input="autoExpandAssessmentTextarea"
-            ></textarea>
+            />
           </div>
 
           <!-- Step 4 Validation Warning Message -->
@@ -1317,13 +1309,6 @@ const newModule = reactive({
   postTestInstructions: '',
   postTest: [createBlankQuestion()],
 });
-
-function autoExpandAssessmentTextarea(event) {
-  const el = event?.target;
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = `${el.scrollHeight}px`;
-}
 
 function getPlainInstructionsPreview(item) {
   return formatRichTextPreview(item?.instructions || item?.description || '');
@@ -1988,8 +1973,8 @@ async function publishCompleteModule() {
       fileName: newModule.fileName || null,
       learningNotes: newModule.learningNotes ? newModule.learningNotes.trim() : '',
       readingInstructions: newModule.learningNotes ? newModule.learningNotes.trim() : '',
-      preTestInstructions: newModule.preTestInstructions ? newModule.preTestInstructions.trim() : '',
-      postTestInstructions: newModule.postTestInstructions ? newModule.postTestInstructions.trim() : '',
+      preTestInstructions: sanitizeRichText(newModule.preTestInstructions),
+      postTestInstructions: sanitizeRichText(newModule.postTestInstructions),
       preTest: newModule.preTest.map((q, idx) => ({
         questionText: q.prompt.trim(),
         options: q.choices.map((c, cIdx) => ({
@@ -2790,19 +2775,6 @@ watch(
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 1.25rem;
-}
-
-.assessment-instructions-textarea {
-  min-height: 82px;
-  line-height: 1.5;
-  resize: none;
-  overflow-y: hidden;
-  overflow-x: hidden;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-  box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .field-input-box.is-locked,

@@ -42,8 +42,8 @@
           <div v-if="notifPanelOpen" class="notif-dropdown-panel" @click.stop>
             <div class="notif-panel-header">
               <div class="notif-panel-title-wrap">
-                <span class="notif-panel-title">Notifications</span>
-                <span v-if="unreadCount > 0" class="notif-unread-pill">{{ unreadCount }} new</span>
+                <span class="notif-panel-title">Mga Pahibalo</span>
+                <span v-if="unreadCount > 0" class="notif-unread-pill">{{ unreadCount }} bag-o</span>
               </div>
               <div class="notif-panel-actions">
                 <button
@@ -52,7 +52,18 @@
                   class="notif-mark-all-btn"
                   @click="handleMarkAllRead"
                 >
-                  Mark all read
+                  Markahan tanan
+                </button>
+                <button
+                  type="button"
+                  class="notif-close-btn"
+                  aria-label="Sirado"
+                  @click="notifPanelOpen = false"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
                 </button>
               </div>
             </div>
@@ -60,51 +71,79 @@
             <div class="notif-panel-body">
               <div v-if="notifications.length === 0" class="notif-empty-state">
                 <div class="notif-empty-icon-wrap">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                     <polyline points="22 4 12 14.01 9 11.01"/>
                   </svg>
                 </div>
-                <div class="notif-empty-title">You're All Caught Up!</div>
-                <p class="notif-empty-desc">You have no new notifications.</p>
+                <div class="notif-empty-title">Walay Bag-ong Pahibalo</div>
+                <p class="notif-empty-desc">Wala kay bag-ong pahibalo karon.</p>
               </div>
+
               <div
                 v-for="item in notifications"
                 :key="item.notificationKey"
                 class="notif-item"
-                :class="{ 'is-unread': !item.isRead, 'is-important': item.isImportant && !item.isRead }"
+                :class="{ 'is-unread': !item.isRead }"
+                role="button"
+                tabindex="0"
                 @click="handleNotificationClick(item)"
+                @keydown.enter="handleNotificationClick(item)"
               >
-                <div class="notif-item-top">
-                  <div class="notif-badges">
-                    <span class="notif-type-badge" :class="'type-' + (item.type || 'ANNOUNCEMENT').toLowerCase()">
-                      {{ formatNotifType(item.type) }}
-                    </span>
+                <div
+                  class="notif-item-icon"
+                  :style="{
+                    background: getNotificationTypeStyle(getNotificationVisualType(item)).iconBg,
+                    color: getNotificationTypeStyle(getNotificationVisualType(item)).iconColor
+                  }"
+                  aria-hidden="true"
+                >
+                  <svg v-if="getNotificationVisualType(item) === 'module'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                  <svg v-else-if="getNotificationVisualType(item) === 'schedule'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <svg v-else-if="getNotificationVisualType(item) === 'submission'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                  <svg v-else-if="getNotificationVisualType(item) === 'reminder'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                </div>
+
+                <div class="notif-item-body">
+                  <div class="notif-item-top">
+                    <div class="notif-item-title-row">
+                      <span v-if="!item.isRead" class="notif-unread-dot"></span>
+                      <span class="notif-item-title">{{ getNotificationDisplayTitle(item) }}</span>
+                    </div>
+                    <span class="notif-time">{{ getNotificationRelativeTime(item) }}</span>
                   </div>
-                  <span class="notif-time">{{ item.relativeTime }}</span>
-                </div>
-                <div class="notif-item-title-row">
-                  <span v-if="!item.isRead" class="notif-unread-dot"></span>
-                  <span class="notif-item-title">{{ item.title }}</span>
-                </div>
-                <p class="notif-item-message">{{ item.message }}</p>
-                <div class="notif-item-footer">
-                  <span class="notif-sender">{{ item.sender }}</span>
-                  <button
-                    v-if="!item.isRead"
-                    type="button"
-                    class="notif-item-read-btn"
-                    @click.stop="markAsRead(item.notificationKey)"
-                  >
-                    Mark as read
-                  </button>
+                  <div v-if="getNotificationAnnouncementTitle(item)" class="notif-item-announcement-title">
+                    {{ getNotificationAnnouncementTitle(item) }}
+                  </div>
+                  <p class="notif-item-message">{{ getNotificationDisplayMessage(item) }}</p>
+                  <div v-if="getNotificationRelevantSender(item)" class="notif-item-sender">
+                    Gikan kang {{ getNotificationRelevantSender(item) }}
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="notif-panel-footer">
               <router-link to="/notifications" class="notif-view-all-link" @click="notifPanelOpen = false">
-                View Notifications
+                Tan-awa ang Tanang Pahibalo
               </router-link>
             </div>
           </div>
@@ -211,15 +250,7 @@
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
         </svg>
-        <span>Modules</span>
-      </router-link>
-
-      <router-link to="/progress" class="bottom-tab-item" :class="{ active: isProgressTabActive }">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 6 13.5 15.5 8.5 10.5 18"/>
-          <polyline points="17 6 23 6 23 12"/>
-        </svg>
-        <span>Progress</span>
+        <span>Module</span>
       </router-link>
 
       <button
@@ -272,14 +303,6 @@
             <span>My Modules</span>
           </router-link>
 
-          <router-link to="/progress" class="drawer-nav-item" :class="{ active: isProgressRoute }" @click="drawerOpen = false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 18"/>
-              <polyline points="17 6 23 6 23 12"/>
-            </svg>
-            <span>My Progress</span>
-          </router-link>
-
           <router-link to="/notifications" class="drawer-nav-item" :class="{ active: isNotificationsRoute }" @click="drawerOpen = false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -294,6 +317,15 @@
               <circle cx="12" cy="7" r="4"/>
             </svg>
             <span>My Profile</span>
+          </router-link>
+
+          <router-link to="/help" class="drawer-nav-item" :class="{ active: isHelpRoute }" @click="drawerOpen = false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Tabang / Giya</span>
           </router-link>
 
           <button type="button" class="drawer-nav-item item-logout" @click="triggerLogout">
@@ -325,13 +357,13 @@
           </svg>
         </div>
         <h2 class="logout-title">Sign Out</h2>
-        <p class="logout-desc">Are you sure you want to sign out?</p>
+        <p class="logout-desc">Sigurado ka nga gusto ka mag-sign out sa imong account?</p>
 
         <button type="button" class="btn-logout-confirm" @click="confirmLogout">
-          Yes, Sign Out
+          Oo, mag-sign out ko
         </button>
         <button type="button" class="btn-logout-cancel" @click="logoutModalOpen = false">
-          Cancel
+          Dili, Balik Lang
         </button>
       </div>
     </div>
@@ -343,6 +375,15 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNotifications } from '../composables/useNotifications.js';
 import { clearLearnerSessionStorage } from '../utils/learnerStorage.js';
+import {
+  getNotificationVisualType,
+  getNotificationTypeStyle,
+  getNotificationDisplayTitle,
+  getNotificationAnnouncementTitle,
+  getNotificationDisplayMessage,
+  getNotificationRelevantSender,
+  getNotificationRelativeTime,
+} from '../utils/notificationFormat.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -428,12 +469,6 @@ const isModulesRoute = computed(() => {
   return p.startsWith('/modules') || n === 'MyModules' || n === 'ModuleDetail';
 });
 
-const isProgressRoute = computed(() => {
-  const p = route.path || '';
-  const n = route.name || '';
-  return p.startsWith('/progress') || n === 'Progress';
-});
-
 const isNotificationsRoute = computed(() => {
   const p = route.path || '';
   const n = route.name || '';
@@ -450,8 +485,14 @@ const isProfileRoute = computed(() => {
   return p.startsWith('/profile') || n === 'Profile';
 });
 
+const isHelpRoute = computed(() => {
+  const p = route.path || '';
+  const n = route.name || '';
+  return p.startsWith('/help') || n === 'Help';
+});
+
 const isMoreRoute = computed(() => {
-  return isNotificationsRoute.value || isProfileRoute.value;
+  return isNotificationsRoute.value || isProfileRoute.value || isHelpRoute.value;
 });
 
 // Bottom navigation active states (strictly mutually exclusive: only one item active at a time)
@@ -467,11 +508,6 @@ const isHomeTabActive = computed(() => {
 const isModulesTabActive = computed(() => {
   if (drawerOpen.value) return false;
   return isModulesRoute.value && !isMoreRoute.value;
-});
-
-const isProgressTabActive = computed(() => {
-  if (drawerOpen.value) return false;
-  return isProgressRoute.value && !isMoreRoute.value;
 });
 
 function isCurrentRoute(path) {
@@ -984,23 +1020,45 @@ function confirmLogout() {
   color: #dc2626;
 }
 
+.notif-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .notif-mark-all-btn {
   background: transparent;
   border: none;
-  color: #1d4ed8;
-  font-size: 0.76rem;
-  font-weight: 600;
+  color: #165dfc;
+  font-size: 0.78rem;
+  font-weight: 700;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 6px;
 }
 
 .notif-mark-all-btn:hover {
   text-decoration: underline;
 }
 
+.notif-close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  background: transparent;
+}
+
+.notif-close-btn:hover {
+  background: #e2e8f0;
+  color: #0b1e36;
+}
+
 .notif-panel-body {
   overflow-y: auto;
-  max-height: 330px;
+  max-height: 340px;
 }
 
 .notif-empty-state {
@@ -1008,40 +1066,49 @@ function confirmLogout() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
+  padding: 28px 16px;
   text-align: center;
 }
 
 .notif-empty-icon-wrap {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #f0fdf4;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .notif-empty-title {
   font-size: 0.95rem;
-  font-weight: 700;
-  color: #0f172a;
+  font-weight: 800;
+  color: #0b1e36;
   margin-bottom: 4px;
 }
 
 .notif-empty-desc {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #64748b;
   margin: 0;
 }
 
 .notif-item {
-  padding: 11px 14px;
-  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
   cursor: pointer;
   transition: background-color 0.15s ease;
   text-align: left;
+  min-height: 60px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
 }
 
 .notif-item:hover {
@@ -1049,114 +1116,87 @@ function confirmLogout() {
 }
 
 .notif-item.is-unread {
-  background: #eff6ff;
+  background: #f8fbff;
 }
 
 .notif-item.is-unread:hover {
-  background: #dbeafe;
+  background: #eff6ff;
+}
+
+.notif-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notif-item-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .notif-item-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.notif-badges {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.notif-type-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #e2e8f0;
-  color: #334155;
-}
-
-.notif-type-badge.type-announcement {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.notif-type-badge.type-reminder {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.notif-type-badge.type-schedule {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.notif-type-badge.type-module {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.notif-type-badge.type-record {
-  background: #f3e8ff;
-  color: #6b21a8;
-}
-
-.notif-type-badge.type-submission {
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.notif-important-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #fee2e2;
-  color: #b91c1c;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .notif-time {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: #64748b;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .notif-item-title-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 3px;
+  min-width: 0;
 }
 
 .notif-unread-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #165dfc;
   flex-shrink: 0;
 }
 
 .notif-item-title {
-  font-size: 0.83rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #0b1e36;
   line-height: 1.3;
   word-break: break-word;
-  overflow-wrap: break-word;
+}
+
+.notif-item.is-unread .notif-item-title {
+  font-weight: 800;
+}
+
+.notif-item-announcement-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+  margin-top: 2px;
+  word-break: break-word;
 }
 
 .notif-item-message {
-  font-size: 0.76rem;
-  color: #475569;
-  margin: 0 0 6px 0;
-  line-height: 1.35;
+  font-size: 0.82rem;
+  color: #334155;
+  margin: 2px 0 0 0;
+  line-height: 1.4;
   word-break: break-word;
-  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -1164,46 +1204,27 @@ function confirmLogout() {
   overflow: hidden;
 }
 
-.notif-item-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.notif-sender {
-  font-size: 0.7rem;
+.notif-item-sender {
+  font-size: 0.74rem;
   font-weight: 600;
   color: #64748b;
-}
-
-.notif-item-read-btn {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 2px 7px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: #1e293b;
-  cursor: pointer;
-}
-
-.notif-item-read-btn:hover {
-  background: #f1f5f9;
+  margin-top: 4px;
 }
 
 .notif-panel-footer {
-  padding: 9px 14px;
-  border-top: 1px solid #f1f5f9;
+  padding: 10px 14px;
+  border-top: 1px solid #e2e8f0;
   background: #f8fafc;
   text-align: center;
 }
 
 .notif-view-all-link {
-  font-size: 0.78rem;
+  display: inline-block;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #1d4ed8;
+  color: #165dfc;
   text-decoration: none;
+  padding: 4px 8px;
 }
 
 .notif-view-all-link:hover {
@@ -1213,11 +1234,14 @@ function confirmLogout() {
 @media (max-width: 480px) {
   .notif-dropdown-panel {
     position: fixed;
-    top: 68px;
-    left: 12px;
-    right: 12px;
+    top: 64px;
+    left: 8px;
+    right: 8px;
     width: auto;
-    max-height: calc(100vh - 120px);
+    max-height: calc(100dvh - 144px);
+  }
+  .notif-panel-body {
+    max-height: calc(100dvh - 246px);
   }
 }
 </style>

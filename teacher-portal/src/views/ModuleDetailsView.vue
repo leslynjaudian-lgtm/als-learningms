@@ -1470,16 +1470,11 @@
               </div>
 
               <div class="assessment-instructions-block">
-                <label class="field-lbl" for="edit-pretest-instructions">Instructions</label>
-                <textarea
-                  id="edit-pretest-instructions"
-                  ref="editPreInstructionsRef"
+                <label class="field-lbl">Instructions</label>
+                <InstructionsRichEditor
                   v-model="editForm.preTestInstructions"
-                  rows="3"
-                  class="field-textarea-box assessment-instructions-textarea"
                   placeholder="Enter instructions for the pre-test..."
-                  @input="autoExpandEditAssessmentTextarea"
-                ></textarea>
+                />
               </div>
 
               <div class="gf-questions-container">
@@ -1704,16 +1699,11 @@
               </div>
 
               <div class="assessment-instructions-block">
-                <label class="field-lbl" for="edit-posttest-instructions">Instructions</label>
-                <textarea
-                  id="edit-posttest-instructions"
-                  ref="editPostInstructionsRef"
+                <label class="field-lbl">Instructions</label>
+                <InstructionsRichEditor
                   v-model="editForm.postTestInstructions"
-                  rows="3"
-                  class="field-textarea-box assessment-instructions-textarea"
                   placeholder="Enter instructions for the post-test..."
-                  @input="autoExpandEditAssessmentTextarea"
-                ></textarea>
+                />
               </div>
 
               <div class="gf-questions-container">
@@ -2337,19 +2327,6 @@ function mapExistingQuestionsForEdit(questionsList) {
   });
 }
 
-const editPreInstructionsRef = ref(null);
-const editPostInstructionsRef = ref(null);
-
-function autoExpandEditTextareaEl(el) {
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = `${el.scrollHeight}px`;
-}
-
-function autoExpandEditAssessmentTextarea(event) {
-  autoExpandEditTextareaEl(event?.target);
-}
-
 const editForm = reactive({
   title: '',
   instructions: '',
@@ -2799,18 +2776,18 @@ function openEditModal() {
   syncEditModalInitialAssignments();
   const preAss = (moduleData.value.assessments || []).find((a) => a.type === 'PRE_TEST') || moduleData.value.preTest || null;
   const postAss = (moduleData.value.assessments || []).find((a) => a.type === 'POST_TEST') || moduleData.value.postTest || null;
-  editForm.preTestInstructions =
-    moduleData.value.preTestInstructions ?? preAss?.instructions ?? preAss?.description ?? '';
-  editForm.postTestInstructions =
-    moduleData.value.postTestInstructions ?? postAss?.instructions ?? postAss?.description ?? '';
+  editForm.preTestInstructions = sanitizeRichText(
+    moduleData.value.preTestInstructions || preAss?.instructions || preAss?.description || ''
+  );
+  editForm.postTestInstructions = sanitizeRichText(
+    moduleData.value.postTestInstructions || postAss?.instructions || postAss?.description || ''
+  );
   editForm.preTest = mapExistingQuestionsForEdit(preTestQuestions.value);
   editForm.postTest = mapExistingQuestionsForEdit(postTestQuestions.value);
 
   showEditModal.value = true;
   nextTick(() => {
     isInitializingEditModal.value = false;
-    autoExpandEditTextareaEl(editPreInstructionsRef.value);
-    autoExpandEditTextareaEl(editPostInstructionsRef.value);
   });
   loadEditPrerequisites(true);
 }
@@ -2894,8 +2871,8 @@ async function saveEditModule() {
       dateEnded: editForm.dateEnded,
       isAllLearners: editForm.isAllLearners,
       assignedLearnerIds: editForm.isAllLearners ? [] : editForm.selectedLearnerIds,
-      preTestInstructions: editForm.preTestInstructions != null ? editForm.preTestInstructions.trim() : '',
-      postTestInstructions: editForm.postTestInstructions != null ? editForm.postTestInstructions.trim() : '',
+      preTestInstructions: sanitizeRichText(editForm.preTestInstructions),
+      postTestInstructions: sanitizeRichText(editForm.postTestInstructions),
       preTest: editForm.preTest.map((q, idx) => ({
         id: q.id || undefined,
         questionText: q.prompt.trim(),
@@ -7555,17 +7532,6 @@ watch(
   flex-direction: column;
   gap: 0.35rem;
   margin-bottom: 1.15rem;
-}
-
-.assessment-instructions-textarea {
-  min-height: 82px;
-  line-height: 1.5;
-  resize: none;
-  overflow-y: hidden;
-  overflow-x: hidden;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-  white-space: pre-wrap;
 }
 
 .edit-assessment-title-bar {

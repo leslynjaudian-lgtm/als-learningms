@@ -24,284 +24,305 @@
 
       <!-- Main Navigation -->
       <nav class="sidebar-nav">
-        <!-- 1. Dashboard -->
-        <router-link
-          to="/dashboard"
-          class="nav-link"
-          :class="{ active: activeMenu === 'dashboard' }"
-          @click="handleNavClick('dashboard')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-          </span>
-          <span class="nav-label">Dashboard</span>
-        </router-link>
+        <!-- 1. HOME -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">HOME</div>
 
-        <!-- 2. Learning Centers -->
-        <router-link
-          to="/dashboard/learning-centers"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learning-centers' }"
-          @click="handleNavClick('learning-centers')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/>
-            </svg>
-          </span>
-          <span class="nav-label">Learning Centers</span>
-        </router-link>
-
-        <!-- 3. My Learners -->
-        <router-link
-          to="/dashboard/learners"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learners' }"
-          @click="handleNavClick('learners')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-          </span>
-          <span class="nav-label">My Learners</span>
-        </router-link>
-
-        <!-- 4. Modules (Dropdown: A&E Elementary & A&E Junior High based on assigned levels) -->
-        <div class="nav-dropdown-item">
-          <button
-            type="button"
-            class="nav-link nav-dropdown-btn"
-            :class="{ active: activeMenu === 'modules', expanded: expandedMenu === 'modules' }"
-            @click="handleParentClick('modules')"
-            aria-haspopup="true"
-            :aria-expanded="expandedMenu === 'modules'"
+          <router-link
+            to="/dashboard"
+            class="nav-link"
+            :class="{ active: activeMenu === 'dashboard' }"
+            @click="handleNavClick('dashboard')"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
               </svg>
             </span>
-            <span class="nav-label">Modules</span>
-            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'modules' }">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </span>
-          </button>
-
-          <!-- Modules Submenu -->
-          <transition name="dropdown">
-            <div v-show="expandedMenu === 'modules'" class="nav-submenu">
-              <router-link
-                v-for="lvl in assignedLevels"
-                :key="lvl.slug"
-                :to="lvl.path"
-                class="nav-sublink"
-                :class="{ active: isModuleLevelActive(lvl.slug) }"
-                @click="handleSublinkClick('modules', lvl.slug)"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">{{ lvl.label }}</span>
-              </router-link>
-            </div>
-          </transition>
+            <span class="nav-label">Dashboard</span>
+          </router-link>
         </div>
 
-        <!-- 5. Records -->
-        <router-link
-          to="/dashboard/records"
-          class="nav-link"
-          :class="{ active: activeMenu === 'records' }"
-          @click="handleNavClick('records')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-            </svg>
-          </span>
-          <span class="nav-label">Records</span>
-        </router-link>
+        <!-- 2. LEARNING MANAGEMENT -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">LEARNING MANAGEMENT</div>
 
-        <!-- 6. Attendance (Dropdown: Take Attendance & Attendance History) -->
-        <div class="nav-dropdown-item">
-          <button
-            type="button"
-            class="nav-link nav-dropdown-btn"
-            :class="{ active: activeMenu === 'attendance', expanded: expandedMenu === 'attendance' }"
-            @click="handleParentClick('attendance')"
-            aria-haspopup="true"
-            :aria-expanded="expandedMenu === 'attendance'"
+          <router-link
+            to="/dashboard/learning-centers"
+            class="nav-link"
+            :class="{ active: activeMenu === 'learning-centers' }"
+            @click="handleNavClick('learning-centers')"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 11l3 3L22 4"/>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/>
               </svg>
             </span>
-            <span class="nav-label">Attendance</span>
-            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'attendance' }">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </span>
-          </button>
+            <span class="nav-label">Learning Centers</span>
+          </router-link>
 
-          <!-- Attendance Submenu -->
-          <transition name="dropdown">
-            <div v-show="expandedMenu === 'attendance'" class="nav-submenu">
-              <router-link
-                to="/dashboard/attendance"
-                class="nav-sublink"
-                :class="{ active: isTakeAttendanceActive }"
-                @click="handleSublinkClick('attendance')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Take Attendance</span>
-              </router-link>
-
-              <router-link
-                to="/dashboard/attendance/history"
-                class="nav-sublink"
-                :class="{ active: isAttendanceHistoryActive }"
-                @click="handleSublinkClick('attendance')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Attendance History</span>
-              </router-link>
-            </div>
-          </transition>
-        </div>
-
-        <!-- 7. Schedule -->
-        <router-link
-          to="/dashboard/schedule"
-          class="nav-link"
-          :class="{ active: activeMenu === 'schedule' }"
-          @click="handleNavClick('schedule')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-          </span>
-          <span class="nav-label">Schedule</span>
-        </router-link>
-
-        <!-- 8. Announcements -->
-        <router-link
-          to="/dashboard/announcements"
-          class="nav-link"
-          :class="{ active: activeMenu === 'announcements' }"
-          @click="handleNavClick('announcements')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m3 11 18-5v12L3 14v-3z"/>
-              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
-            </svg>
-          </span>
-          <span class="nav-label">Announcements</span>
-        </router-link>
-
-        <!-- 9. Notifications -->
-        <router-link
-          to="/dashboard/notifications"
-          class="nav-link"
-          :class="{ active: activeMenu === 'notifications' }"
-          @click="handleNavClick('notifications')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-          </span>
-          <span class="nav-label">Notifications</span>
-        </router-link>
-
-        <!-- 9. Reports (Dropdown: ALS AF2, Module Progress, Attendance Summary) -->
-        <div class="nav-dropdown-item">
-          <button
-            type="button"
-            class="nav-link nav-dropdown-btn"
-            :class="{
-              active: activeMenu === 'reports',
-              expanded: expandedMenu === 'reports'
-            }"
-            @click="handleParentClick('reports')"
-            aria-haspopup="true"
-            :aria-expanded="expandedMenu === 'reports'"
+          <router-link
+            to="/dashboard/learners"
+            class="nav-link"
+            :class="{ active: activeMenu === 'learners' }"
+            @click="handleNavClick('learners')"
           >
             <span class="nav-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
               </svg>
             </span>
-            <span class="nav-label">Reports</span>
-            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </span>
-          </button>
+            <span class="nav-label">My Learners</span>
+          </router-link>
 
-          <!-- Reports Submenu -->
-          <transition name="dropdown">
-            <div v-show="expandedMenu === 'reports'" class="nav-submenu">
-              <router-link
-                to="/dashboard/reports/af2"
-                class="nav-sublink"
-                :class="{ active: isAf2Active }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">ALS Assessment Form 2 Report</span>
-              </router-link>
+          <!-- Modules (Dropdown: A&E Elementary & A&E Junior High based on assigned levels) -->
+          <div class="nav-dropdown-item">
+            <button
+              type="button"
+              class="nav-link nav-dropdown-btn"
+              :class="{ active: activeMenu === 'modules', expanded: expandedMenu === 'modules' }"
+              @click="handleParentClick('modules')"
+              aria-haspopup="true"
+              :aria-expanded="expandedMenu === 'modules'"
+            >
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+              </span>
+              <span class="nav-label">Modules</span>
+              <span class="nav-chevron" :class="{ rotated: expandedMenu === 'modules' }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+            </button>
 
-              <router-link
-                to="/dashboard/reports/module-progress"
-                class="nav-sublink"
-                :class="{ active: isModuleProgressActive }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
-              </router-link>
-
-              <router-link
-                to="/dashboard/reports/attendance-summary"
-                class="nav-sublink"
-                :class="{ active: isAttendanceSummaryActive }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Attendance Summary</span>
-              </router-link>
-            </div>
-          </transition>
+            <!-- Modules Submenu -->
+            <transition name="dropdown">
+              <div v-show="expandedMenu === 'modules'" class="nav-submenu">
+                <router-link
+                  v-for="lvl in assignedLevels"
+                  :key="lvl.slug"
+                  :to="lvl.path"
+                  class="nav-sublink"
+                  :class="{ active: isModuleLevelActive(lvl.slug) }"
+                  @click="handleSublinkClick('modules', lvl.slug)"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">{{ lvl.label }}</span>
+                </router-link>
+              </div>
+            </transition>
+          </div>
         </div>
 
-        <!-- 10. Settings -->
-        <router-link
-          to="/dashboard/settings"
-          class="nav-link"
-          :class="{ active: activeMenu === 'settings' }"
-          @click="handleNavClick('settings')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-            </svg>
-          </span>
-          <span class="nav-label">Settings</span>
-        </router-link>
+        <!-- 3. LEARNER MONITORING -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">LEARNER MONITORING</div>
+
+          <router-link
+            to="/dashboard/records"
+            class="nav-link"
+            :class="{ active: activeMenu === 'records' }"
+            @click="handleNavClick('records')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </span>
+            <span class="nav-label">Records</span>
+          </router-link>
+
+          <!-- Attendance (Dropdown: Take Attendance & Attendance History) -->
+          <div class="nav-dropdown-item">
+            <button
+              type="button"
+              class="nav-link nav-dropdown-btn"
+              :class="{ active: activeMenu === 'attendance', expanded: expandedMenu === 'attendance' }"
+              @click="handleParentClick('attendance')"
+              aria-haspopup="true"
+              :aria-expanded="expandedMenu === 'attendance'"
+            >
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+              </span>
+              <span class="nav-label">Attendance</span>
+              <span class="nav-chevron" :class="{ rotated: expandedMenu === 'attendance' }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+            </button>
+
+            <!-- Attendance Submenu -->
+            <transition name="dropdown">
+              <div v-show="expandedMenu === 'attendance'" class="nav-submenu">
+                <router-link
+                  to="/dashboard/attendance"
+                  class="nav-sublink"
+                  :class="{ active: isTakeAttendanceActive }"
+                  @click="handleSublinkClick('attendance')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Take Attendance</span>
+                </router-link>
+
+                <router-link
+                  to="/dashboard/attendance/history"
+                  class="nav-sublink"
+                  :class="{ active: isAttendanceHistoryActive }"
+                  @click="handleSublinkClick('attendance')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Attendance History</span>
+                </router-link>
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- 4. COMMUNICATION -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">COMMUNICATION</div>
+
+          <router-link
+            to="/dashboard/schedule"
+            class="nav-link"
+            :class="{ active: activeMenu === 'schedule' }"
+            @click="handleNavClick('schedule')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </span>
+            <span class="nav-label">Schedule</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/announcements"
+            class="nav-link"
+            :class="{ active: activeMenu === 'announcements' }"
+            @click="handleNavClick('announcements')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 11 18-5v12L3 14v-3z"/>
+                <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+              </svg>
+            </span>
+            <span class="nav-label">Announcements</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/notifications"
+            class="nav-link"
+            :class="{ active: activeMenu === 'notifications' }"
+            @click="handleNavClick('notifications')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </span>
+            <span class="nav-label">Notifications</span>
+          </router-link>
+        </div>
+
+        <!-- 5. REPORTS -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">REPORTS</div>
+
+          <div class="nav-dropdown-item">
+            <button
+              type="button"
+              class="nav-link nav-dropdown-btn"
+              :class="{
+                active: activeMenu === 'reports',
+                expanded: expandedMenu === 'reports'
+              }"
+              @click="handleParentClick('reports')"
+              aria-haspopup="true"
+              :aria-expanded="expandedMenu === 'reports'"
+            >
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+              </span>
+              <span class="nav-label">Reports</span>
+              <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+            </button>
+
+            <!-- Reports Submenu -->
+            <transition name="dropdown">
+              <div v-show="expandedMenu === 'reports'" class="nav-submenu">
+                <router-link
+                  to="/dashboard/reports/af2"
+                  class="nav-sublink"
+                  :class="{ active: isAf2Active }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">ALS Assessment Form 2 Report</span>
+                </router-link>
+
+                <router-link
+                  to="/dashboard/reports/module-progress"
+                  class="nav-sublink"
+                  :class="{ active: isModuleProgressActive }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
+                </router-link>
+
+                <router-link
+                  to="/dashboard/reports/attendance-summary"
+                  class="nav-sublink"
+                  :class="{ active: isAttendanceSummaryActive }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Attendance Summary</span>
+                </router-link>
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- 6. SYSTEM -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">SYSTEM</div>
+
+          <router-link
+            to="/dashboard/settings"
+            class="nav-link"
+            :class="{ active: activeMenu === 'settings' }"
+            @click="handleNavClick('settings')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </span>
+            <span class="nav-label">Settings</span>
+          </router-link>
+        </div>
       </nav>
 
       <!-- 7. Signout at the bottom -->
@@ -1385,5 +1406,46 @@ function confirmSignout() {
   opacity: 0;
   transform: translateY(-4px);
   overflow: hidden;
+}
+
+/* Sidebar Navigation Categorization */
+.nav-category-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-category-group + .nav-category-group {
+  margin-top: 0.75rem;
+}
+
+.nav-category-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7b93ae;
+  padding: 0.35rem 0.85rem 0.2rem;
+  user-select: none;
+  pointer-events: none;
+  line-height: 1.2;
+}
+
+/* Custom sleek scrollbar for sidebar nav */
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 </style>

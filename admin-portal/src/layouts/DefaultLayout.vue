@@ -24,192 +24,207 @@
 
       <!-- Main Navigation -->
       <nav class="sidebar-nav">
-        <!-- 1. Dashboard -->
-        <router-link
-          to="/dashboard"
-          class="nav-link"
-          :class="{ active: activeMenu === 'dashboard' }"
-          @click="handleNavClick('dashboard')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          </span>
-          <span class="nav-label">Dashboard</span>
-        </router-link>
+        <!-- 1. HOME -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">HOME</div>
 
-        <!-- 2. Learning Centers -->
-        <router-link
-          to="/dashboard/learning-centers"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learning-centers' }"
-          @click="handleNavClick('learning-centers')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
-          </span>
-          <span class="nav-label">Learning Centers</span>
-        </router-link>
-
-        <!-- 3. ALS Teachers -->
-        <router-link
-          to="/dashboard/teachers"
-          class="nav-link"
-          :class="{ active: activeMenu === 'teachers' }"
-          @click="handleNavClick('teachers')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
-          </span>
-          <span class="nav-label">Teachers</span>
-        </router-link>
-
-        <!-- 4. Learners -->
-        <router-link
-          to="/dashboard/learners"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learners' }"
-          @click="handleNavClick('learners')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-            </svg>
-          </span>
-          <span class="nav-label">Learners</span>
-        </router-link>
-
-        <!-- 5. Learning Areas -->
-        <router-link
-          to="/dashboard/learning-areas"
-          class="nav-link"
-          :class="{ active: activeMenu === 'learning-areas' }"
-          @click="handleNavClick('learning-areas')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
-          </span>
-          <span class="nav-label">Learning Areas</span>
-        </router-link>
-
-        <!-- 6. Schedule -->
-        <router-link
-          to="/dashboard/schedule"
-          class="nav-link"
-          :class="{ active: activeMenu === 'schedule' }"
-          @click="handleNavClick('schedule')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-          </span>
-          <span class="nav-label">Schedule</span>
-        </router-link>
-
-        <!-- 7. Announcements -->
-        <router-link
-          to="/dashboard/announcements"
-          class="nav-link"
-          :class="{ active: activeMenu === 'announcements' }"
-          @click="handleNavClick('announcements')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m3 11 18-5v12L3 14v-3z"/>
-              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
-            </svg>
-          </span>
-          <span class="nav-label">Announcements</span>
-        </router-link>
-
-        <!-- 8. Notifications -->
-        <router-link
-          to="/dashboard/notifications"
-          class="nav-link"
-          :class="{ active: activeMenu === 'notifications' }"
-          @click="handleNavClick('notifications')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-          </span>
-          <span class="nav-label">Notifications</span>
-        </router-link>
-
-        <!-- 7. Reports (Dropdown: ALS AF2 Summary, Attendance Summary, Learning Center Summary) -->
-        <div class="nav-dropdown-item">
-          <button
-            type="button"
-            class="nav-link nav-dropdown-btn"
-            :class="{
-              active: activeMenu === 'reports',
-              expanded: expandedMenu === 'reports'
-            }"
-            @click="handleParentClick('reports')"
-            aria-haspopup="true"
-            :aria-expanded="expandedMenu === 'reports'"
+          <router-link
+            to="/dashboard"
+            class="nav-link"
+            :class="{ active: activeMenu === 'dashboard' }"
+            @click="handleNavClick('dashboard')"
           >
             <span class="nav-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </span>
-            <span class="nav-label">Reports</span>
-            <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-          </button>
-
-          <!-- Reports Submenu -->
-          <transition name="dropdown">
-            <div v-show="expandedMenu === 'reports'" class="nav-submenu">
-              <router-link
-                to="/dashboard/reports/module-progress"
-                class="nav-sublink"
-                :class="{ active: isCurrentRoute('/dashboard/reports/module-progress') }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
-              </router-link>
-
-              <router-link
-                to="/dashboard/reports/attendance-summary"
-                class="nav-sublink"
-                :class="{ active: isCurrentRoute('/dashboard/reports/attendance-summary') || isCurrentRoute('/dashboard/reports/attendance') }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Attendance Summary</span>
-              </router-link>
-
-              <router-link
-                to="/dashboard/reports/learning-center-summary"
-                class="nav-sublink"
-                :class="{ active: isCurrentRoute('/dashboard/reports/learning-center-summary') }"
-                @click="handleSublinkClick('reports')"
-              >
-                <span class="sublink-dot"></span>
-                <span class="sublink-label">Learning Center Summary</span>
-              </router-link>
-            </div>
-          </transition>
+            <span class="nav-label">Dashboard</span>
+          </router-link>
         </div>
 
-        <!-- 7. Settings -->
-        <router-link
-          to="/dashboard/settings"
-          class="nav-link"
-          :class="{ active: activeMenu === 'settings' }"
-          @click="handleNavClick('settings')"
-        >
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-          </span>
-          <span class="nav-label">Settings</span>
-        </router-link>
+        <!-- 2. MANAGEMENT -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">MANAGEMENT</div>
+
+          <router-link
+            to="/dashboard/learning-centers"
+            class="nav-link"
+            :class="{ active: activeMenu === 'learning-centers' }"
+            @click="handleNavClick('learning-centers')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
+            </span>
+            <span class="nav-label">Learning Centers</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/teachers"
+            class="nav-link"
+            :class="{ active: activeMenu === 'teachers' }"
+            @click="handleNavClick('teachers')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+            </span>
+            <span class="nav-label">Teachers</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/learners"
+            class="nav-link"
+            :class="{ active: activeMenu === 'learners' }"
+            @click="handleNavClick('learners')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </span>
+            <span class="nav-label">Learners</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/learning-areas"
+            class="nav-link"
+            :class="{ active: activeMenu === 'learning-areas' }"
+            @click="handleNavClick('learning-areas')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+            </span>
+            <span class="nav-label">Learning Areas</span>
+          </router-link>
+        </div>
+
+        <!-- 3. COMMUNICATION -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">COMMUNICATION</div>
+
+          <router-link
+            to="/dashboard/schedule"
+            class="nav-link"
+            :class="{ active: activeMenu === 'schedule' }"
+            @click="handleNavClick('schedule')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </span>
+            <span class="nav-label">Schedule</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/announcements"
+            class="nav-link"
+            :class="{ active: activeMenu === 'announcements' }"
+            @click="handleNavClick('announcements')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 11 18-5v12L3 14v-3z"/>
+                <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+              </svg>
+            </span>
+            <span class="nav-label">Announcements</span>
+          </router-link>
+
+          <router-link
+            to="/dashboard/notifications"
+            class="nav-link"
+            :class="{ active: activeMenu === 'notifications' }"
+            @click="handleNavClick('notifications')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </span>
+            <span class="nav-label">Notifications</span>
+          </router-link>
+        </div>
+
+        <!-- 4. MONITORING & REPORTS -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">MONITORING &amp; REPORTS</div>
+
+          <div class="nav-dropdown-item">
+            <button
+              type="button"
+              class="nav-link nav-dropdown-btn"
+              :class="{
+                active: activeMenu === 'reports',
+                expanded: expandedMenu === 'reports'
+              }"
+              @click="handleParentClick('reports')"
+              aria-haspopup="true"
+              :aria-expanded="expandedMenu === 'reports'"
+            >
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+              </span>
+              <span class="nav-label">Reports</span>
+              <span class="nav-chevron" :class="{ rotated: expandedMenu === 'reports' }">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+
+            <!-- Reports Submenu -->
+            <transition name="dropdown">
+              <div v-show="expandedMenu === 'reports'" class="nav-submenu">
+                <router-link
+                  to="/dashboard/reports/module-progress"
+                  class="nav-sublink"
+                  :class="{ active: isCurrentRoute('/dashboard/reports/module-progress') }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Summary of Module Use and Learner's Progress</span>
+                </router-link>
+
+                <router-link
+                  to="/dashboard/reports/attendance-summary"
+                  class="nav-sublink"
+                  :class="{ active: isCurrentRoute('/dashboard/reports/attendance-summary') || isCurrentRoute('/dashboard/reports/attendance') }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Attendance Summary</span>
+                </router-link>
+
+                <router-link
+                  to="/dashboard/reports/learning-center-summary"
+                  class="nav-sublink"
+                  :class="{ active: isCurrentRoute('/dashboard/reports/learning-center-summary') }"
+                  @click="handleSublinkClick('reports')"
+                >
+                  <span class="sublink-dot"></span>
+                  <span class="sublink-label">Learning Center Summary</span>
+                </router-link>
+              </div>
+            </transition>
+          </div>
+        </div>
+
+        <!-- 5. SYSTEM -->
+        <div class="nav-category-group">
+          <div class="nav-category-heading">SYSTEM</div>
+
+          <router-link
+            to="/dashboard/settings"
+            class="nav-link"
+            :class="{ active: activeMenu === 'settings' }"
+            @click="handleNavClick('settings')"
+          >
+            <span class="nav-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </span>
+            <span class="nav-label">Settings</span>
+          </router-link>
+        </div>
       </nav>
 
       <!-- Sidebar Bottom Links -->
@@ -436,7 +451,12 @@ async function handleNotificationClick(item) {
     await markAsRead(item.notificationKey);
   }
   notifPanelOpen.value = false;
-  const targetUrl = item?.actionUrl || '/dashboard/schedule';
+  let targetUrl = item?.actionUrl || '/dashboard/schedule';
+  if (targetUrl.includes('/reports/af2-summary')) {
+    targetUrl = targetUrl.replace('/reports/af2-summary', '/reports/module-progress');
+  } else if (targetUrl.includes('/reports/learner-records')) {
+    targetUrl = targetUrl.replace('/reports/learner-records', '/reports/module-progress');
+  }
   if (route.fullPath !== targetUrl) {
     router.push(targetUrl);
   }
@@ -1125,5 +1145,46 @@ function confirmSignout() {
   opacity: 0;
   transform: translateY(-4px);
   overflow: hidden;
+}
+
+/* Sidebar Navigation Categorization */
+.nav-category-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-category-group + .nav-category-group {
+  margin-top: 0.75rem;
+}
+
+.nav-category-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7b93ae;
+  padding: 0.35rem 0.85rem 0.2rem;
+  user-select: none;
+  pointer-events: none;
+  line-height: 1.2;
+}
+
+/* Custom sleek scrollbar for sidebar nav */
+.sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 </style>

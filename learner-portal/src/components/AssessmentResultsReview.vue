@@ -1,128 +1,92 @@
 <template>
   <div class="assessment-results-review">
-    <!-- Score Summary Card -->
+    <!-- Simple Completion Card -->
     <div class="results-score-card">
-      <div class="results-score-content">
-        <!-- Circular Score Indicator -->
-        <div class="score-circle-indicator">
-          <span class="score-circle-fraction">{{ score }}/{{ total }}</span>
-          <span class="score-circle-percent">{{ percent }}%</span>
-        </div>
-
-        <!-- Saved Confirmation and Summary Details -->
-        <div class="score-details-col">
-          <div class="score-saved-row">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#16a34a"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span class="score-saved-text">Your answers have been saved.</span>
-          </div>
-          <p class="score-summary-subtitle">
-            You answered {{ score }} out of {{ total }} questions correctly.
-          </p>
-          <div class="score-breakdown-pills">
-            <span class="breakdown-pill pill-total">Total: {{ total }}</span>
-            <span class="breakdown-pill pill-correct">Correct: {{ score }}</span>
-            <span class="breakdown-pill pill-incorrect">Incorrect: {{ incorrectCount }}</span>
-          </div>
-        </div>
+      <div class="results-check-circle" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
       </div>
 
-      <!-- Primary Action Button (Top Instance) -->
-      <div class="results-actions-row">
-        <button
-          type="button"
-          class="btn-primary results-primary-btn"
-          @click="$emit('proceed')"
-        >
-          <span>{{ proceedButtonLabel }}</span>
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
+      <h2 class="results-done-title">Nahuman na!</h2>
+      <p class="results-done-subtitle">
+        Naka-answer ka og <strong>{{ score }}</strong> sa <strong>{{ total }}</strong> ka pangutana.
+      </p>
+
+      <div class="results-score-pill">
+        <span>Imong Iskor:</span>
+        <strong>{{ score }} / {{ total }}</strong>
       </div>
+
+      <!-- Primary Action Button -->
+      <button
+        type="button"
+        class="results-primary-btn"
+        @click="$emit('proceed')"
+      >
+        <span>{{ proceedButtonLabel }}</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+
+      <!-- Secondary Option: Toggle Answer Review (Collapsed by Default) -->
+      <button
+        v-if="questions.length > 0"
+        type="button"
+        class="results-secondary-btn"
+        :aria-expanded="showAnswerReview"
+        @click="showAnswerReview = !showAnswerReview"
+      >
+        <span>{{ showAnswerReview ? 'Tagoa ang Imong mga Tubag' : 'Tan-awa ang Imong mga Tubag' }}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline :points="showAnswerReview ? '18 15 12 9 6 15' : '6 9 12 15 18 9'" />
+        </svg>
+      </button>
     </div>
 
-    <!-- Review Submitted Answers Section -->
-    <div v-if="questions.length > 0" class="readonly-review-section">
-      <div class="review-section-header">
-        <h3 class="review-title">Review Submitted Answers</h3>
-        <span class="review-count">
-          {{ questions.length }} {{ questions.length === 1 ? 'Question' : 'Questions' }}
-        </span>
-      </div>
-
+    <!-- Collapsible Submitted Answers Review -->
+    <div v-if="showAnswerReview && questions.length > 0" class="readonly-review-section">
       <div class="review-questions-list">
         <div
           v-for="(q, qIdx) in questions"
           :key="`q-review-${q.id || qIdx}`"
           class="review-question-card"
         >
-          <!-- Card Header: Question Number & Result Status Tag -->
           <div class="review-q-header">
-            <span class="q-num-pill">Question {{ qIdx + 1 }}</span>
+            <span class="q-num-pill">Pangutana {{ qIdx + 1 }}</span>
             <span
               class="q-result-tag"
               :class="isAnswerCorrect(q) ? 'tag-correct' : 'tag-incorrect'"
             >
-              <svg
-                v-if="isAnswerCorrect(q)"
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
+              <svg v-if="isAnswerCorrect(q)" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              <svg
-                v-else
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
+              <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
-              <span>{{ isAnswerCorrect(q) ? 'Correct' : 'Incorrect' }}</span>
+              <span>{{ isAnswerCorrect(q) ? 'Sakto' : 'Sayop' }}</span>
             </span>
           </div>
 
-          <!-- Question Prompt -->
           <h4 class="review-q-text">{{ q.question }}</h4>
+          <div class="review-translate-row">
+            <TranslateBisayaButton
+              :loading="getTranslation(`rev-q-${q.id || qIdx}`).loading"
+              :active="getTranslation(`rev-q-${q.id || qIdx}`).visible"
+              :error="getTranslation(`rev-q-${q.id || qIdx}`).error"
+              @toggle="toggleQuestionTranslation(`rev-q-${q.id || qIdx}`, q.question, q.options)"
+            />
+          </div>
+          <div
+            v-if="getTranslation(`rev-q-${q.id || qIdx}`).visible"
+            class="review-bisaya-box"
+          >
+            {{ getTranslation(`rev-q-${q.id || qIdx}`).questionText }}
+          </div>
 
-          <!-- Multiple-Choice Options List -->
           <div class="review-options-list">
             <div
               v-for="(opt, optIdx) in q.options"
@@ -134,7 +98,6 @@
                 'is-correct-target': !isUserOption(q, opt) && isCorrectOption(q, opt)
               }"
             >
-              <!-- Label above option text when relevant -->
               <div
                 v-if="isUserOption(q, opt) || isCorrectOption(q, opt)"
                 class="review-opt-label-row"
@@ -143,86 +106,74 @@
                   v-if="isUserOption(q, opt) && isCorrectOption(q, opt)"
                   class="badge-user-choice badge-choice-correct"
                 >
-                  Your Answer &bull; Correct
+                  Imong Tubag &bull; Sakto
                 </span>
                 <span
                   v-else-if="isUserOption(q, opt)"
                   class="badge-user-choice badge-choice-wrong"
                 >
-                  Your Answer
+                  Imong Tubag
                 </span>
                 <span
                   v-else-if="isCorrectOption(q, opt)"
                   class="badge-correct-choice"
                 >
-                  Correct Answer
+                  Saktong Tubag
                 </span>
               </div>
 
-              <!-- Option circle and text -->
               <div class="review-opt-content">
                 <div class="review-opt-circle">
-                  <svg
-                    v-if="isCorrectOption(q, opt)"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#16a34a"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
+                  <svg v-if="isCorrectOption(q, opt)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <svg
-                    v-else-if="isUserOption(q, opt)"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#dc2626"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
+                  <svg v-else-if="isUserOption(q, opt)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </div>
-                <span class="review-opt-text">{{ opt.text }}</span>
+                <div class="review-opt-text-stack">
+                  <span class="review-opt-text">{{ formatChoiceText(opt.text) }}</span>
+                  <span
+                    v-if="getTranslation(`rev-q-${q.id || qIdx}`).visible && getTranslation(`rev-q-${q.id || qIdx}`).optionsMap[opt.id]"
+                    class="review-opt-bisaya"
+                  >
+                    {{ getTranslation(`rev-q-${q.id || qIdx}`).optionsMap[opt.id] }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Teacher Feedback -->
           <div v-if="resolveFeedback(q)" class="review-feedback-card">
-            <strong>Feedback:</strong> {{ resolveFeedback(q) }}
+            <div><strong>Giya:</strong> {{ resolveFeedback(q) }}</div>
+            <div class="review-translate-row">
+              <TranslateBisayaButton
+                :loading="getTranslation(`rev-fb-${q.id || qIdx}`).loading"
+                :active="getTranslation(`rev-fb-${q.id || qIdx}`).visible"
+                :error="getTranslation(`rev-fb-${q.id || qIdx}`).error"
+                @toggle="toggleTextTranslation(`rev-fb-${q.id || qIdx}`, resolveFeedback(q))"
+              />
+            </div>
+            <div
+              v-if="getTranslation(`rev-fb-${q.id || qIdx}`).visible"
+              class="review-bisaya-box"
+              style="margin-top: 0.4rem; margin-bottom: 0;"
+            >
+              {{ getTranslation(`rev-fb-${q.id || qIdx}`).text }}
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Primary Action Button (Bottom Instance: Appears after the last question card) -->
       <div class="results-bottom-actions">
         <button
           type="button"
-          class="btn-primary results-primary-btn"
+          class="results-primary-btn"
           @click="$emit('proceed')"
         >
           <span>{{ proceedButtonLabel }}</span>
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
@@ -232,12 +183,20 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import TranslateBisayaButton from './TranslateBisayaButton.vue';
+import { useBisayaTranslation } from '../composables/useBisayaTranslation.js';
+
+const {
+  getEntry: getTranslation,
+  toggleTextTranslation,
+  toggleQuestionTranslation,
+} = useBisayaTranslation();
 
 const props = defineProps({
   testType: {
     type: String,
-    default: 'preTest', // 'preTest' | 'postTest'
+    default: 'preTest',
   },
   proceedLabel: {
     type: String,
@@ -271,6 +230,8 @@ const props = defineProps({
 
 defineEmits(['proceed']);
 
+const showAnswerReview = ref(false);
+
 const isPostTest = computed(() => {
   const t = (props.testType || '').toLowerCase().trim();
   return t === 'posttest' || t === 'post_test' || t === 'post-test' || t === 'post';
@@ -280,14 +241,15 @@ const proceedButtonLabel = computed(() => {
   if (props.proceedLabel && props.proceedLabel.trim()) {
     return props.proceedLabel.trim();
   }
-  return isPostTest.value ? 'Proceed to Submit Activity' : 'Proceed to Read Module';
+  return isPostTest.value ? 'Ipasa ang Imong Activity' : 'Basaha ang Module';
 });
 
-const incorrectCount = computed(() => {
-  const tot = Number(props.total || 0);
-  const cor = Number(props.score || 0);
-  return Math.max(0, tot - cor);
-});
+function formatChoiceText(text) {
+  const s = String(text ?? '').trim();
+  if (s.toLowerCase() === 'true') return 'True (Tinuod)';
+  if (s.toLowerCase() === 'false') return 'False (Dili tinuod)';
+  return text;
+}
 
 function getUserAnswer(q) {
   if (!props.answers || !q) return null;
@@ -335,231 +297,125 @@ function resolveFeedback(q) {
   box-sizing: border-box;
 }
 
-/* Results Score Summary Card */
 .results-score-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1.25rem 1.35rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 16px;
+  padding: 1.5rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.results-score-content {
-  display: flex;
   align-items: center;
-  gap: 1.15rem;
+  text-align: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* Circular Score Indicator */
-.score-circle-indicator {
-  width: 76px;
-  height: 76px;
-  min-width: 76px;
-  min-height: 76px;
-  max-width: 76px;
-  max-height: 76px;
-  aspect-ratio: 1 / 1;
+.results-check-circle {
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
-  background: #eff6ff;
-  border: 3px solid #2563eb;
+  background: #f0fdf4;
+  border: 2px solid #bbf7d0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  text-align: center;
-  padding: 0;
-  margin: 0;
 }
 
-.score-circle-fraction {
-  display: block;
-  width: 100%;
-  text-align: center;
-  margin: 0;
-  padding: 0;
-  font-size: 1.05rem;
+.results-done-title {
+  font-size: 1.4rem;
   font-weight: 800;
-  color: #1e3a8a;
-  line-height: 1.15;
-  letter-spacing: 0;
-}
-
-.score-circle-percent {
-  display: block;
-  width: 100%;
-  text-align: center;
+  color: #0b1e36;
   margin: 0;
-  padding: 0;
-  font-size: 0.775rem;
-  font-weight: 700;
-  color: #2563eb;
-  line-height: 1.15;
-  letter-spacing: 0;
+  line-height: 1.2;
 }
 
-.score-details-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-  justify-content: center;
+.results-done-subtitle {
+  font-size: 1rem;
+  color: #334155;
+  margin: 0;
+  line-height: 1.45;
 }
 
-.score-saved-row {
+.results-score-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: #15803d;
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.score-saved-row svg {
-  flex-shrink: 0;
-}
-
-.score-summary-subtitle {
-  margin: 0;
-  font-size: 0.875rem;
-  color: #64748b;
-  line-height: 1.4;
-  font-weight: 500;
-}
-
-.score-breakdown-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.2rem;
-}
-
-.breakdown-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.5rem;
+  padding: 0.35rem 0.9rem;
   border-radius: 9999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.3;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #0b1e36;
+  font-size: 0.95rem;
 }
 
-.breakdown-pill.pill-total {
-  background: #f1f5f9;
-  color: #334155;
-}
-
-.breakdown-pill.pill-correct {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.breakdown-pill.pill-incorrect {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-/* Primary Action Buttons */
-.results-actions-row {
-  width: 100%;
+.results-score-pill strong {
+  color: #165dfc;
+  font-weight: 800;
 }
 
 .results-primary-btn {
   width: 100%;
-  min-height: 46px;
-  padding: 0.75rem 1.25rem;
-  font-size: 0.925rem;
-  font-weight: 700;
-  background-color: #2563eb;
+  min-height: 50px;
+  padding: 0.8rem 1.25rem;
+  margin-top: 0.35rem;
+  font-size: 1rem;
+  font-weight: 800;
+  background-color: #165dfc;
   color: #ffffff;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: background-color 0.15s ease-in-out;
-  box-sizing: border-box;
-  text-decoration: none;
+  transition: background-color 0.15s ease;
 }
 
 .results-primary-btn:hover {
-  background-color: #1d4ed8;
+  background-color: #0d4ed8;
 }
 
-.results-primary-btn:active {
-  background-color: #1e40af;
+.results-secondary-btn {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.65rem 1rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
 }
 
-/* Review Submitted Answers Section */
+.results-secondary-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
 .readonly-review-section {
   width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
   text-align: left;
-}
-
-.review-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.review-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-}
-
-.review-count {
-  font-size: 0.75rem;
-  font-weight: 700;
-  background: #f1f5f9;
-  color: #64748b;
-  padding: 0.22rem 0.6rem;
-  border-radius: 12px;
-  white-space: nowrap;
 }
 
 .review-questions-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+  gap: 0.85rem;
 }
 
 .review-question-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1.15rem 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
+  border-radius: 14px;
+  padding: 1rem;
 }
 
 .review-q-header {
@@ -567,28 +423,23 @@ function resolveFeedback(q) {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.65rem;
-  width: 100%;
-  box-sizing: border-box;
+  margin-bottom: 0.5rem;
 }
 
 .q-num-pill {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 800;
   color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .q-result-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
+  gap: 0.3rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 0.25rem 0.6rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 6px;
-  white-space: nowrap;
 }
 
 .q-result-tag.tag-correct {
@@ -604,51 +455,34 @@ function resolveFeedback(q) {
 .review-q-text {
   font-size: 0.975rem;
   font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 0.85rem 0;
-  line-height: 1.45;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+  color: #0b1e36;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
   overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
-/* Options */
 .review-options-list {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  margin-bottom: 0.75rem;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+  gap: 0.5rem;
 }
 
 .review-opt-item {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
+  gap: 0.25rem;
   padding: 0.65rem 0.8rem;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #334155;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
   overflow-wrap: anywhere;
-  word-break: break-word;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-.review-opt-item.chosen-correct {
+.review-opt-item.chosen-correct,
+.review-opt-item.is-correct-target {
   background: #f0fdf4;
   border-color: #86efac;
   color: #166534;
@@ -660,71 +494,35 @@ function resolveFeedback(q) {
   color: #991b1b;
 }
 
-.review-opt-item.is-correct-target {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #166534;
-}
-
 .review-opt-label-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  margin-bottom: 0.15rem;
 }
 
-.badge-user-choice {
-  font-size: 0.675rem;
+.badge-user-choice,
+.badge-correct-choice {
+  font-size: 0.7rem;
   font-weight: 800;
-  background: #fee2e2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-  padding: 0.15rem 0.45rem;
+  padding: 0.12rem 0.45rem;
   border-radius: 4px;
-  line-height: 1.2;
-  width: fit-content;
-  max-width: 100%;
-  white-space: nowrap;
 }
 
-.badge-choice-correct {
+.badge-choice-correct,
+.badge-correct-choice {
   background: #dcfce7;
   color: #15803d;
-  border-color: #bbf7d0;
 }
 
 .badge-choice-wrong {
   background: #fee2e2;
   color: #b91c1c;
-  border-color: #fecaca;
-}
-
-.badge-correct-choice {
-  font-size: 0.675rem;
-  font-weight: 800;
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-  line-height: 1.2;
-  width: fit-content;
-  max-width: 100%;
-  white-space: nowrap;
 }
 
 .review-opt-content {
   display: flex;
   align-items: flex-start;
-  gap: 0.6rem;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
+  gap: 0.55rem;
 }
 
 .review-opt-circle {
@@ -737,8 +535,7 @@ function resolveFeedback(q) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 2px;
-  box-sizing: border-box;
+  margin-top: 1px;
 }
 
 .review-opt-item.chosen-correct .review-opt-circle,
@@ -755,90 +552,56 @@ function resolveFeedback(q) {
 .review-opt-text {
   flex: 1;
   min-width: 0;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
   line-height: 1.4;
-  box-sizing: border-box;
 }
 
-/* Feedback Card */
 .review-feedback-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-left: 3px solid #2563eb;
-  border-radius: 6px;
-  padding: 0.7rem 0.85rem;
-  font-size: 0.825rem;
+  border-left: 3px solid #165dfc;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
   color: #334155;
   line-height: 1.45;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  overflow-wrap: anywhere;
-  word-break: break-word;
   margin-top: 0.65rem;
 }
 
-/* Bottom Action Button (after last question) */
 .results-bottom-actions {
-  width: 100%;
-  margin-top: 1.5rem;
-  margin-bottom: 3.5rem; /* Ensures the fixed bottom navigation never overlaps the button */
-  box-sizing: border-box;
+  margin-top: 1.25rem;
+  margin-bottom: 2.5rem;
 }
 
-/* Responsive adjustments */
-@media (max-width: 480px) {
-  .results-score-card {
-    padding: 1.1rem 1rem;
-    gap: 1rem;
-  }
-
-  .results-score-content {
-    gap: 0.85rem;
-  }
-
-  .score-circle-indicator {
-    width: 76px;
-    height: 76px;
-    min-width: 76px;
-    min-height: 76px;
-    flex-shrink: 0;
-  }
-
-  .score-circle-fraction {
-    font-size: 1.05rem;
-  }
-
-  .score-circle-percent {
-    font-size: 0.775rem;
-  }
-
-  .score-saved-row {
-    font-size: 0.875rem;
-  }
-
-  .score-summary-subtitle {
-    font-size: 0.8rem;
-  }
-
-  .review-question-card {
-    padding: 0.95rem 1rem;
-  }
-
-  .review-opt-item {
-    padding: 0.6rem 0.7rem;
-  }
+.review-translate-row {
+  margin: 0.45rem 0;
 }
 
-@media (max-width: 360px) {
-  .results-score-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
+.review-bisaya-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.9rem;
+  color: #0b1e36;
+  line-height: 1.45;
+  margin-bottom: 0.65rem;
+}
+
+.review-opt-text-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.review-opt-bisaya {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  line-height: 1.35;
 }
 </style>
-

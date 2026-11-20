@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import prisma from '../config/prisma.js';
 import { verifyToken } from '../config/jwt.js';
 import {
@@ -9,6 +12,24 @@ import {
   cleanupLegacyNotificationDuplicates,
   formatScheduleDateTimeSpan,
 } from '../services/notificationService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.join(__dirname, '../../data');
+const AF2_FILE = path.join(DATA_DIR, 'af2_records.json');
+
+function readAf2Records() {
+  try {
+    if (fs.existsSync(AF2_FILE)) {
+      const raw = fs.readFileSync(AF2_FILE, 'utf-8');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (err) {
+    console.warn('Could not read AF2 records in notifications route:', err);
+  }
+  return [];
+}
 
 const router = Router();
 
@@ -372,6 +393,56 @@ export async function buildUserNotifications(user) {
       if (!subId || !submissionMap.has(subId)) {
         await prisma.notification.delete({ where: { id: n.id } }).catch(() => {});
         continue;
+      }
+    }
+
+    // E. RECORD NOTIFICATION HANDLING & DESTINATION URL
+    else if (n.type === 'RECORD' || n.sourceType === 'record' || n.title === 'New Learner Record') {
+      type = 'RECORD';
+      let recId = null;
+      if (n.notificationKey) {
+        const m = n.notificationKey.match(/record_added:([^:]+):/);
+        if (m) recId = m[1];
+      }
+      if (!recId && n.sourceId) {
+        recId = String(n.sourceId);
+      }
+
+      const allAf2 = readAf2Records();
+      let matchedRecord = null;
+      if (recId) {
+        matchedRecord = allAf2.find((r) => String(r.id) === String(recId));
+      }
+      if (!matchedRecord && n.targetLearnerId) {
+        matchedRecord = allAf2.find((r) => Number(r.learnerId) === Number(n.targetLearnerId));
+      }
+      if (!matchedRecord && n.message) {
+        matchedRecord = allAf2.find((r) => {
+          const lMatch = r.learnerName && n.message.includes(r.learnerName);
+          const mMatch = r.moduleTitle && n.message.includes(r.moduleTitle);
+          return lMatch && mMatch;
+        }) || allAf2.find((r) => r.learnerName && n.message.includes(r.learnerName));
+      }
+
+      const targetLearnerId = matchedRecord?.learnerId || n.targetLearnerId || null;
+      const targetRecordId = matchedRecord?.id || recId || null;
+      const targetModuleId = matchedRecord?.moduleId || null;
+
+      if (targetLearnerId) {
+        const qParams = new URLSearchParams();
+        qParams.set('learnerId', String(targetLearnerId));
+        if (targetRecordId) qParams.set('recordId', String(targetRecordId));
+        if (targetModuleId) qParams.set('moduleId', String(targetModuleId));
+        actionUrl = `/dashboard/reports/module-progress?${qParams.toString()}`;
+      } else if (n.linkUrl && n.linkUrl.includes('learnerId=')) {
+        try {
+          const dummyUrl = new URL(n.linkUrl, 'http://localhost');
+          actionUrl = `/dashboard/reports/module-progress${dummyUrl.search}`;
+        } catch {
+          actionUrl = '/dashboard/reports/module-progress';
+        }
+      } else {
+        actionUrl = '/dashboard/reports/module-progress';
       }
     }
 

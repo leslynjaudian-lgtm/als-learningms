@@ -138,7 +138,7 @@
             @pointerdown.stop
             @click.stop="openConfirmationModal"
           >
-            <span>Continue to Post-Test</span>
+            <span>Padayon sa Post-Test</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -163,14 +163,14 @@
             type="button"
             class="pdf-back-btn"
             @click="handleBack"
-            aria-label="Go Back"
-            title="Go Back"
+            aria-label="Balik"
+            title="Balik"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
             </svg>
-            <span class="pdf-back-label">Go Back</span>
+            <span class="pdf-back-label">Balik</span>
           </button>
           <div class="viewer-title-wrap">
             <div class="title-meta-line">
@@ -193,8 +193,8 @@
             class="download-pdf-btn"
             :disabled="isDownloading || loading || !!error"
             @click.stop="handleDownloadPdf"
-            aria-label="Download PDF"
-            title="Download PDF"
+            aria-label="I-download ang Module"
+            title="I-download ang Module"
           >
             <svg
               v-if="!isDownloading"
@@ -213,7 +213,7 @@
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             <span v-else class="download-btn-spinner" aria-hidden="true"></span>
-            <span class="download-pdf-label">{{ isDownloading ? 'Downloading...' : 'Download PDF' }}</span>
+            <span class="download-pdf-label">{{ isDownloading ? 'Nag-download...' : 'I-download ang Module' }}</span>
           </button>
 
           <!-- Fullscreen Toggle Button -->
@@ -282,8 +282,22 @@
           <span class="page-badge-short"><strong>{{ currentPage }}</strong> / {{ totalPages || 29 }}</span>
         </div>
 
-        <!-- Zoom Controls: − 100% + -->
-        <div class="zoom-controls">
+        <!-- Dugang nga Opsyon toggle (Mobile) -->
+        <button
+          type="button"
+          class="more-options-btn"
+          :class="{ active: showMoreOptions }"
+          @click="showMoreOptions = !showMoreOptions"
+          :aria-expanded="showMoreOptions"
+        >
+          <span>Dugang nga Opsyon</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline :points="showMoreOptions ? '18 15 12 9 6 15' : '6 9 12 15 18 9'" />
+          </svg>
+        </button>
+
+        <!-- Zoom Controls: − 100% + (Always visible on desktop, toggled via Dugang nga Opsyon on mobile) -->
+        <div class="zoom-controls" :class="{ 'is-mobile-open': showMoreOptions }">
           <button
             type="button"
             class="zoom-btn"
@@ -364,7 +378,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
         </svg>
-        <span class="hint-text">Tap the screen to show or hide reading controls.</span>
+        <span class="hint-text">Pindota ang screen aron ipakita o itago ang mga kontrol.</span>
         <button type="button" class="hint-close-btn" aria-label="Dismiss">&times;</button>
       </div>
     </transition>
@@ -386,7 +400,7 @@
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>{{ thumbnailsOpen ? 'Hide Page Strip' : 'Show Page Strip' }}</span>
+            <span>{{ thumbnailsOpen ? 'Tagoa ang mga Pahina' : 'Tan-awa ang mga Pahina' }}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline v-if="thumbnailsOpen" points="6 9 12 15 18 9"></polyline>
               <polyline v-else points="18 15 12 9 6 15"></polyline>
@@ -453,7 +467,7 @@
             class="btn-primary proceed-btn"
             @click="openConfirmationModal"
           >
-            <span>Continue to Post-Test</span>
+            <span>Padayon sa Post-Test</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -474,9 +488,9 @@
             <polyline points="10 9 9 9 8 9"/>
           </svg>
         </div>
-        <h3 class="confirm-title">Ready for Post-Test?</h3>
+        <h3 class="confirm-title">Nahuman na ka og basa?</h3>
         <p class="confirm-message">
-          Have you finished reading the module and answering the activities on paper?
+          Nahuman na ba nimo ang pagbasa ug pagsulat sa imong mga tubag sa papel?
         </p>
         <div class="confirm-actions">
           <button
@@ -484,14 +498,14 @@
             class="btn-secondary modal-btn"
             @click="showConfirmModal = false"
           >
-            Continue Reading
+            Basaha Pag-usab
           </button>
           <button
             type="button"
             class="btn-primary modal-btn"
             @click="confirmProceedToPostTest"
           >
-            Yes, Proceed to Post-Test
+            Oo, Padayon
           </button>
         </div>
       </div>
@@ -625,6 +639,7 @@ const currentPage = ref(props.initialPage || 1);
 const viewMode = ref(props.initialMode || 'long');
 const zoomScale = ref(1.0);
 const isFullscreen = ref(false);
+const showMoreOptions = ref(false);
 const isDownloading = ref(false);
 const downloadError = ref('');
 let downloadErrorTimer = null;
@@ -4027,6 +4042,45 @@ watch(
   .action-icon.google-color-icon {
     width: 15px;
     height: 15px;
+  }
+}
+
+.more-options-btn {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.more-options-btn.active {
+  background: #165dfc;
+  border-color: #165dfc;
+}
+
+@media (max-width: 640px) {
+  .viewer-controls-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .more-options-btn {
+    display: inline-flex;
+  }
+  .zoom-controls {
+    display: none;
+    width: 100%;
+    justify-content: center;
+    padding-top: 4px;
+  }
+  .zoom-controls.is-mobile-open {
+    display: flex;
   }
 }
 </style>

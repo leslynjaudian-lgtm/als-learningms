@@ -1,5 +1,31 @@
 [
   {
+    "id": "tlog-1795203901326-26kqrv",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "Yeah",
+    "description": "Uploaded learning module \"Yeah\" (LS1) for A&E Elementary.",
+    "moduleId": "46",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/46",
+    "timestamp": "2026-11-20T19:45:01.324Z"
+  },
+  {
+    "id": "tlog-1794359649190-qta44c",
+    "teacherId": "18",
+    "type": "MODULE_UPLOADED",
+    "activityTypeLabel": "Uploaded a Module",
+    "relatedEntity": "Hello May I Help You?",
+    "description": "Uploaded learning module \"Hello May I Help You?\" (LS1) for A&E Elementary.",
+    "moduleId": "45",
+    "learnerId": null,
+    "submissionId": null,
+    "linkUrl": "/dashboard/modules/45",
+    "timestamp": "2026-11-11T01:14:09.179Z"
+  },
+  {
     "id": "tlog-1794317991166-ow6x4p",
     "teacherId": "18",
     "type": "MODULE_UPLOADED",

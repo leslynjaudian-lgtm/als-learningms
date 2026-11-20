@@ -30,442 +30,185 @@
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          <span>My Modules</span>
+          <span>Akong mga Module</span>
         </RouterLink>
         <button v-else type="button" class="module-back-btn" @click="goToOverview">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          <span>Go Back</span>
+          <span>Balik</span>
         </button>
       </div>
 
       <!-- Subpage Heading Card (visible only when inside Steps 1, 3, or 4) -->
       <div v-if="currentStep === 1 || currentStep === 3 || currentStep === 4" class="subpage-nav-bar">
-        <!-- STEP X & Activity Title & Completed Status -->
         <div class="subpage-heading-group">
-          <div class="subpage-meta-row">
-            <span class="subpage-step-label">STEP {{ currentStep }}</span>
-            <span v-if="isAssessmentResultsView" class="subpage-completed-badge">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              <span>Completed</span>
+          <div class="subpage-title-counter-row">
+            <h1 class="subpage-title-text">
+              {{
+                isPreTestResultsView
+                  ? 'Resulta sa Unang Pangutana'
+                  : isPostTestResultsView
+                    ? 'Resulta sa Kataposang Pangutana'
+                    : getSubpageTitle(currentStep)
+              }}
+            </h1>
+            <span
+              v-if="currentStep === 1 && !isPreTestResultsView && preTestQuestions.length > 0"
+              class="question-counter-pill"
+            >
+              {{ currentPreQIndex + 1 }} sa {{ preTestQuestions.length }}
+            </span>
+            <span
+              v-else-if="currentStep === 3 && !isPostTestResultsView && postTestQuestions.length > 0"
+              class="question-counter-pill"
+            >
+              {{ currentPostQIndex + 1 }} sa {{ postTestQuestions.length }}
             </span>
           </div>
-          <h1 class="subpage-title-text">
-            {{ isPreTestResultsView ? 'Pre-Test Results' : isPostTestResultsView ? 'Post-Test Results' : getSubpageTitle(currentStep) }}
-          </h1>
           <p
             v-if="(currentStep === 1 && !isPreTestResultsView && preTestQuestions.length > 0) || (currentStep === 3 && !isPostTestResultsView && postTestQuestions.length > 0)"
             class="subpage-instruction-text"
           >
-            Read each question carefully. Tap the circle beside your chosen answer, then tap 'Submit Answer' to continue.
+            Pilia ang imong tubag.
           </p>
         </div>
       </div>
 
       <!-- ============================================================ -->
-      <!-- STEP 0: MODULE OVERVIEW (Clean Google Classroom Checklist)    -->
+      <!-- STEP 0: SIMPLIFIED GUIDED MODULE DETAILS (UCD Iteration 1)   -->
       <!-- ============================================================ -->
-      <div v-if="currentStep === 0" class="module-details-container">
-        <!-- Section 1: Module Overview Card -->
-        <div class="module-header-card">
-          <div class="header-titles">
-            <div v-if="moduleStrandCode || moduleSubheading" class="module-strand-meta-row">
-              <span v-if="moduleStrandCode" class="module-code-pill">{{ moduleStrandCode }}</span>
-              <span v-if="moduleSubheading" class="module-strand-label">{{ moduleSubheading }}</span>
-            </div>
-            <h1 class="module-main-title">{{ moduleTitle }}</h1>
-            <div
-              v-if="sanitizedModuleInstructions"
-              class="module-instructions-inline rich-instructions-content"
-              v-html="sanitizedModuleInstructions"
-            ></div>
+      <div v-if="currentStep === 0" class="guided-module-view">
+        <div class="guided-main-card">
+          <!-- Module Title -->
+          <h1 class="guided-module-title">{{ moduleTitle }}</h1>
+
+          <!-- Recognizable Activity Icon -->
+          <div
+            class="guided-icon-circle"
+            :class="currentGuidedActivity.isSubmitted ? 'is-submitted' : 'is-primary'"
+            aria-hidden="true"
+          >
+            <!-- Pre-Test / Post-Test Quiz Icon -->
+            <svg v-if="currentGuidedActivity.icon === 'quiz'" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+              <rect x="8" y="2" width="8" height="4" rx="1"/>
+              <path d="M9 14l2 2 4-4"/>
+            </svg>
+            <!-- Module Reading Book Icon -->
+            <svg v-else-if="currentGuidedActivity.icon === 'book'" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <!-- Camera / Upload Icon -->
+            <svg v-else-if="currentGuidedActivity.icon === 'upload'" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <!-- Submitted Check Icon -->
+            <svg v-else width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
           </div>
 
-          <div class="overview-divider"></div>
+          <!-- Current Activity Heading & Short Bisaya Instruction -->
+          <h2 class="guided-activity-heading">{{ currentGuidedActivity.heading }}</h2>
+          <p class="guided-activity-desc">{{ currentGuidedActivity.description }}</p>
 
-          <div class="header-progress-wrap">
-            <div class="header-progress-row">
-              <span class="header-progress-label">Your Progress</span>
-              <span class="header-progress-percent">{{ computedProgressPercentage }}% Complete</span>
-            </div>
-            <div class="header-progress-track" role="progressbar" :aria-valuenow="computedProgressPercentage" aria-valuemin="0" aria-valuemax="100">
-              <div class="header-progress-fill" :style="{ width: `${computedProgressPercentage}%` }"></div>
-            </div>
+          <!-- Submission Status Confirmation (when activity is already submitted) -->
+          <div v-if="currentGuidedActivity.isSubmitted" class="guided-submission-status">
+            <span class="guided-status-badge" :class="{ 'is-reviewed': isReviewFinalized }">
+              {{ isReviewFinalized ? 'Gitan-aw na sa Teacher' : 'Naipasa na' }}
+            </span>
+            <span v-if="progress.submittedFilesMeta?.length" class="guided-files-count">
+              {{ progress.submittedFilesMeta.length }} file ang gipasa
+            </span>
           </div>
+
+          <!-- One Large Primary Action Button -->
+          <button
+            type="button"
+            class="guided-primary-btn"
+            @click="goToStep(currentGuidedActivity.step)"
+          >
+            {{ currentGuidedActivity.buttonLabel }}
+          </button>
         </div>
 
-        <!-- Section 2: Your Learning Activities -->
-        <div class="learning-activities-section">
-          <!-- Subtle Light-Blue Information Container -->
-          <div class="activities-info-card">
-            <div class="activities-info-icon-wrap">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+        <!-- Secondary Options (Completed Activities & Original Teacher Instructions) -->
+        <div v-if="completedActivitiesList.length > 0 || sanitizedModuleInstructions" class="guided-secondary-wrap">
+          <div class="guided-secondary-actions">
+            <button
+              v-if="completedActivitiesList.length > 0"
+              type="button"
+              class="guided-secondary-btn"
+              :aria-expanded="showCompletedList"
+              @click="showCompletedList = !showCompletedList"
+            >
+              <span>Tan-awa ang Nahuman</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline :points="showCompletedList ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"/>
               </svg>
-            </div>
-            <div class="activities-info-content">
-              <h2 class="activities-info-title">Your Learning Activities</h2>
-              <p class="activities-info-desc">Start by answering the Pre-Test to unlock your learning module. Once completed, you can read and study the lessons, answer the Post-Test, and submit your activities.</p>
+            </button>
+
+            <button
+              v-if="sanitizedModuleInstructions"
+              type="button"
+              class="guided-secondary-btn"
+              :aria-expanded="showTeacherInstructions"
+              @click="showTeacherInstructions = !showTeacherInstructions"
+            >
+              <span>Basaha ang Instruksyon</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline :points="showTeacherInstructions ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Expandable Completed Activities List -->
+          <div v-if="showCompletedList && completedActivitiesList.length > 0" class="guided-drawer-card">
+            <div class="guided-completed-list">
+              <button
+                v-for="item in completedActivitiesList"
+                :key="item.step"
+                type="button"
+                class="guided-completed-item"
+                @click="goToStep(item.step)"
+              >
+                <span class="guided-completed-check" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </span>
+                <span class="guided-completed-label">{{ item.label }}</span>
+                <svg class="guided-completed-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
             </div>
           </div>
 
-          <div class="activities-checklist">
-            <!-- Step 1 Card: Pre-Test -->
+          <!-- Expandable Original Teacher Instructions (and approved Bisaya translation if provided) -->
+          <div v-if="showTeacherInstructions && sanitizedModuleInstructions" class="guided-drawer-card">
             <div
-              class="activity-card"
-              :class="{
-                'is-active-step': currentActiveStep === 1,
-                'is-completed': isStepCompleted(1),
-                'is-locked': !isStepUnlocked(1)
-              }"
-            >
-              <!-- Top Row: Icon, Title Group, Status -->
-              <div class="card-top-row">
-                <div
-                  class="card-icon-badge"
-                  :class="{
-                    'badge-completed': isStepCompleted(1),
-                    'badge-active': currentActiveStep === 1,
-                    'badge-locked': !isStepUnlocked(1)
-                  }"
-                >
-                  <!-- Small green check if completed -->
-                  <svg v-if="isStepCompleted(1)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <!-- Lock icon if locked -->
-                  <svg v-else-if="!isStepUnlocked(1)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <!-- Step number otherwise -->
-                  <span v-else>1</span>
-                </div>
-
-                <div class="card-title-group">
-                  <span class="card-step-label">Step 1</span>
-                  <h3 class="card-activity-title">Pre-Test (Let's See What You Already Know)</h3>
-                </div>
-
-                <div class="card-status-col">
-                  <span v-if="isStepCompleted(1)" class="card-status-pill status-completed">
-                    Completed
-                  </span>
-                  <span v-else-if="!isStepUnlocked(1)" class="card-status-pill status-locked">
-                    Locked
-                  </span>
-                  <span v-else class="card-status-pill status-ready">
-                    Ready
-                  </span>
-                </div>
-              </div>
-
-              <!-- Middle: Short Description -->
-              <p class="card-description">Answer a few questions before reading the module.</p>
-
-              <!-- Bottom Row: Assessment Score on Left, Action Button on Right -->
-              <div class="card-bottom-row">
-                <div class="card-bottom-left">
-                  <div v-if="isStepCompleted(1)" class="card-score-pill">
-                    <span class="score-label">Score:</span>
-                    <strong class="score-val">{{ progress.preTestScore ?? 0 }}/{{ preTestTotal }}</strong>
-                  </div>
-                </div>
-
-                <div class="card-bottom-right">
-                  <button
-                    v-if="isStepCompleted(1)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(1)"
-                  >
-                    <span>View Results</span>
-                  </button>
-                  <button
-                    v-else-if="isStepUnlocked(1)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(1)"
-                  >
-                    <span>Start Pre-Test</span>
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="activity-btn btn-locked"
-                    disabled
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Locked</span>
-                  </button>
-                </div>
-              </div>
+              class="guided-instructions-body rich-instructions-content"
+              v-html="displayModuleInstructions"
+            ></div>
+            <div class="translate-action-row">
+              <TranslateBisayaButton
+                :loading="getTranslation('module-instructions').loading"
+                :active="getTranslation('module-instructions').visible"
+                :error="getTranslation('module-instructions').error"
+                @toggle="toggleTextTranslation('module-instructions', sanitizedModuleInstructions, { format: 'html', approvedText: moduleData?.instructionsBisaya })"
+              />
             </div>
-
-            <!-- Step 2 Card: Read the Module -->
             <div
-              class="activity-card"
-              :class="{
-                'is-active-step': currentActiveStep === 2,
-                'is-completed': isStepCompleted(2),
-                'is-locked': !isStepUnlocked(2)
-              }"
-            >
-              <!-- Top Row: Icon, Title Group, Status -->
-              <div class="card-top-row">
-                <div
-                  class="card-icon-badge"
-                  :class="{
-                    'badge-completed': isStepCompleted(2),
-                    'badge-active': currentActiveStep === 2,
-                    'badge-locked': !isStepUnlocked(2)
-                  }"
-                >
-                  <svg v-if="isStepCompleted(2)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else-if="!isStepUnlocked(2)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <span v-else>2</span>
-                </div>
-
-                <div class="card-title-group">
-                  <span class="card-step-label">Step 2</span>
-                  <h3 class="card-activity-title">Read the Module</h3>
-                </div>
-
-                <div class="card-status-col">
-                  <span v-if="!isStepUnlocked(2)" class="card-status-pill status-locked">Locked</span>
-                  <span v-else-if="isStepCompleted(2)" class="card-status-pill status-completed">Completed</span>
-                  <span v-else-if="progress.readingStarted || (progress.pagesRead && progress.pagesRead.length > 0)" class="card-status-pill status-in-progress">In Progress</span>
-                  <span v-else class="card-status-pill status-ready">Ready</span>
-                </div>
-              </div>
-
-              <!-- Middle: Short Description -->
-              <p class="card-description">Read the lessons and learn at your own pace.</p>
-
-              <!-- Bottom Row: Reading Info on Left, Action Button on Right -->
-              <div class="card-bottom-row">
-                <div class="card-bottom-left">
-                  <div v-if="isStepCompleted(2) || progress.readingStarted || (progress.pagesRead && progress.pagesRead.length > 0) || progress.pdfCurrentPage" class="card-reading-progress">
-                    <span>Page {{ progress.pdfCurrentPage || 1 }} of {{ progress.pdfTotalPages || 29 }}</span>
-                  </div>
-                </div>
-
-                <div class="card-bottom-right">
-                  <button
-                    v-if="isStepCompleted(2)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(2)"
-                  >
-                    <span>Read Again</span>
-                  </button>
-                  <button
-                    v-else-if="isStepUnlocked(2)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(2)"
-                  >
-                    <span>{{ progress.readingStarted ? 'Continue Reading' : 'Start Reading' }}</span>
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="activity-btn btn-locked"
-                    disabled
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Locked</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step 3 Card: Post-Test -->
-            <div
-              class="activity-card"
-              :class="{
-                'is-active-step': currentActiveStep === 3,
-                'is-completed': isStepCompleted(3),
-                'is-locked': !isStepUnlocked(3)
-              }"
-            >
-              <!-- Top Row: Icon, Title Group, Status -->
-              <div class="card-top-row">
-                <div
-                  class="card-icon-badge"
-                  :class="{
-                    'badge-completed': isStepCompleted(3),
-                    'badge-active': currentActiveStep === 3,
-                    'badge-locked': !isStepUnlocked(3)
-                  }"
-                >
-                  <svg v-if="isStepCompleted(3)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else-if="!isStepUnlocked(3)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <span v-else>3</span>
-                </div>
-
-                <div class="card-title-group">
-                  <span class="card-step-label">Step 3</span>
-                  <h3 class="card-activity-title">Post-Test (What Have You Learned?)</h3>
-                </div>
-
-                <div class="card-status-col">
-                  <span v-if="!isStepUnlocked(3)" class="card-status-pill status-locked">Locked</span>
-                  <span v-else-if="isStepCompleted(3)" class="card-status-pill status-completed">Completed</span>
-                  <span v-else class="card-status-pill status-ready">Ready</span>
-                </div>
-              </div>
-
-              <!-- Middle: Short Description -->
-              <p class="card-description">Answer questions about what you learned.</p>
-
-              <!-- Bottom Row: Assessment Score on Left, Action Button on Right -->
-              <div class="card-bottom-row">
-                <div class="card-bottom-left">
-                  <div v-if="isStepCompleted(3)" class="card-score-pill">
-                    <span class="score-label">Score:</span>
-                    <strong class="score-val">{{ progress.postTestScore ?? 0 }}/{{ postTestTotal }}</strong>
-                  </div>
-                </div>
-
-                <div class="card-bottom-right">
-                  <button
-                    v-if="isStepCompleted(3)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(3)"
-                  >
-                    <span>View Results</span>
-                  </button>
-                  <button
-                    v-else-if="isStepUnlocked(3)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(3)"
-                  >
-                    <span>Start Post-Test</span>
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="activity-btn btn-locked"
-                    disabled
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Locked</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step 4 Card: Submit Your Activity -->
-            <div
-              class="activity-card"
-              :class="{
-                'is-active-step': currentActiveStep === 4,
-                'is-completed': isStepCompleted(4),
-                'is-locked': !isStepUnlocked(4)
-              }"
-            >
-              <!-- Top Row: Icon, Title Group, Status -->
-              <div class="card-top-row">
-                <div
-                  class="card-icon-badge"
-                  :class="{
-                    'badge-completed': isStepCompleted(4),
-                    'badge-active': currentActiveStep === 4,
-                    'badge-locked': !isStepUnlocked(4)
-                  }"
-                >
-                  <svg v-if="isStepCompleted(4)" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <svg v-else-if="!isStepUnlocked(4)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <span v-else>4</span>
-                </div>
-
-                <div class="card-title-group">
-                  <span class="card-step-label">Step 4</span>
-                  <h3 class="card-activity-title">Submit Your Activity</h3>
-                </div>
-
-                <div class="card-status-col">
-                  <span v-if="!isStepUnlocked(4)" class="card-status-pill status-locked">Locked</span>
-                  <span v-else-if="isStepCompleted(4)" class="card-status-pill status-completed">Submitted</span>
-                  <span v-else class="card-status-pill status-ready">Ready</span>
-                </div>
-              </div>
-
-              <!-- Middle: Short Description -->
-              <p class="card-description">Upload photos of your written answers or a PDF file.</p>
-
-              <!-- Bottom Row: Submissions Info on Left, Action Button on Right -->
-              <div class="card-bottom-row">
-                <div class="card-bottom-left">
-                  <span v-if="isStepCompleted(4) && progress.submittedFilesMeta?.length" class="card-submission-meta">
-                    {{ progress.submittedFilesMeta.length }} file{{ progress.submittedFilesMeta.length > 1 ? 's' : '' }} submitted
-                  </span>
-                </div>
-
-                <div class="card-bottom-right">
-                  <button
-                    v-if="isStepCompleted(4)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(4)"
-                  >
-                    <span>View My Submissions</span>
-                  </button>
-                  <button
-                    v-else-if="isStepUnlocked(4)"
-                    type="button"
-                    class="activity-btn btn-primary"
-                    @click="goToStep(4)"
-                  >
-                    <span>Submit Activity</span>
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="activity-btn btn-locked"
-                    disabled
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Locked</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+              v-if="getTranslation('module-instructions').visible"
+              class="bisaya-translation-box rich-instructions-content"
+              v-html="getTranslation('module-instructions').text"
+            ></div>
           </div>
         </div>
       </div>
@@ -503,20 +246,46 @@
 
       <!-- In Progress: Question by Question -->
       <template v-else-if="!progress.preTestCompleted && !showingPreTestScore">
-        <!-- Pre-Test Instructions (Plain text, hidden if blank) -->
-        <template v-if="preTestInstructionsText">
-          <div class="assessment-instructions">
-            <div class="assessment-instructions-label">Instructions:</div>
-            <p class="assessment-instructions-text">{{ preTestInstructionsText }}</p>
+        <!-- Pre-Test Instructions (when provided by teacher) -->
+        <div v-if="sanitizedPreTestInstructions" class="assessment-instructions">
+          <div
+            class="assessment-instructions-text rich-instructions-content"
+            v-html="displayPreTestInstructions"
+          ></div>
+          <div class="translate-action-row">
+            <TranslateBisayaButton
+              :loading="getTranslation('pre-instructions').loading"
+              :active="getTranslation('pre-instructions').visible"
+              :error="getTranslation('pre-instructions').error"
+              @toggle="toggleTextTranslation('pre-instructions', sanitizedPreTestInstructions, { format: 'html' })"
+            />
           </div>
-          <hr class="assessment-instructions-divider" />
-        </template>
+          <div
+            v-if="getTranslation('pre-instructions').visible"
+            class="bisaya-translation-box rich-instructions-content"
+            v-html="getTranslation('pre-instructions').text"
+          ></div>
+        </div>
 
         <!-- Question Prompt -->
         <div class="question-body">
           <h2 class="question-text">
             {{ currentPreQIndex + 1 }}. {{ currentPreQ.question }}
           </h2>
+          <div class="translate-action-row">
+            <TranslateBisayaButton
+              :loading="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).loading"
+              :active="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).visible"
+              :error="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).error"
+              @toggle="toggleQuestionTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`, currentPreQ.question, currentPreQ.options)"
+            />
+          </div>
+          <div
+            v-if="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).visible"
+            class="bisaya-translation-box"
+          >
+            {{ currentPreQIndex + 1 }}. {{ getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).questionText }}
+          </div>
 
           <!-- Options -->
           <div class="options-list">
@@ -561,7 +330,15 @@
                   <span v-if="isOptionSelectedPre(opt.id)" class="radio-inner-dot"></span>
                 </template>
               </div>
-              <span class="opt-text">{{ opt.text }}</span>
+              <div class="opt-text-stack">
+                <span class="opt-text">{{ formatChoiceText(opt.text) }}</span>
+                <span
+                  v-if="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).visible && getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).optionsMap[opt.id]"
+                  class="opt-bisaya-sub"
+                >
+                  {{ getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).optionsMap[opt.id] }}
+                </span>
+              </div>
             </button>
           </div>
         </div>
@@ -582,9 +359,25 @@
               <line x1="12" y1="8" x2="12" y2="12"/>
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            <strong>{{ isPreAnswerCorrect ? 'Correct!' : 'Incorrect' }}</strong>
+            <strong>{{ isPreAnswerCorrect ? 'Sakto!' : 'Sayop' }}</strong>
           </div>
-          <p class="feedback-detail">{{ getQuestionFeedback(currentPreQ, isPreAnswerCorrect) }}</p>
+          <template v-if="getQuestionFeedback(currentPreQ, isPreAnswerCorrect)">
+            <p class="feedback-detail">{{ getQuestionFeedback(currentPreQ, isPreAnswerCorrect) }}</p>
+            <div class="translate-action-row">
+              <TranslateBisayaButton
+                :loading="getTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`).loading"
+                :active="getTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`).visible"
+                :error="getTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`).error"
+                @toggle="toggleTextTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`, getQuestionFeedback(currentPreQ, isPreAnswerCorrect))"
+              />
+            </div>
+            <div
+              v-if="getTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`).visible"
+              class="bisaya-translation-box"
+            >
+              {{ getTranslation(`pre-fb-${currentPreQ.id || currentPreQIndex}-${isPreAnswerCorrect}`).text }}
+            </div>
+          </template>
         </div>
 
         <!-- Action Buttons -->
@@ -596,7 +389,7 @@
             :disabled="hasNoPreAnswer"
             @click="submitPreAnswer"
           >
-            Submit Answer
+            Ipasa ang Tubag
           </button>
           <button
             v-else
@@ -604,7 +397,7 @@
             class="btn-primary action-btn"
             @click="nextPreQuestion"
           >
-            <span>{{ currentPreQIndex + 1 < preTestQuestions.length ? 'Next Question' : 'View Pre-Test Results' }}</span>
+            <span>{{ currentPreQIndex + 1 < preTestQuestions.length ? 'Sunod nga Pangutana' : 'Tan-awa ang Resulta' }}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -680,20 +473,46 @@
 
       <!-- In Progress: Question by Question -->
       <template v-else-if="!progress.postTestCompleted && !showingPostTestScore">
-        <!-- Post-Test Instructions (Plain text, hidden if blank) -->
-        <template v-if="postTestInstructionsText">
-          <div class="assessment-instructions">
-            <div class="assessment-instructions-label">Instructions:</div>
-            <p class="assessment-instructions-text">{{ postTestInstructionsText }}</p>
+        <!-- Post-Test Instructions (when provided by teacher) -->
+        <div v-if="sanitizedPostTestInstructions" class="assessment-instructions">
+          <div
+            class="assessment-instructions-text rich-instructions-content"
+            v-html="displayPostTestInstructions"
+          ></div>
+          <div class="translate-action-row">
+            <TranslateBisayaButton
+              :loading="getTranslation('post-instructions').loading"
+              :active="getTranslation('post-instructions').visible"
+              :error="getTranslation('post-instructions').error"
+              @toggle="toggleTextTranslation('post-instructions', sanitizedPostTestInstructions, { format: 'html' })"
+            />
           </div>
-          <hr class="assessment-instructions-divider" />
-        </template>
+          <div
+            v-if="getTranslation('post-instructions').visible"
+            class="bisaya-translation-box rich-instructions-content"
+            v-html="getTranslation('post-instructions').text"
+          ></div>
+        </div>
 
         <!-- Question Prompt -->
         <div class="question-body">
           <h2 class="question-text">
             {{ currentPostQIndex + 1 }}. {{ currentPostQ.question }}
           </h2>
+          <div class="translate-action-row">
+            <TranslateBisayaButton
+              :loading="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).loading"
+              :active="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).visible"
+              :error="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).error"
+              @toggle="toggleQuestionTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`, currentPostQ.question, currentPostQ.options)"
+            />
+          </div>
+          <div
+            v-if="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).visible"
+            class="bisaya-translation-box"
+          >
+            {{ currentPostQIndex + 1 }}. {{ getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).questionText }}
+          </div>
 
           <!-- Options -->
           <div class="options-list">
@@ -738,7 +557,15 @@
                   <span v-if="isOptionSelectedPost(opt.id)" class="radio-inner-dot"></span>
                 </template>
               </div>
-              <span class="opt-text">{{ opt.text }}</span>
+              <div class="opt-text-stack">
+                <span class="opt-text">{{ formatChoiceText(opt.text) }}</span>
+                <span
+                  v-if="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).visible && getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).optionsMap[opt.id]"
+                  class="opt-bisaya-sub"
+                >
+                  {{ getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).optionsMap[opt.id] }}
+                </span>
+              </div>
             </button>
           </div>
         </div>
@@ -759,9 +586,25 @@
               <line x1="15" y1="9" x2="9" y2="15"></line>
               <line x1="9" y1="9" x2="15" y2="15"></line>
             </svg>
-            <span>{{ isPostAnswerCorrect ? 'Correct!' : 'Incorrect' }}</span>
+            <span>{{ isPostAnswerCorrect ? 'Sakto!' : 'Sayop' }}</span>
           </div>
-          <p class="feedback-detail">{{ getQuestionFeedback(currentPostQ, isPostAnswerCorrect) }}</p>
+          <template v-if="getQuestionFeedback(currentPostQ, isPostAnswerCorrect)">
+            <p class="feedback-detail">{{ getQuestionFeedback(currentPostQ, isPostAnswerCorrect) }}</p>
+            <div class="translate-action-row">
+              <TranslateBisayaButton
+                :loading="getTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`).loading"
+                :active="getTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`).visible"
+                :error="getTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`).error"
+                @toggle="toggleTextTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`, getQuestionFeedback(currentPostQ, isPostAnswerCorrect))"
+              />
+            </div>
+            <div
+              v-if="getTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`).visible"
+              class="bisaya-translation-box"
+            >
+              {{ getTranslation(`post-fb-${currentPostQ.id || currentPostQIndex}-${isPostAnswerCorrect}`).text }}
+            </div>
+          </template>
         </div>
 
         <!-- Actions -->
@@ -773,7 +616,7 @@
             :disabled="hasNoPostAnswer"
             @click="submitPostAnswer"
           >
-            Submit Answer
+            Ipasa ang Tubag
           </button>
           <button
             v-else
@@ -782,7 +625,7 @@
             :disabled="isSubmittingPostAssessment"
             @click="nextPostQuestion"
           >
-            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Next Question' : (isSubmittingPostAssessment ? 'Submitting...' : 'View Results') }}</span>
+            <span>{{ currentPostQIndex + 1 < postTestQuestions.length ? 'Sunod nga Pangutana' : (isSubmittingPostAssessment ? 'Gipasa...' : 'Tan-awa ang Resulta') }}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -810,12 +653,10 @@
     <!-- ============================================================ -->
     <div v-else-if="currentStep === 4" class="step-content-card">
       <div class="activity-upload-section">
-        <!-- Step Header -->
+        <!-- Upload Instruction (Single STEP 4 heading is in subpage-nav-bar above) -->
         <div class="activity-header">
-          <span class="step-badge">Step 4</span>
-          <h2 class="activity-title">Submit Your Activity</h2>
           <p class="activity-desc">
-            Upload photos of your written answers or a PDF file.
+            Pag-upload og litrato sa imong Activity o PDF file.
           </p>
         </div>
 
@@ -840,8 +681,8 @@
             </svg>
           </div>
           <div class="banner-text-col">
-            <h3 class="banner-title">Review Finalized</h3>
-            <p class="banner-subtext">Your teacher has checked your work. You cannot change these files now.</p>
+            <h3 class="banner-title">Nahuman na ang Pag-check</h3>
+            <p class="banner-subtext">Nacheck na sa imong ALS Teacher ang imong Activity. Dili na nimo kini mailisan.</p>
           </div>
         </div>
 
@@ -902,10 +743,10 @@
           </div>
 
           <div class="dropzone-main-text">
-            <strong>Tap to select files</strong> or take photo
+            <strong>Pindota aron mopili og file o mokuha og litrato.</strong>
           </div>
           <div class="dropzone-sub-text">
-            Supports JPG, JPEG, PNG, and PDF (Up to 15MB each)
+            JPG, JPEG, PNG, ug PDF (hangtod 15MB matag file)
           </div>
         </div>
 
@@ -914,9 +755,9 @@
           {{ uploadError }}
         </div>
 
-        <!-- Section: Your Uploaded Files -->
+        <!-- Section: Imong Gi-upload nga mga File -->
         <div v-if="displayFilesList.length > 0" class="selected-files-container">
-          <h3 class="files-heading">Your Uploaded Files ({{ displayFilesList.length }})</h3>
+          <h3 class="files-heading">Imong Gi-upload nga mga File ({{ displayFilesList.length }})</h3>
 
           <div class="files-grid">
             <div
@@ -1057,14 +898,14 @@
               :disabled="selectedFiles.length === 0 || isSubmittingActivity"
               @click="handleSubmitActivities"
             >
-              <span v-if="isSubmittingActivity">Submitting Activity...</span>
-              <span v-else>Submit Activity</span>
+              <span v-if="isSubmittingActivity">Gipasa ang Activity...</span>
+              <span v-else>Ipasa ang Activity</span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </button>
 
-            <!-- Bottom Go Back Button directly below Submit Activity -->
+            <!-- Bottom Back Button directly below Submit Activity -->
             <button
               type="button"
               class="btn-bottom-go-back"
@@ -1074,7 +915,7 @@
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span>Go Back</span>
+              <span>Balik</span>
             </button>
           </div>
 
@@ -1107,7 +948,7 @@
               <span>Submission Closed</span>
             </div>
 
-            <!-- Bottom Go Back Button directly below Add More Files / Submission Closed -->
+            <!-- Bottom Back Button directly below Add More Files / Submission Closed -->
             <button
               type="button"
               class="btn-bottom-go-back"
@@ -1117,7 +958,7 @@
                 <line x1="19" y1="12" x2="5" y2="12"></line>
                 <polyline points="12 19 5 12 12 5"></polyline>
               </svg>
-              <span>Go Back</span>
+              <span>Balik</span>
             </button>
           </div>
         </div>
@@ -1259,6 +1100,14 @@ import {
   loadMockProgress,
   saveMockProgress
 } from '../data/mockModuleData';
+import TranslateBisayaButton from '../components/TranslateBisayaButton.vue';
+import { useBisayaTranslation } from '../composables/useBisayaTranslation.js';
+
+const {
+  getEntry: getTranslation,
+  toggleTextTranslation,
+  toggleQuestionTranslation,
+} = useBisayaTranslation();
 
 const props = defineProps({
   moduleId: {
@@ -1503,12 +1352,116 @@ const currentActiveStep = computed(() => {
   return null;
 });
 
+const showCompletedList = ref(false);
+const showTeacherInstructions = ref(false);
+
+const currentGuidedActivity = computed(() => {
+  if (!isStepCompleted(1)) {
+    return {
+      step: 1,
+      icon: 'quiz',
+      heading: 'Tubaga ang mga Pangutana',
+      description: 'Tubaga una ang mga pangutana aron makasugod ka sa module.',
+      buttonLabel: 'Sugdi ang Pre-Test',
+      isSubmitted: false,
+    };
+  }
+  if (!isStepCompleted(2)) {
+    return {
+      step: 2,
+      icon: 'book',
+      heading: 'Basaha ang Module',
+      description: 'Basaha ang leksyon ug tun-i ang mga sulod niini.',
+      buttonLabel: 'Basaha ang Module',
+      isSubmitted: false,
+    };
+  }
+  if (!isStepCompleted(3)) {
+    return {
+      step: 3,
+      icon: 'quiz',
+      heading: 'Tubaga ang mga Pangutana',
+      description: 'Tubaga ang mga pangutana bahin sa imong nabasa.',
+      buttonLabel: 'Sugdi ang Post-Test',
+      isSubmitted: false,
+    };
+  }
+  if (!isStepCompleted(4)) {
+    return {
+      step: 4,
+      icon: 'upload',
+      heading: 'Ipasa ang Imong Activity',
+      description: 'Picturi ang imong Activity ug ipasa dinhi.',
+      buttonLabel: 'Picturi ug Ipasa',
+      isSubmitted: false,
+    };
+  }
+  return {
+    step: 4,
+    icon: 'submitted',
+    heading: 'Naipasa na ang Imong Activity!',
+    description: 'Hulata nga matan-aw sa imong teacher ang imong gipasa.',
+    buttonLabel: 'Tan-awa ang Gipasa',
+    isSubmitted: true,
+  };
+});
+
+const completedActivitiesList = computed(() => {
+  const list = [];
+  if (isStepCompleted(1) && preTestQuestions.value.length > 0) {
+    list.push({ step: 1, label: 'Pre-Test — Tan-awa ang Resulta' });
+  }
+  if (isStepCompleted(2)) {
+    list.push({ step: 2, label: 'Module — Basaha Pag-usab' });
+  }
+  if (isStepCompleted(3) && postTestQuestions.value.length > 0) {
+    list.push({ step: 3, label: 'Post-Test — Tan-awa ang Resulta' });
+  }
+  if (isStepCompleted(4)) {
+    list.push({ step: 4, label: 'Activity — Tan-awa ang Gipasa' });
+  }
+  return list;
+});
+
+function prependInlineInstruksyonLabel(html) {
+  const raw = String(html || '').trim();
+  if (!raw) return '';
+  const plain = raw.replace(/<[^>]*>/g, '').trim();
+  if (/^instruksyon\s*:/i.test(plain)) {
+    return raw;
+  }
+  const blockMatch = raw.match(/^(\s*<(?:p|div|span|li)(?:\s[^>]*)?>)/i);
+  if (blockMatch) {
+    return `${blockMatch[1]}<strong class="instruksyon-inline-label">Instruksyon:</strong> ${raw.slice(blockMatch[1].length).trimStart()}`;
+  }
+  return `<strong class="instruksyon-inline-label">Instruksyon:</strong> ${raw}`;
+}
+
+const displayModuleInstructions = computed(() =>
+  prependInlineInstruksyonLabel(sanitizedModuleInstructions.value)
+);
+
+const displayPreTestInstructions = computed(() =>
+  prependInlineInstruksyonLabel(sanitizedPreTestInstructions.value)
+);
+
+const displayPostTestInstructions = computed(() =>
+  prependInlineInstruksyonLabel(sanitizedPostTestInstructions.value)
+);
+
 function getSubpageTitle(step) {
-  if (step === 1) return "Pre-Test (Let's See What You Already Know)";
-  if (step === 2) return 'Read the Module';
-  if (step === 3) return "Post-Test (What Have You Learned?)";
-  if (step === 4) return 'Submit Your Activity';
+  if (step === 1) return 'Unang Pangutana';
+  if (step === 2) return 'Basaha ang Module';
+  if (step === 3) return 'Kataposang Pangutana';
+  if (step === 4) return 'Ipasa ang Imong Activity';
   return '';
+}
+
+function formatChoiceText(text) {
+  const s = String(text ?? '').trim();
+  if (s.toLowerCase() === 'true') return 'True (Tinuod)';
+  if (s.toLowerCase() === 'false') return 'False (Dili tinuod)';
+  return text;
 }
 
 const overallStatusLabel = computed(() => {
@@ -1826,7 +1779,7 @@ const postTestQuestions = computed(() => {
   return rawPostQuestions.value.map((q, idx) => normalizeQuestion(q, idx));
 });
 
-const preTestInstructionsText = computed(() => {
+const sanitizedPreTestInstructions = computed(() => {
   if (isMock.value) return '';
   const raw =
     moduleData.value?.preTestInstructions ||
@@ -1836,10 +1789,10 @@ const preTestInstructionsText = computed(() => {
   const trimmed = String(raw).trim();
   const title = String(moduleData.value?.title || '').trim();
   if (!trimmed || (title && trimmed === `Pre-Test (Assessment) for ${title}`)) return '';
-  return trimmed;
+  return sanitizeRichText(trimmed);
 });
 
-const postTestInstructionsText = computed(() => {
+const sanitizedPostTestInstructions = computed(() => {
   if (isMock.value) return '';
   const raw =
     moduleData.value?.postTestInstructions ||
@@ -1849,7 +1802,7 @@ const postTestInstructionsText = computed(() => {
   const trimmed = String(raw).trim();
   const title = String(moduleData.value?.title || '').trim();
   if (!trimmed || (title && trimmed === `Post-Test for ${title}`)) return '';
-  return trimmed;
+  return sanitizeRichText(trimmed);
 });
 
 function isCheckboxQuestion(q) {
@@ -4770,6 +4723,20 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.rich-instructions-content :deep(strong),
+.rich-instructions-content :deep(b) {
+  font-weight: 700;
+}
+
+.rich-instructions-content :deep(em),
+.rich-instructions-content :deep(i) {
+  font-style: italic;
+}
+
+.rich-instructions-content :deep(u) {
+  text-decoration: underline;
+}
+
 .overview-divider {
   width: 100%;
   height: 1px;
@@ -5298,10 +5265,11 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* Assessment Instructions (Plain Text) */
+/* Assessment Instructions */
 .assessment-instructions {
   text-align: left;
   margin: 0;
+  max-width: 100%;
 }
 
 .assessment-instructions-label {
@@ -5314,12 +5282,14 @@ onUnmounted(() => {
 
 .assessment-instructions-text {
   margin: 0;
+  max-width: 100%;
   font-size: 0.9375rem;
   font-weight: 400;
   color: #0f172a;
   line-height: 1.55;
-  white-space: pre-line;
+  white-space: normal;
   overflow-wrap: anywhere;
+  word-wrap: break-word;
 }
 
 .assessment-instructions-divider {
@@ -6070,5 +6040,298 @@ onUnmounted(() => {
   .activity-upload-section {
     padding-bottom: 4.5rem;
   }
+}
+
+/* ============================================================ */
+/* Guided Module Details View (UCD Iteration 1)                 */
+/* ============================================================ */
+.guided-module-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: 100%;
+  padding-bottom: 1.5rem;
+}
+
+.guided-main-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.35rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.guided-module-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0b1e36;
+  line-height: 1.3;
+  margin: 0;
+  word-break: break-word;
+}
+
+.guided-icon-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.25rem 0;
+}
+
+.guided-icon-circle.is-primary {
+  background: #eff6ff;
+  color: #165dfc;
+  border: 1px solid #dbeafe;
+}
+
+.guided-icon-circle.is-submitted {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.guided-activity-heading {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0b1e36;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.guided-activity-desc {
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 320px;
+}
+
+.guided-submission-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.guided-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.7rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.guided-status-badge.is-reviewed {
+  background: #eff6ff;
+  color: #165dfc;
+  border-color: #bfdbfe;
+}
+
+.guided-files-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.guided-primary-btn {
+  width: 100%;
+  min-height: 52px;
+  padding: 0.85rem 1.25rem;
+  margin-top: 0.4rem;
+  background: #165dfc;
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.guided-primary-btn:hover {
+  background: #0d4ed8;
+}
+
+.guided-secondary-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.guided-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.guided-secondary-btn {
+  flex: 1 1 0%;
+  min-width: 145px;
+  min-height: 44px;
+  padding: 0.55rem 0.85rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.guided-secondary-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.guided-drawer-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.85rem;
+}
+
+.guided-completed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.guided-completed-item {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.65rem 0.8rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-align: left;
+  cursor: pointer;
+  color: #0b1e36;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.guided-completed-item:hover {
+  border-color: #165dfc;
+  background: #eff6ff;
+}
+
+.guided-completed-check {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guided-completed-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.guided-completed-arrow {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.guided-instructions-body {
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.5;
+  text-align: left;
+  font-weight: 400;
+}
+
+.guided-instructions-body :deep(.instruksyon-inline-label) {
+  font-weight: 700;
+  color: #0b1e36;
+}
+
+.subpage-title-counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.question-counter-pill {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #165dfc;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.translate-action-row {
+  margin-top: 0.55rem;
+  margin-bottom: 0.5rem;
+}
+
+.bisaya-translation-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.925rem;
+  color: #0b1e36;
+  line-height: 1.5;
+  white-space: pre-line;
+  margin-bottom: 0.75rem;
+}
+
+.opt-text-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.opt-bisaya-sub {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  line-height: 1.35;
+}
+
+.assessment-instructions-text {
+  text-align: left;
+  font-weight: 400;
+}
+
+.assessment-instructions-text :deep(.instruksyon-inline-label) {
+  font-weight: 700;
+  color: #0b1e36;
 }
 </style>

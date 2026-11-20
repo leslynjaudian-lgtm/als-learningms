@@ -1,273 +1,175 @@
 <template>
-  <div class="dashboard-page">
-    <!-- Welcome Header -->
-    <div class="welcome-box">
-      <h1 class="page-title">Welcome, {{ learnerName }}!</h1>
-      <p class="page-subtitle">
-        Keep learning. A brighter future is within your reach.
-      </p>
-    </div>
+  <div class="home-page">
+    <!-- Welcome Section -->
+    <section class="welcome-card" aria-label="Pagtimbaya">
+      <div class="welcome-text-col">
+        <h1 class="welcome-title">Maayong adlaw, {{ learnerFirstName }}!</h1>
+        <p class="welcome-subtitle">Padayon sa imong pagtuon sa ALS.</p>
+      </div>
+      <div class="welcome-illustration" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
+      </div>
+    </section>
 
-    <!-- Assignment Info Card: Teacher & Learning Center -->
-    <div class="dashboard-info-card">
-      <div class="info-column">
-        <div class="info-icon-badge badge-clc">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
+    <!-- Main Action — Continue Learning -->
+    <section class="main-action-section" aria-label="Pangunahing Lakang">
+      <div v-if="loadingModules" class="primary-action-card primary-action-loading">
+        <div class="primary-action-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
         </div>
-        <div class="info-text-wrap">
-          <div class="info-label label-clc">CLC</div>
-          <div class="info-value value-clc" :title="displayLearningCenter">{{ displayLearningCenter }}</div>
+        <div class="primary-action-text">
+          <span class="primary-action-kicker">Nagkarga...</span>
+          <span class="primary-action-title">Gikuha ang imong mga module</span>
         </div>
       </div>
 
-      <div class="info-column">
-        <div class="info-icon-badge badge-teacher">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
+      <router-link
+        v-else-if="currentUnfinishedModule"
+        :to="`/modules/${currentUnfinishedModule.id}`"
+        class="primary-action-card"
+      >
+        <div class="primary-action-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
         </div>
-        <div class="info-text-wrap">
-          <div class="info-label label-teacher">Teacher</div>
-          <div class="info-value value-teacher" :title="displayTeacher">{{ displayTeacher }}</div>
+        <div class="primary-action-text">
+          <span class="primary-action-kicker">Padayon sa Module</span>
+          <span class="primary-action-title">{{ currentUnfinishedModule.title }}</span>
         </div>
-      </div>
-    </div>
-
-    <!-- Announcement Alert (if available) -->
-    <div
-      v-if="latestAnnouncement"
-      class="announcement-alert-card"
-    >
-      <div class="alert-content-left">
-        <div class="alert-icon-box">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        <div class="primary-action-arrow" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
           </svg>
         </div>
-        <div class="alert-text-box">
-          <div class="alert-eyebrow">Notice</div>
-          <div class="alert-title">{{ latestAnnouncement.title }}</div>
-          <div v-if="latestAnnouncement.message || latestAnnouncement.content" class="alert-preview">
-            {{ latestAnnouncement.message || latestAnnouncement.content }}
-          </div>
-        </div>
-      </div>
-      <router-link to="/notifications" class="alert-link">
-        View Notice →
       </router-link>
-    </div>
 
-    <!-- 4-Grid Stats (Default 0 when no data) -->
-    <div class="stat-grid-2x2">
-      <!-- Modules In Progress -->
-      <div class="stat-item-box">
-        <div class="stat-icon-row">
-          <div class="stat-icon-badge" style="background: #eff6ff; color: #165dfc;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <router-link
+        v-else
+        to="/modules"
+        class="primary-action-card"
+      >
+        <div class="primary-action-icon" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </div>
+        <div class="primary-action-text">
+          <span class="primary-action-kicker">Tan-awa ang mga Module</span>
+          <span class="primary-action-title">
+            {{ assignedModules.length > 0 ? 'Nahuman na nimo ang tanang module' : 'Ablihi ang imong mga module' }}
+          </span>
+        </div>
+        <div class="primary-action-arrow" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </div>
+      </router-link>
+    </section>
+
+    <!-- Quick Access Menu (2-column grid) -->
+    <section class="quick-access-section" aria-label="Dali nga Pag-abli">
+      <div class="quick-access-header">
+        <h2 class="quick-access-heading">Mga Opsyon</h2>
+        <p class="quick-access-subtitle">Pilia ug pindota ang usa sa mga opsyon sa ubos.</p>
+      </div>
+      <div class="quick-access-grid">
+        <router-link to="/modules" class="quick-access-card">
+          <div class="quick-icon-wrap icon-blue" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
           </div>
-        </div>
-        <div class="stat-val">{{ stats.modulesInProgress }}</div>
-        <div class="stat-label">Active<br />Modules</div>
-      </div>
+          <span class="quick-card-label">Akong mga Module</span>
+        </router-link>
 
-      <!-- Completed Modules -->
-      <div class="stat-item-box">
-        <div class="stat-icon-row">
-          <div class="stat-icon-badge" style="background: #f0fdf4; color: #16a34a;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
+        <router-link to="/notifications" class="quick-access-card">
+          <div class="quick-icon-wrap icon-blue" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span v-if="unreadCount > 0" class="quick-unread-dot" aria-hidden="true"></span>
+          </div>
+          <span class="quick-card-label">Mga Pahibalo</span>
+        </router-link>
+
+        <router-link to="/help" class="quick-access-card">
+          <div class="quick-icon-wrap icon-blue" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
-        </div>
-        <div class="stat-val">{{ stats.completedModules }}</div>
-        <div class="stat-label">Completed<br />Modules</div>
-      </div>
-
-      <!-- Pending Assessments -->
-      <div class="stat-item-box">
-        <div class="stat-icon-row">
-          <div class="stat-icon-badge" style="background: #fffbeb; color: #d97706;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-              <rect x="8" y="2" width="8" height="4" rx="1"/>
-            </svg>
-          </div>
-        </div>
-        <div class="stat-val">{{ stats.pendingAssessments }}</div>
-        <div class="stat-label">Pending<br />Assessments</div>
-      </div>
-
-      <!-- Overall Progress -->
-      <div class="stat-item-box">
-        <div class="stat-icon-row">
-          <div class="stat-icon-badge" style="background: #eff6ff; color: #2563eb;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-              <polyline points="17 6 23 6 23 12"/>
-            </svg>
-          </div>
-        </div>
-        <div class="stat-val">{{ stats.overallProgress }}%</div>
-        <div class="stat-label">Overall<br />Progress</div>
-      </div>
-    </div>
-
-    <!-- New Learning Modules Section -->
-    <div class="continue-learning-section">
-      <div class="section-header-row">
-        <h2 class="section-title">New Learning Modules</h2>
-        <router-link to="/modules" class="section-link">
-          View All ({{ newLearningModules.length }})
+          <span class="quick-card-label">Tabang / Giya</span>
         </router-link>
       </div>
-
-      <!-- If has new or in-progress modules -->
-      <template v-if="newLearningModules.length > 0">
-        <div
-          v-for="mod in newLearningModules"
-          :key="mod.id"
-          class="learner-card active-module-card"
-        >
-          <div class="active-module-header">
-            <!-- Module Thumbnail (First page of uploaded PDF) -->
-            <ModuleThumbnail
-              :file-url="mod.fileUrl"
-              :cover-image-url="mod.coverImageUrl"
-              :title="mod.title"
-              :module-id="mod.id"
-            />
-            <div class="active-module-info">
-              <div class="active-module-text-top">
-                <h3 class="active-module-title">
-                  {{ mod.title }}
-                </h3>
-                <p v-if="getModuleInstructions(mod)" class="active-module-instructions">
-                  {{ getModuleInstructions(mod) }}
-                </p>
-              </div>
-
-              <!-- Learning Strand & Progress grouped near bottom edge of thumbnail -->
-              <div class="active-module-meta-bottom">
-                <div class="active-module-strand-row">
-                  <div class="active-module-strand">
-                    {{ getModuleStrand(mod) }}
-                  </div>
-                  <div class="active-module-progress-text">
-                    {{ mod.progress || 0 }}%
-                  </div>
-                </div>
-
-                <div class="progress-bar-track">
-                  <div class="progress-bar-fill" :style="{ width: `${mod.progress || 0}%` }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <router-link :to="`/modules/${mod.id}`" class="btn-primary continue-btn">
-            {{ getModuleActionLabel(mod) }}
-          </router-link>
-        </div>
-      </template>
-
-      <!-- Empty state when all assigned modules are completed, or no unfinished modules are available -->
-      <div v-else class="learner-card empty-module-card">
-        <div class="empty-module-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-        </div>
-        <p class="empty-module-main-text">No new learning modules.</p>
-        <p class="empty-module-sub-text">
-          {{
-            assignedModules.length > 0
-              ? "You're all caught up! Check My Modules to review your completed lessons."
-              : "Your teacher hasn't added any new modules yet."
-          }}
-        </p>
-      </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import api from '../api/axios';
-import ModuleThumbnail from '../components/ModuleThumbnail.vue';
 import { useNotifications } from '../composables/useNotifications.js';
-import { formatStrandName } from '../utils/formatStrand.js';
-import { stripRichTextToPlain } from '../utils/sanitizeRichText.js';
 
-const { notifications, fetchNotifications } = useNotifications();
+const { unreadCount, fetchNotifications } = useNotifications();
 
-const rawStored = localStorage.getItem('als_learner_user');
-const userStored = ref(rawStored ? JSON.parse(rawStored) : {});
-
-const learnerInfo = reactive({
-  learningCenter: userStored.value.learningCenter && userStored.value.learningCenter !== '—' ? userStored.value.learningCenter : 'None Assigned',
-  teacher: userStored.value.teacher && userStored.value.teacher !== '—' ? userStored.value.teacher : (userStored.value.assignedTeacher && userStored.value.assignedTeacher !== '—' ? userStored.value.assignedTeacher : 'None Assigned'),
-  teacherFirstName: userStored.value.teacherDetails?.firstName || userStored.value.assignedTeacher?.firstName || userStored.value.teacherFirstName || '',
-});
-
-// Home Information Card display values:
-// 1. CLC: Remove trailing "CLC" abbreviation from the displayed name (e.g. "Mapulog CLC" -> "Mapulog")
-const displayLearningCenter = computed(() => {
-  const lc = learnerInfo.learningCenter;
-  if (!lc || lc === 'None Assigned' || lc === '—') return 'None Assigned';
-  const trimmed = String(lc).trim();
-  const cleaned = trimmed.replace(/\s*\(?\bCLC\b\)?\.?$/i, '').trim();
-  return cleaned || trimmed;
-});
-
-// 2. Teacher: Display only First Name (e.g. "Abella Titaluth" -> "Abella")
-const displayTeacher = computed(() => {
-  if (learnerInfo.teacherFirstName && String(learnerInfo.teacherFirstName).trim()) {
-    return String(learnerInfo.teacherFirstName).trim();
+function loadStoredUser() {
+  try {
+    const raw = localStorage.getItem('als_learner_user');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
   }
-  const teacher = learnerInfo.teacher;
-  if (!teacher || teacher === 'None Assigned' || teacher === '—') return 'None Assigned';
-  const raw = String(teacher).trim();
-  if (raw.includes(',')) {
-    const afterComma = raw.split(',')[1]?.trim();
+}
+
+const userStored = ref(loadStoredUser());
+const modules = ref([]);
+const loadingModules = ref(true);
+
+function extractFirstName(userObj) {
+  if (!userObj || typeof userObj !== 'object') return 'Learner';
+  const explicitFirst = userObj.firstName || userObj.profile?.firstName;
+  if (explicitFirst && String(explicitFirst).trim()) {
+    return String(explicitFirst).trim();
+  }
+  const full = String(userObj.fullName || userObj.name || '').trim();
+  if (!full) return 'Learner';
+  if (full.includes(',')) {
+    const afterComma = full.split(',')[1]?.trim();
     if (afterComma) return afterComma.split(/\s+/)[0];
   }
-  return raw.split(/\s+/)[0];
-});
+  return full.split(/\s+/)[0] || 'Learner';
+}
 
-const learnerName = ref(userStored.value.fullName || userStored.value.name || 'Learner');
+const learnerFirstName = computed(() => extractFirstName(userStored.value));
 
-const stats = reactive({
-  modulesInProgress: 0,
-  completedModules: 0,
-  pendingAssessments: 0,
-  overallProgress: 0,
-});
-
-const modules = ref([]);
-const latestAnnouncement = ref(null);
-
-// Module completion and progress checks (matching backend and My Modules)
 function isModuleCompleted(mod) {
   if (!mod) return false;
   const pct = Number(mod.progress ?? 0);
-  const hasSavedCompletedRecord = Array.isArray(mod.learnerProgress) &&
+  const hasSavedCompletedRecord =
+    Array.isArray(mod.learnerProgress) &&
     mod.learnerProgress.some((lp) => lp && (lp.status === 'COMPLETED' || Boolean(lp.completedAt)));
   return Boolean(
     mod.completed === true ||
-    mod.progressStatus === 'COMPLETED' ||
-    Boolean(mod.completedAt) ||
-    hasSavedCompletedRecord ||
-    pct >= 100
+      mod.progressStatus === 'COMPLETED' ||
+      Boolean(mod.completedAt) ||
+      hasSavedCompletedRecord ||
+      pct >= 100
   );
 }
 
@@ -276,52 +178,28 @@ function isModuleInProgress(mod) {
   const pct = Number(mod.progress ?? 0);
   if (pct > 0) return true;
 
-  // If pct is 0% due to rounding, check for actual saved activity/start state
   const hasReadingActivity = Boolean(
     (mod.completedPages != null && Number(mod.completedPages) > 0) ||
-    (Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
-    (Number(mod.highestPageReached) > 0 && Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
-    mod.readingStarted === true
+      (Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+      (Number(mod.highestPageReached) > 0 && Array.isArray(mod.pagesRead) && mod.pagesRead.length > 0) ||
+      mod.readingStarted === true
   );
 
   const hasAssessmentActivity = Boolean(
     mod.preTestScore != null ||
-    mod.postTestScore != null ||
-    mod.hasPreTestAttempt === true ||
-    (Array.isArray(mod.assessments) && mod.assessments.some((a) => Array.isArray(a.attempts) && a.attempts.length > 0))
+      mod.postTestScore != null ||
+      mod.hasPreTestAttempt === true ||
+      (Array.isArray(mod.assessments) && mod.assessments.some((a) => Array.isArray(a.attempts) && a.attempts.length > 0))
   );
 
   const hasSubmissionActivity = Boolean(
     (Array.isArray(mod.submissions) && mod.submissions.length > 0) ||
-    mod.activitySubmitted === true
+      mod.activitySubmitted === true
   );
 
   return hasReadingActivity || hasAssessmentActivity || hasSubmissionActivity;
 }
 
-function getModuleActionLabel(mod) {
-  if (isModuleCompleted(mod)) {
-    return 'View Module';
-  }
-  if (isModuleInProgress(mod)) {
-    return 'Continue Module';
-  }
-  return 'Open Module';
-}
-
-function getModuleStrand(mod) {
-  if (!mod) return 'General Curriculum';
-  const raw = mod.strand?.name || mod.strand || mod.learningArea?.name || 'General Curriculum';
-  return formatStrandName(raw, mod.strand?.code || mod.code || mod.learningArea?.code);
-}
-
-function getModuleInstructions(mod) {
-  if (!mod) return '';
-  const raw = mod.instructions || mod.description || '';
-  return stripRichTextToPlain(raw);
-}
-
-// Published/assigned modules excluding mock dummy records
 const assignedModules = computed(() => {
   return modules.value.filter(
     (m) =>
@@ -332,138 +210,49 @@ const assignedModules = computed(() => {
   );
 });
 
-// Active Modules = Total Assigned Modules - Completed Modules (shown under New Learning Modules)
-const newLearningModules = computed(() => {
-  return assignedModules.value.filter((mod) => !isModuleCompleted(mod));
+const currentUnfinishedModule = computed(() => {
+  const unfinished = assignedModules.value.filter((mod) => !isModuleCompleted(mod));
+  if (unfinished.length === 0) return null;
+  const inProgress = unfinished.find((mod) => isModuleInProgress(mod));
+  return inProgress || unfinished[0];
 });
 
 async function loadLearnerData() {
-  let meData = null;
+  loadingModules.value = modules.value.length === 0;
   try {
-    // 1. Fetch fresh learner profile from backend
     const meRes = await api.get('/learners/me');
     const d = meRes.data?.data || meRes.data;
     if (d) {
-      meData = d;
-      if (d.learningCenter) {
-        learnerInfo.learningCenter = typeof d.learningCenter === 'string'
-          ? d.learningCenter
-          : (d.learningCenter.name || d.learningCenter.code || 'None Assigned');
-      } else if (d.learningCenterDetails?.name) {
-        learnerInfo.learningCenter = d.learningCenterDetails.name;
-      }
-
-      if (d.teacher || d.assignedTeacher) {
-        const t = d.teacher || d.assignedTeacher;
-        if (typeof t === 'object' && t !== null) {
-          learnerInfo.teacher = t.fullName || t.name || 'None Assigned';
-          if (t.firstName) learnerInfo.teacherFirstName = t.firstName;
-        } else {
-          learnerInfo.teacher = typeof t === 'string' ? t : 'None Assigned';
-        }
-      } else if (d.teacherDetails?.fullName) {
-        learnerInfo.teacher = d.teacherDetails.fullName;
-        if (d.teacherDetails.firstName) {
-          learnerInfo.teacherFirstName = d.teacherDetails.firstName;
-        }
-      }
-
-      if (d.fullName || d.name) {
-        learnerName.value = d.fullName || d.name;
-      }
+      userStored.value = {
+        ...userStored.value,
+        ...d,
+      };
     }
   } catch (err) {
     console.error('Failed to load profile details:', err);
   }
 
   try {
-    // 2. Fetch scoped modules assigned to this learner
     const modulesRes = await api.get('/modules');
     const mods = modulesRes.data?.data || modulesRes.data || [];
     modules.value = Array.isArray(mods) ? mods : [];
-    
-    const validMods = assignedModules.value;
-    const completed = validMods.filter(isModuleCompleted).length;
-    const activeCount = Math.max(0, validMods.length - completed);
-    stats.completedModules = completed;
-    stats.modulesInProgress = activeCount;
-
-    if (validMods.length > 0) {
-      const totalProg = validMods.reduce((acc, m) => acc + (Number(m.progress) || 0), 0);
-      stats.overallProgress = Math.round(totalProg / validMods.length);
-    } else {
-      stats.overallProgress = 0;
-    }
-
-    let pendingCount = 0;
-    for (const m of validMods) {
-      if (Array.isArray(m.assessments)) {
-        for (const ass of m.assessments) {
-          if (!ass.attempts || ass.attempts.length === 0) {
-            pendingCount++;
-          }
-        }
-      }
-    }
-    stats.pendingAssessments = pendingCount;
   } catch (err) {
     console.error('Failed to load modules:', err);
     modules.value = [];
-    stats.modulesInProgress = 0;
-    stats.completedModules = 0;
-    stats.pendingAssessments = 0;
-    stats.overallProgress = 0;
+  } finally {
+    loadingModules.value = false;
   }
 
   try {
-    // 3. Fetch latest announcements for learner
-    let learnerId = null;
-    let learningCenterId = null;
-    try {
-      const rawUser = localStorage.getItem('als_learner_user');
-      if (rawUser) {
-        const u = JSON.parse(rawUser);
-        learnerId = u.profile?.id || u.id;
-        learningCenterId = u.profile?.learningCenterId || u.learningCenterId;
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    // If fresh profile from /me was loaded, prefer its IDs
-    if (meData?.id) {
-      learnerId = meData.id;
-      learningCenterId = meData.learningCenterId || learningCenterId;
-    }
-
-    const annRes = await api.get('/announcements', {
-      params: {
-        portal: 'learner',
-        learnerId: learnerId || undefined,
-        learningCenterId: learningCenterId || undefined,
-      },
-    });
-    const anns = annRes.data?.data || annRes.data || [];
     await fetchNotifications();
-    if (Array.isArray(anns) && anns.length > 0) {
-      // Prefer the most recent unread announcement if one exists, otherwise the latest announcement
-      const unreadAnn = anns.find((a) =>
-        notifications.value.some((n) => n.notificationKey === `announcement:${a.id}` && !n.isRead)
-      );
-      latestAnnouncement.value = unreadAnn || anns[0];
-    }
-  } catch (err) {
-    console.warn('Could not load announcement for dashboard:', err);
+  } catch {
+    // ignore notification refresh error
   }
 }
 
 function resetDashboardState() {
   modules.value = [];
-  latestAnnouncement.value = null;
-  stats.modulesInProgress = 0;
-  stats.completedModules = 0;
-  stats.pendingAssessments = 0;
-  stats.overallProgress = 0;
+  userStored.value = loadStoredUser();
 }
 
 onMounted(() => {
@@ -481,405 +270,236 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard-page {
+.home-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
   width: 100%;
-  max-width: 100%;
-}
-
-.welcome-box {
-  margin-bottom: 0.15rem;
-}
-
-.page-title {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  word-break: break-word;
-}
-
-.page-subtitle {
-  font-size: 0.825rem;
-  color: #64748b;
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-/* 2-column Assignment Info Card */
-.dashboard-info-card {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 1rem;
-  background: linear-gradient(135deg, #f0f7ff 0%, #e0effe 100%);
-  border: 1px solid #bae0fd;
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  padding: 0.25rem 0;
 }
 
-.info-column {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
-}
-
-.info-icon-badge {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.badge-clc {
-  background: #0284c7;
-  color: #ffffff;
-}
-
-.badge-teacher {
-  background: #165dfc;
-  color: #ffffff;
-}
-
-.info-text-wrap {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.info-label {
-  font-size: 0.6rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  line-height: 1.2;
-}
-
-.label-clc {
-  color: #0369a1;
-}
-
-.label-teacher {
-  color: #1d4ed8;
-}
-
-.info-value {
-  font-size: 0.85rem;
-  font-weight: 800;
-  color: #0c4a6e;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-
-.value-teacher {
-  color: #1e3a8a;
-}
-
-/* Announcement Alert Card */
-.announcement-alert-card {
+/* Welcome Section */
+.welcome-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
 }
 
-.alert-content-left {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
+.welcome-text-col {
   flex: 1;
+  min-width: 0;
 }
 
-.alert-icon-box {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #dbeafe;
+.welcome-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0b1e36;
+  line-height: 1.25;
+  margin: 0;
+  word-break: break-word;
+}
+
+.welcome-subtitle {
+  font-size: 0.95rem;
+  color: #475569;
+  margin: 0.3rem 0 0;
+  line-height: 1.4;
+}
+
+.welcome-illustration {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #eff6ff;
   color: #165dfc;
+  border: 1px solid #dbeafe;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.alert-text-box {
-  min-width: 0;
-  flex: 1;
-}
-
-.alert-eyebrow {
-  font-size: 0.625rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #165dfc;
-  letter-spacing: 0.04em;
-}
-
-.alert-title {
-  font-size: 0.825rem;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.alert-preview {
-  font-size: 0.725rem;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.alert-link {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #165dfc;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* 4-Grid Stats (Strict 2x2) */
-.stat-grid-2x2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+/* Main Action — Continue Learning */
+.main-action-section {
   width: 100%;
 }
 
-.stat-item-box {
-  background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 118px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
-}
-
-.stat-icon-row {
+.primary-action-card {
   display: flex;
   align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  min-height: 84px;
+  padding: 1.15rem 1.1rem;
+  background: #165dfc;
+  color: #ffffff;
+  border-radius: 16px;
+  text-decoration: none;
+  border: 1px solid #165dfc;
+  box-shadow: 0 2px 8px rgba(22, 93, 252, 0.2);
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.stat-icon-badge {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+.primary-action-card:hover {
+  background: #0d4ed8;
+}
+
+.primary-action-loading {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.primary-action-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.stat-val {
-  font-size: 1.55rem;
+.primary-action-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.primary-action-kicker {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #dbeafe;
+  line-height: 1.2;
+}
+
+.primary-action-title {
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #0f172a;
-  line-height: 1.1;
-  margin-top: 0.45rem;
-  margin-bottom: 0.15rem;
+  color: #ffffff;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
-.stat-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-  line-height: 1.25;
+.primary-action-arrow {
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-/* New Learning Modules */
-.continue-learning-section {
+/* Quick Access Menu (2-column grid) */
+.quick-access-section {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 0.25rem;
 }
 
-.section-header-row {
+.quick-access-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
 }
 
-.section-title {
+.quick-access-heading {
   font-size: 1.05rem;
   font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+  color: #0b1e36;
+  margin: 0;
 }
 
-.section-link {
-  font-size: 0.825rem;
-  font-weight: 700;
-  color: #165dfc;
-}
-
-.active-module-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 0.75rem;
-  padding: 1.15rem;
-  height: auto;
-}
-
-.active-module-header {
-  display: flex;
-  gap: 0.85rem;
-  align-items: stretch;
-  width: 100%;
-}
-
-.active-module-header :deep(.module-thumb-box) {
-  align-self: flex-start;
-}
-
-.active-module-info {
-  flex: 1;
-  min-width: 0;
-  min-height: 110px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.35rem;
-}
-
-.active-module-text-top {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.active-module-title {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.25;
-  word-break: break-word;
-}
-
-.active-module-instructions {
-  font-size: 0.8125rem;
-  font-weight: 400;
+.quick-access-subtitle {
+  font-size: 0.9rem;
   color: #475569;
-  line-height: 1.45;
-  margin: 0.25rem 0 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  text-overflow: ellipsis;
+  margin: 0;
+  line-height: 1.4;
 }
 
-.active-module-meta-bottom {
-  width: 100%;
+.quick-access-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.quick-access-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-}
-
-.active-module-strand-row {
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-}
-
-.active-module-strand {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.775rem;
-  font-weight: 600;
-  color: #64748b;
-  margin: 0;
-  padding: 0;
-  line-height: 1.2;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-
-.active-module-meta-bottom .progress-bar-track {
-  width: 100%;
-  margin-top: 0;
-}
-
-@media (max-width: 480px) {
-  .active-module-info {
-    min-height: 94px;
-  }
-}
-
-.active-module-progress-text {
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #165dfc;
-  line-height: 1.2;
-  margin: 0;
-  padding: 0;
-  white-space: nowrap;
-}
-
-.continue-btn {
-  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  height: 100%;
+  min-height: 112px;
+  padding: 0.9rem 0.45rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  text-decoration: none;
   text-align: center;
-  margin-top: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.empty-module-card {
-  padding: 1.75rem 1rem;
-  text-align: center;
+.quick-access-card:hover {
+  background: #f8fafc;
+  border-color: #165dfc;
 }
 
-.empty-module-icon {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto 0.75rem;
-  border-radius: 12px;
-  background: #f1f5f9;
-  color: #94a3b8;
+.quick-icon-wrap {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.empty-module-main-text {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #475569;
+.icon-blue {
+  background: #eff6ff;
+  color: #165dfc;
 }
 
-.empty-module-sub-text {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-top: 2px;
+.quick-unread-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #eff6ff;
+}
+
+.quick-card-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0b1e36;
+  line-height: 1.25;
+  text-align: center;
+  word-break: break-word;
+}
+
+@media (max-width: 339px) {
+  .quick-access-grid {
+    grid-template-columns: 1fr;
+  }
+  .quick-access-card {
+    min-height: 88px;
+    padding: 0.85rem 0.75rem;
+  }
 }
 </style>

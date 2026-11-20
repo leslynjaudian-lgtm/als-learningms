@@ -25,3 +25,8 @@ Thumbs.db
 dev-dist/
 backend/uploads/
 teacher-portal/public/uploads/
+
+# Local Python translation virtual environment
+translation-service/.venv/
+translation-service/__pycache__/
+translation-service/service.log

@@ -252,14 +252,28 @@ async function handleMarkAllRead() {
   window.dispatchEvent(new CustomEvent('als-notifications-updated'));
 }
 
+function resolveNotificationTargetUrl(item) {
+  let targetUrl = item?.actionUrl || '';
+  if (!targetUrl) return '';
+
+  // Ensure New Learner Record / RECORD notifications never route to af2-summary
+  if (targetUrl.includes('/reports/af2-summary')) {
+    targetUrl = targetUrl.replace('/reports/af2-summary', '/reports/module-progress');
+  } else if (targetUrl.includes('/reports/learner-records')) {
+    targetUrl = targetUrl.replace('/reports/learner-records', '/reports/module-progress');
+  }
+  return targetUrl;
+}
+
 async function handleCardClick(item) {
   if (!item) return;
   if (!item.isRead) {
     await markAsRead(item.notificationKey);
     window.dispatchEvent(new CustomEvent('als-notifications-updated'));
   }
-  if (item.actionUrl) {
-    router.push(item.actionUrl);
+  const targetUrl = resolveNotificationTargetUrl(item);
+  if (targetUrl) {
+    router.push(targetUrl);
   }
 }
 

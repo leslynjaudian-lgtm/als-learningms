@@ -38,7 +38,7 @@
               v-model="fullName"
               type="text"
               class="field-text-input"
-              placeholder="Enter your full name"
+              placeholder="Ibutang ang imong tibuok ngalan"
               required
               autocomplete="name"
             />
@@ -64,7 +64,7 @@
             </svg>
           </div>
           <div class="info-callout-text">
-            Use your Registered First Name and Last Name to sign in
+            Gamita ang imong rehistradong ngalan ug apelyido aron makasulod.
           </div>
         </div>
       </form>

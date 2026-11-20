@@ -1,60 +1,58 @@
 <template>
   <div class="notifications-page">
-    <!-- View 1: Notification Details View -->
+    <!-- View 1: Notification Details View (for announcements without external actionUrl) -->
     <div v-if="selectedNotification" class="notification-details-container">
       <button
         type="button"
         class="back-btn"
         @click="closeDetails"
-        aria-label="Back to Notifications"
+        aria-label="Balik sa Mga Pahibalo"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"></line>
           <polyline points="12 19 5 12 12 5"></polyline>
         </svg>
-        <span>Back to Notifications</span>
+        <span>Balik sa Mga Pahibalo</span>
       </button>
 
       <div class="learner-card notification-details-card">
-        <!-- 1. ANNOUNCEMENT Badge -->
         <div class="details-badge-row">
-          <span class="details-type-tag" :class="'type-' + (selectedNotification.type || 'ANNOUNCEMENT').toLowerCase()">
-            {{ formatType(selectedNotification.type) }}
+          <span class="details-type-tag" :class="'type-' + getVisualType(selectedNotification)">
+            {{ getBadgeLabel(selectedNotification) }}
           </span>
         </div>
 
-        <!-- 2. Title -->
         <h1 class="details-title">
-          {{ selectedNotification.title }}
+          {{ getDisplayTitle(selectedNotification) }}
         </h1>
 
-        <!-- 3. Description -->
+        <h2 v-if="getAnnouncementTitle(selectedNotification)" class="details-announcement-subtitle">
+          {{ getAnnouncementTitle(selectedNotification) }}
+        </h2>
+
         <div class="details-description">
-          {{ selectedNotification.message || selectedNotification.content }}
+          {{ getDisplayMessage(selectedNotification, true) }}
         </div>
 
-        <!-- 4. Divider -->
         <div class="details-divider"></div>
 
-        <!-- 5. From & 6. Date Posted -->
         <div class="details-meta-footer">
-          <div class="meta-row">
-            <span class="meta-label">From:</span>
-            <span class="meta-value">{{ selectedNotification.sender || 'ALS Administrator' }}</span>
+          <div v-if="getRelevantSender(selectedNotification)" class="meta-row">
+            <span class="meta-label">Gikan kang:</span>
+            <span class="meta-value">{{ getRelevantSender(selectedNotification) }}</span>
           </div>
           <div class="meta-row">
-            <span class="meta-label">Date Posted:</span>
+            <span class="meta-label">Petsa:</span>
             <span class="meta-value">{{ formatFullDate(selectedNotification.createdAt || selectedNotification.datePosted) }}</span>
           </div>
         </div>
 
-        <!-- Optional action link if module, schedule, or assessment -->
         <div
-          v-if="selectedNotification.actionUrl && selectedNotification.actionUrl !== '/notifications' && selectedNotification.actionUrl !== '/announcements'"
+          v-if="hasDestination(selectedNotification)"
           class="details-action-box"
         >
           <router-link :to="selectedNotification.actionUrl" class="details-action-link">
-            <span>Open Related {{ formatType(selectedNotification.type) }}</span>
+            <span>{{ getActionLabel(selectedNotification) }}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -65,13 +63,15 @@
 
     <!-- View 2: Notifications List View -->
     <div v-else class="notifications-list-container">
-      <h1 class="page-title">Notifications</h1>
-      <p class="page-subtitle">View important updates about your modules, learning activities, and schedules.</p>
+      <h1 class="page-title">Mga Pahibalo</h1>
+      <p class="page-subtitle">
+        Dinhi nimo makita ang mga mensahe ug pahibalo gikan sa imong ALS Teacher. Pindota ang pahibalo aron mabasa ang detalye.
+      </p>
 
       <!-- Loading State -->
       <div v-if="loading" class="learner-card notif-loading-card">
         <div class="loading-spinner"></div>
-        <p>Loading notifications...</p>
+        <p>Nagkarga sa mga pahibalo...</p>
       </div>
 
       <!-- Notifications List -->
@@ -84,36 +84,42 @@
           @click="openDetails(item)"
           role="button"
           tabindex="0"
-          :aria-label="item.title"
+          :aria-label="getDisplayTitle(item)"
           @keydown.enter="openDetails(item)"
           @keydown.space.prevent="openDetails(item)"
         >
-          <!-- Left Icon -->
+          <!-- Left Recognizable Icon -->
           <div
             class="notif-icon-wrapper"
             :style="{ background: item.iconBg, color: item.iconColor }"
+            aria-hidden="true"
           >
-            <!-- Bell for announcement -->
-            <svg v-if="(item.type || 'ANNOUNCEMENT').toUpperCase() === 'ANNOUNCEMENT'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
             <!-- Book for module -->
-            <svg v-else-if="(item.type || '').toUpperCase() === 'MODULE'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-if="item.visualType === 'module'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
-            <!-- Calendar for schedule -->
-            <svg v-else-if="(item.type || '').toUpperCase() === 'SCHEDULE'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Calendar for session / schedule -->
+            <svg v-else-if="item.visualType === 'schedule'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
               <line x1="16" y1="2" x2="16" y2="6"/>
               <line x1="8" y1="2" x2="8" y2="6"/>
               <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            <!-- Clock/alert for reminder -->
-            <svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Check-circle for activity submitted / reviewed -->
+            <svg v-else-if="item.visualType === 'submission'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <!-- Clock for deadline reminder -->
+            <svg v-else-if="item.visualType === 'reminder'" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <!-- Bell for announcement -->
+            <svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
           </div>
 
@@ -121,18 +127,27 @@
           <div class="notif-content-wrapper">
             <div class="notif-header-line">
               <div class="notif-title-group">
-                <span v-if="!item.isRead" class="notif-unread-dot" title="Unread notification"></span>
-                <h2 class="notif-card-title">{{ item.title }}</h2>
+                <span v-if="!item.isRead" class="notif-unread-dot" title="Wala pa mabasa"></span>
+                <h2 class="notif-card-title">{{ getDisplayTitle(item) }}</h2>
               </div>
               <span class="notif-card-time">{{ getRelativeTime(item) }}</span>
             </div>
 
+            <div v-if="getAnnouncementTitle(item)" class="notif-announcement-title">
+              {{ getAnnouncementTitle(item) }}
+            </div>
+
             <p class="notif-card-preview">
-              {{ item.message || item.content }}
+              {{ getDisplayMessage(item, false) }}
             </p>
 
-            <div class="notif-card-footer">
-              <span class="notif-card-sender">From: {{ item.sender || item.createdBy || item.author || 'ALS System' }}</span>
+            <div v-if="getRelevantSender(item) || hasDestination(item)" class="notif-card-footer">
+              <span v-if="getRelevantSender(item)" class="notif-card-sender">
+                Gikan kang {{ getRelevantSender(item) }}
+              </span>
+              <span v-if="hasDestination(item)" class="notif-action-pill">
+                {{ getActionLabel(item) }} →
+              </span>
             </div>
           </div>
 
@@ -153,9 +168,9 @@
             <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
           </svg>
         </div>
-        <h3 class="empty-title">No notifications yet</h3>
+        <h3 class="empty-title">Wala pay pahibalo</h3>
         <p class="empty-desc">
-          Important updates about your modules, learning activities, and schedules will appear here.
+          Dinhi makita ang mga bag-ong pahibalo gikan sa imong teacher.
         </p>
       </div>
     </div>
@@ -166,6 +181,19 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNotifications } from '../composables/useNotifications.js';
+import {
+  getNotificationVisualType as getVisualType,
+  getNotificationTypeStyle as getTypeStyle,
+  getNotificationBadgeLabel as getBadgeLabel,
+  getNotificationDisplayTitle as getDisplayTitle,
+  getNotificationAnnouncementTitle as getAnnouncementTitle,
+  getNotificationDisplayMessage as getDisplayMessage,
+  getNotificationRelevantSender as getRelevantSender,
+  hasNotificationDestination as hasDestination,
+  getNotificationActionLabel as getActionLabel,
+  getNotificationRelativeTime as getRelativeTime,
+  formatNotificationFullDate as formatFullDate,
+} from '../utils/notificationFormat.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -180,96 +208,15 @@ const loading = ref(false);
 const selectedNotification = ref(null);
 const savedScrollY = ref(0);
 
-// Style mappings for notification types
-function getTypeStyle(type) {
-  const t = String(type || '').toUpperCase();
-  if (t === 'MODULE') {
-    return { iconBg: '#ecfdf5', iconColor: '#059669' };
-  }
-  if (t === 'REMINDER') {
-    return { iconBg: '#fffbeb', iconColor: '#d97706' };
-  }
-  if (t === 'SCHEDULE') {
-    return { iconBg: '#f5f3ff', iconColor: '#7c3aed' };
-  }
-  return { iconBg: '#eff6ff', iconColor: '#165dfc' };
-}
-
-function formatType(type) {
-  const t = String(type || '').toUpperCase();
-  if (t === 'MODULE') return 'Module';
-  if (t === 'REMINDER') return 'Reminder';
-  if (t === 'SCHEDULE') return 'Schedule';
-  return 'Announcement';
-}
-
-function formatDateShort(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function getRelativeTime(item) {
-  if (item?.relativeTime) return item.relativeTime;
-  const rawDate = item?.createdAt || item?.datePosted;
-  if (!rawDate) return '';
-  const d = new Date(rawDate);
-  if (isNaN(d.getTime())) return String(rawDate);
-
-  const diffMs = Date.now() - d.getTime();
-  if (diffMs >= -120 * 1000 && diffMs < 60 * 1000) return 'Just now';
-  if (diffMs < -120 * 1000) return formatDateShort(d);
-
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return formatDateShort(d);
-}
-
-function formatFullDate(val) {
-  if (!val) return 'Recently';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  try {
-    const datePart = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(d);
-
-    const timePart = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Manila',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(d);
-
-    return `${datePart} at ${timePart}`;
-  } catch (_e) {
-    return d.toLocaleDateString('en-US', {
-      timeZone: 'Asia/Manila',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }
-}
-
 // Map notifications directly from backend (single source of truth)
 const items = computed(() => {
   if (!Array.isArray(notifications.value)) return [];
   return notifications.value.map((n) => {
-    const styles = getTypeStyle(n.type);
+    const visualType = getVisualType(n);
+    const styles = getTypeStyle(visualType);
     return {
       ...n,
+      visualType,
       iconBg: styles.iconBg,
       iconColor: styles.iconColor,
     };
@@ -285,13 +232,13 @@ function openDetails(item) {
     item.isRead = true;
   }
 
-  // Modules and module deadline reminders navigate directly to the module
-  if (item.actionUrl && item.actionUrl !== '/notifications' && item.actionUrl !== '/announcements') {
+  // Notifications with a destination navigate directly to the existing page/module/activity
+  if (hasDestination(item)) {
     router.push(item.actionUrl);
     return;
   }
 
-  // Announcements open the dedicated announcement details view
+  // Announcements open the dedicated details view
   savedScrollY.value = window.scrollY || window.pageYOffset || 0;
   selectedNotification.value = item;
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -300,7 +247,6 @@ function openDetails(item) {
 function closeDetails() {
   selectedNotification.value = null;
 
-  // Clear query if id or key was in URL
   if (route.query.id || route.query.key) {
     router.replace({ query: {} }).catch(() => {});
   }
@@ -350,47 +296,50 @@ onMounted(() => {
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
+  padding-bottom: 1.5rem;
 }
 
 /* Page Header */
 .page-title {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-  margin: 0 0 0.35rem 0;
+  color: #0b1e36;
+  margin: 0 0 0.25rem 0;
+  line-height: 1.25;
 }
 
 .page-subtitle {
-  font-size: 0.875rem;
-  color: #64748b;
-  margin: 0 0 1.25rem 0;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  color: #475569;
+  margin: 0 0 1rem 0;
+  line-height: 1.45;
+  text-align: left;
 }
 
 /* Common Card Base */
 .learner-card {
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid #e2e8f0;
   box-sizing: border-box;
 }
 
 /* Loading State */
 .notif-loading-card {
-  padding: 2.5rem 1.5rem;
+  padding: 2.25rem 1.25rem;
   text-align: center;
-  color: #64748b;
+  color: #475569;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  font-size: 0.95rem;
 }
 
 .loading-spinner {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: 3px solid #e2e8f0;
   border-top-color: #165dfc;
   border-radius: 50%;
@@ -405,7 +354,7 @@ onMounted(() => {
 .notifications-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
   width: 100%;
 }
 
@@ -413,35 +362,28 @@ onMounted(() => {
 .notif-card-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.95rem;
-  padding: 1.15rem;
+  gap: 0.85rem;
+  padding: 1rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   user-select: none;
   touch-action: manipulation;
-  min-height: 64px;
+  min-height: 72px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .notif-card-item:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+  border-color: #165dfc;
 }
 
-.notif-card-item:active {
-  transform: scale(0.995);
-}
-
-/* Unread Card Subtle Styling */
 .notif-card-item.is-unread {
-  background: #ffffff;
-  border-color: #bfdbfe;
-  box-shadow: 0 2px 8px rgba(22, 93, 252, 0.06);
+  background: #f8fbff;
+  border-color: #93c5fd;
 }
 
 .notif-card-item.is-read {
   background: #ffffff;
   border-color: #e2e8f0;
-  opacity: 0.94;
 }
 
 /* Icon Wrapper */
@@ -476,30 +418,46 @@ onMounted(() => {
 }
 
 .notif-unread-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #165dfc;
   flex-shrink: 0;
 }
 
 .notif-card-title {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
-  color: #0f172a;
-  line-height: 1.35;
+  color: #0b1e36;
+  line-height: 1.3;
   margin: 0;
   word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .is-unread .notif-card-title {
   font-weight: 800;
-  color: #0b1f3a;
+}
+
+.notif-announcement-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.35;
+  margin-top: 0.25rem;
+  word-break: break-word;
+}
+
+.details-announcement-subtitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.35;
+  margin: 0 0 0.5rem 0;
+  word-break: break-word;
 }
 
 .notif-card-time {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #64748b;
   white-space: nowrap;
@@ -507,15 +465,14 @@ onMounted(() => {
   margin-top: 0.1rem;
 }
 
-/* Preview Clamped to 2 lines */
 .notif-card-preview {
-  font-size: 0.825rem;
-  color: #475569;
+  font-size: 0.9rem;
+  color: #334155;
   margin: 0.35rem 0 0 0;
   line-height: 1.45;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -523,23 +480,30 @@ onMounted(() => {
 }
 
 .is-read .notif-card-preview {
-  color: #64748b;
+  color: #475569;
 }
 
 /* Card Footer */
 .notif-card-footer {
-  font-size: 0.75rem;
-  color: #64748b;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
 }
 
 .notif-card-sender {
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #64748b;
+}
+
+.notif-action-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #165dfc;
 }
 
 /* Chevron */
@@ -550,7 +514,6 @@ onMounted(() => {
   justify-content: center;
   align-self: center;
   flex-shrink: 0;
-  padding-left: 0.25rem;
 }
 
 /* Details View */
@@ -562,26 +525,20 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: #165dfc;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   padding: 0.5rem 0.25rem;
-  margin-bottom: 0.85rem;
-  border-radius: 8px;
+  margin-bottom: 0.75rem;
   touch-action: manipulation;
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-
-.back-btn:hover {
-  color: #0b4bd8;
-  transform: translateX(-2px);
 }
 
 .notification-details-card {
-  padding: 1.5rem;
+  padding: 1.25rem;
 }
 
 .details-badge-row {
@@ -592,22 +549,17 @@ onMounted(() => {
 
 .details-type-tag {
   display: inline-block;
-  font-size: 0.725rem;
+  font-size: 0.78rem;
   font-weight: 700;
   padding: 0.25rem 0.65rem;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  border-radius: 8px;
 }
 
-.details-type-tag.type-announcement {
+.details-type-tag.type-announcement,
+.details-type-tag.type-module,
+.details-type-tag.type-schedule {
   background: #eff6ff;
   color: #165dfc;
-}
-
-.details-type-tag.type-module {
-  background: #ecfdf5;
-  color: #059669;
 }
 
 .details-type-tag.type-reminder {
@@ -615,41 +567,39 @@ onMounted(() => {
   color: #d97706;
 }
 
-.details-type-tag.type-schedule {
-  background: #f5f3ff;
-  color: #7c3aed;
+.details-type-tag.type-submission {
+  background: #f0fdf4;
+  color: #16a34a;
 }
 
 .details-title {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  color: #0f172a;
-  line-height: 1.35;
-  margin: 0 0 0.85rem 0;
+  color: #0b1e36;
+  line-height: 1.3;
+  margin: 0 0 0.75rem 0;
   word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
 .details-description {
   font-size: 0.95rem;
-  line-height: 1.65;
+  line-height: 1.6;
   color: #334155;
   white-space: pre-wrap;
   word-break: break-word;
-  overflow-wrap: anywhere;
   margin: 0;
 }
 
 .details-divider {
   height: 1px;
   background: #e2e8f0;
-  margin: 1.25rem 0;
+  margin: 1.1rem 0;
 }
 
 .details-meta-footer {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .meta-row {
@@ -658,98 +608,73 @@ onMounted(() => {
   gap: 0.4rem;
   font-size: 0.9rem;
   color: #64748b;
-  line-height: 1.5;
   flex-wrap: wrap;
 }
 
 .meta-label {
-  font-weight: 500;
+  font-weight: 600;
   color: #64748b;
 }
 
 .meta-value {
   font-weight: 700;
-  color: #0f172a;
+  color: #0b1e36;
 }
 
 .details-action-box {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px dashed #e2e8f0;
+  margin-top: 1.25rem;
 }
 
 .details-action-link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
   background: #165dfc;
   color: #ffffff;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  padding: 0.65rem 1.15rem;
-  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
   text-decoration: none;
-  transition: background 0.15s ease;
 }
 
 .details-action-link:hover {
-  background: #0b4bd8;
+  background: #0d4ed8;
 }
 
 /* Empty State */
 .notif-empty-card {
-  padding: 3rem 1.5rem;
+  padding: 2.5rem 1.25rem;
   text-align: center;
 }
 
 .empty-icon-circle {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 1rem;
-  border-radius: 16px;
-  background: #f1f5f9;
-  color: #94a3b8;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 0.85rem;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #165dfc;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .empty-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #334155;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0b1e36;
   margin: 0;
 }
 
 .empty-desc {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  margin: 0.4rem auto 0 auto;
-  max-width: 320px;
-  line-height: 1.5;
-}
-
-@media (max-width: 640px) {
-  .notif-card-item {
-    padding: 1rem;
-    gap: 0.75rem;
-  }
-  .notif-icon-wrapper {
-    width: 40px;
-    height: 40px;
-  }
-  .notification-details-card {
-    padding: 1.15rem;
-  }
-  .details-title {
-    font-size: 1.15rem;
-  }
-  .details-description {
-    font-size: 0.9rem;
-    line-height: 1.6;
-  }
-  .meta-row {
-    font-size: 0.85rem;
-  }
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0.4rem auto 0;
+  max-width: 300px;
+  line-height: 1.45;
 }
 </style>
