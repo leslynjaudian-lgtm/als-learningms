@@ -277,7 +277,7 @@
               :loading="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).loading"
               :active="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).visible"
               :error="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).error"
-              @toggle="toggleQuestionTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`, currentPreQ.question, currentPreQ.options)"
+              @toggle="toggleQuestionTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`, currentPreQ.question)"
             />
           </div>
           <div
@@ -330,15 +330,7 @@
                   <span v-if="isOptionSelectedPre(opt.id)" class="radio-inner-dot"></span>
                 </template>
               </div>
-              <div class="opt-text-stack">
-                <span class="opt-text">{{ formatChoiceText(opt.text) }}</span>
-                <span
-                  v-if="getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).visible && getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).optionsMap[opt.id]"
-                  class="opt-bisaya-sub"
-                >
-                  {{ getTranslation(`pre-q-${currentPreQ.id || currentPreQIndex}`).optionsMap[opt.id] }}
-                </span>
-              </div>
+              <span class="opt-text">{{ opt.text }}</span>
             </button>
           </div>
         </div>
@@ -504,7 +496,7 @@
               :loading="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).loading"
               :active="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).visible"
               :error="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).error"
-              @toggle="toggleQuestionTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`, currentPostQ.question, currentPostQ.options)"
+              @toggle="toggleQuestionTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`, currentPostQ.question)"
             />
           </div>
           <div
@@ -557,15 +549,7 @@
                   <span v-if="isOptionSelectedPost(opt.id)" class="radio-inner-dot"></span>
                 </template>
               </div>
-              <div class="opt-text-stack">
-                <span class="opt-text">{{ formatChoiceText(opt.text) }}</span>
-                <span
-                  v-if="getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).visible && getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).optionsMap[opt.id]"
-                  class="opt-bisaya-sub"
-                >
-                  {{ getTranslation(`post-q-${currentPostQ.id || currentPostQIndex}`).optionsMap[opt.id] }}
-                </span>
-              </div>
+              <span class="opt-text">{{ opt.text }}</span>
             </button>
           </div>
         </div>
@@ -1455,13 +1439,6 @@ function getSubpageTitle(step) {
   if (step === 3) return 'Kataposang Pangutana';
   if (step === 4) return 'Ipasa ang Imong Activity';
   return '';
-}
-
-function formatChoiceText(text) {
-  const s = String(text ?? '').trim();
-  if (s.toLowerCase() === 'true') return 'True (Tinuod)';
-  if (s.toLowerCase() === 'false') return 'False (Dili tinuod)';
-  return text;
 }
 
 const overallStatusLabel = computed(() => {

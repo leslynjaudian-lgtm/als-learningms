@@ -77,7 +77,7 @@
               :loading="getTranslation(`rev-q-${q.id || qIdx}`).loading"
               :active="getTranslation(`rev-q-${q.id || qIdx}`).visible"
               :error="getTranslation(`rev-q-${q.id || qIdx}`).error"
-              @toggle="toggleQuestionTranslation(`rev-q-${q.id || qIdx}`, q.question, q.options)"
+              @toggle="toggleQuestionTranslation(`rev-q-${q.id || qIdx}`, q.question)"
             />
           </div>
           <div
@@ -132,15 +132,7 @@
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </div>
-                <div class="review-opt-text-stack">
-                  <span class="review-opt-text">{{ formatChoiceText(opt.text) }}</span>
-                  <span
-                    v-if="getTranslation(`rev-q-${q.id || qIdx}`).visible && getTranslation(`rev-q-${q.id || qIdx}`).optionsMap[opt.id]"
-                    class="review-opt-bisaya"
-                  >
-                    {{ getTranslation(`rev-q-${q.id || qIdx}`).optionsMap[opt.id] }}
-                  </span>
-                </div>
+                <span class="review-opt-text">{{ opt.text }}</span>
               </div>
             </div>
           </div>
@@ -243,13 +235,6 @@ const proceedButtonLabel = computed(() => {
   }
   return isPostTest.value ? 'Ipasa ang Imong Activity' : 'Basaha ang Module';
 });
-
-function formatChoiceText(text) {
-  const s = String(text ?? '').trim();
-  if (s.toLowerCase() === 'true') return 'True (Tinuod)';
-  if (s.toLowerCase() === 'false') return 'False (Dili tinuod)';
-  return text;
-}
 
 function getUserAnswer(q) {
   if (!props.answers || !q) return null;

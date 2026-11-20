@@ -140,7 +140,7 @@ export function useBisayaTranslation() {
     }
   }
 
-  async function toggleQuestionTranslation(key, questionText, optionsList = [], approved = null) {
+  async function toggleQuestionTranslation(key, questionText, _optionsList = [], approved = null) {
     const entry = ensureEntry(key);
     if (entry.loading) return;
 
@@ -153,7 +153,7 @@ export function useBisayaTranslation() {
     // Use approved local translation if provided
     if (approved && approved.question) {
       entry.questionText = String(approved.question).trim();
-      entry.optionsMap = approved.optionsMap || {};
+      entry.optionsMap = {};
       entry.alreadyBisaya = false;
       entry.error = '';
       entry.visible = true;
@@ -167,23 +167,15 @@ export function useBisayaTranslation() {
     }
 
     const qText = String(questionText ?? '').trim();
-    const opts = Array.isArray(optionsList) ? optionsList : [];
-    const batch = [qText, ...opts.map((o) => String(o?.text ?? '').trim())];
+    if (!qText) return;
 
     entry.loading = true;
     entry.error = '';
     try {
-      const resList = await requestTranslations(batch, 'text');
-      entry.questionText = resList[0]?.translatedText || qText;
-      const map = {};
-      for (let i = 0; i < opts.length; i++) {
-        const opt = opts[i];
-        if (opt && opt.id !== undefined) {
-          map[opt.id] = resList[i + 1]?.translatedText || String(opt.text ?? '');
-        }
-      }
-      entry.optionsMap = map;
-      entry.alreadyBisaya = Boolean(resList[0]?.alreadyTargetLanguage);
+      const [res] = await requestTranslations([qText], 'text');
+      entry.questionText = res?.translatedText || qText;
+      entry.optionsMap = {};
+      entry.alreadyBisaya = Boolean(res?.alreadyTargetLanguage);
       entry.visible = true;
     } catch (_err) {
       entry.error = 'Translation unavailable. Please try again.';
