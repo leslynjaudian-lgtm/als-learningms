@@ -6,22 +6,39 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting seed...');
 
-  // 1. Seed Default Admin User if not present
+  // 1. Seed Initial Admin User & Profile if not present
+  const adminUsername = (process.env.ADMIN_INITIAL_USERNAME || 'admin').trim();
+  const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || 'admin@als-naawan.edu.ph').trim();
+  const adminFullName = (process.env.ADMIN_INITIAL_FULLNAME || 'ALS District Coordinator').trim();
+  const initialPassword = (process.env.ADMIN_INITIAL_PASSWORD || '').trim();
+
   const existingAdmin = await prisma.user.findFirst({
-    where: { role: 'ADMIN' },
+    where: {
+      OR: [
+        { role: 'ADMIN' },
+        { username: adminUsername },
+        { email: adminEmail },
+      ],
+    },
     include: { adminProfile: true },
   });
 
   if (!existingAdmin) {
-    console.log('Creating default Admin user...');
+    if (!initialPassword) {
+      throw new Error(
+        'ADMIN_INITIAL_PASSWORD environment variable is required to create the initial Admin account.'
+      );
+    }
+
+    console.log('Creating initial Admin user and profile...');
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash('admin123', salt);
+    const passwordHash = await bcrypt.hash(initialPassword, salt);
 
     await prisma.$transaction(async (tx) => {
       const adminUser = await tx.user.create({
         data: {
-          username: 'admin',
-          email: 'admin@als-naawan.edu.ph',
+          username: adminUsername,
+          email: adminEmail,
           passwordHash,
           role: 'ADMIN',
           status: 'ACTIVE',
@@ -31,16 +48,29 @@ async function main() {
       await tx.admin.create({
         data: {
           userId: adminUser.id,
-          fullName: 'ALS District Coordinator',
+          fullName: adminFullName,
           position: 'ALS District Coordinator',
           district: 'Naawan District',
           division: 'Misamis Oriental',
         },
       });
     });
-    console.log('✅ Admin user created: username="admin", password="admin123"');
+    console.log(`✅ Admin user and profile created: username="${adminUsername}"`);
   } else {
-    console.log('ℹ️ Admin user already exists:', existingAdmin.username);
+    if (!existingAdmin.adminProfile) {
+      await prisma.admin.create({
+        data: {
+          userId: existingAdmin.id,
+          fullName: adminFullName,
+          position: 'ALS District Coordinator',
+          district: 'Naawan District',
+          division: 'Misamis Oriental',
+        },
+      });
+      console.log(`✅ Created missing Admin profile for existing user: username="${existingAdmin.username}"`);
+    } else {
+      console.log(`ℹ️ Admin user already exists: username="${existingAdmin.username}"`);
+    }
   }
 
   // 2. Ensure Primary Learning Centers exist

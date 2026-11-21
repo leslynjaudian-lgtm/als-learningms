@@ -64,7 +64,8 @@
             </svg>
           </div>
           <div class="info-callout-text">
-            Gamita ang imong rehistradong ngalan ug apelyido aron makasulod.
+            <div>Gamita ang imong rehistradong ngalan ug apelyido aron makasulod.</div>
+            <div class="info-callout-example">Pananglitan: Sophia Bautista</div>
           </div>
         </div>
       </form>
@@ -285,5 +286,9 @@ async function handleLrnVerification() {
 .btn-learner-back:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.info-callout-example {
+  margin-top: 0.25rem;
 }
 </style>
