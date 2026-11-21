@@ -1897,12 +1897,16 @@ const moduleReadingInstructions = computed(() => {
 
 const pdfUrl = computed(() => {
   if (isMock.value) return MOCK_MODULE.fileUrl;
-  const rawUrl = moduleData.value?.fileUrl;
+  const rawUrl = String(moduleData.value?.fileUrl || '').trim();
   if (!rawUrl) return '/modules/animals-love-them-and-care-for-them.pdf';
-  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('/')) {
+  if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
     return rawUrl;
   }
-  return `/${rawUrl}`;
+  const normalizedPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+  if (normalizedPath.startsWith('/uploads/')) {
+    return resolveFileUrl(normalizedPath);
+  }
+  return normalizedPath;
 });
 
 const moduleDownloadFileName = computed(() => {

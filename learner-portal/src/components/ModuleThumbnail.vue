@@ -201,8 +201,9 @@ async function renderFirstPageToDataUrl(pdfUrl) {
     try {
       loadingTask = pdfjsLib.getDocument({
         url: pdfUrl,
-        cMapUrl: '/cmaps/',
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
         cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
         stopAtErrors: false,
       });
 

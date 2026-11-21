@@ -14,6 +14,7 @@ import {
   ensureLocalTranslationServiceStarted,
   stopLocalTranslationService,
 } from './services/translationService.js';
+import { resolveOrRestoreModuleFile } from './utils/fileStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,12 +46,24 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded static files (profile photos, module PDFs, submissions)
 const backendUploadsDir = path.join(BACKEND_ROOT, 'uploads');
 const cwdUploadsDir = path.resolve(process.cwd(), 'uploads');
+const bundledModulesDir = path.join(BACKEND_ROOT, 'bundled-modules');
 app.use('/uploads', express.static(backendUploadsDir));
 if (cwdUploadsDir !== backendUploadsDir && fs.existsSync(cwdUploadsDir)) {
   app.use('/uploads', express.static(cwdUploadsDir));
 }
-app.use('/uploads', (_req, res) => {
-  res.status(404).json({ error: 'Uploaded file not found' });
+if (fs.existsSync(bundledModulesDir)) {
+  app.use('/uploads/modules', express.static(bundledModulesDir));
+}
+app.use('/uploads', async (req, res) => {
+  try {
+    const resolvedPath = await resolveOrRestoreModuleFile(req.path);
+    if (resolvedPath && fs.existsSync(resolvedPath)) {
+      return res.sendFile(resolvedPath);
+    }
+  } catch (err) {
+    console.warn('[Uploads Fallback] Could not resolve uploaded file:', err.message);
+  }
+  return res.status(404).json({ error: 'Uploaded file not found' });
 });
 
 // ---------------------

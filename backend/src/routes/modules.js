@@ -11,6 +11,7 @@ import { parseManilaDeadline, isSubmissionDeadlinePassed } from '../utils/dateUt
 import { logTeacherActivity } from '../utils/teacherActivityLogger.js';
 import { formatLearningArea, normalizeLearningAreaStatus } from './learningAreas.js';
 import { sanitizeInstructionsHtml } from '../utils/sanitizeInstructions.js';
+import { persistUploadedFileToDb, resolveOrRestoreModuleFile } from '../utils/fileStore.js';
 
 const router = Router();
 
@@ -1009,27 +1010,7 @@ router.get('/:id/download', authenticate, async (req, res, next) => {
       });
     }
 
-    const uploadsModulesDir = path.resolve(process.cwd(), 'uploads', 'modules');
-    const publicModulesDir = path.resolve(process.cwd(), '..', 'learner-portal', 'public', 'modules');
-
-    const candidateUploadsPath = path.resolve(uploadsModulesDir, safeBasename);
-    const candidatePublicPath = path.resolve(publicModulesDir, safeBasename);
-
-    let resolvedFilePath = null;
-    if (
-      candidateUploadsPath.startsWith(uploadsModulesDir + path.sep) &&
-      fs.existsSync(candidateUploadsPath) &&
-      fs.statSync(candidateUploadsPath).isFile()
-    ) {
-      resolvedFilePath = candidateUploadsPath;
-    } else if (
-      (cleanUrlPath.startsWith('/modules/') || cleanUrlPath.startsWith('modules/')) &&
-      candidatePublicPath.startsWith(publicModulesDir + path.sep) &&
-      fs.existsSync(candidatePublicPath) &&
-      fs.statSync(candidatePublicPath).isFile()
-    ) {
-      resolvedFilePath = candidatePublicPath;
-    }
+    const resolvedFilePath = await resolveOrRestoreModuleFile(cleanUrlPath, mod.title);
 
     if (!resolvedFilePath) {
       return res.status(404).json({
@@ -1081,10 +1062,16 @@ router.get('/:id/download', authenticate, async (req, res, next) => {
 // POST /api/modules/upload
 // Upload module learning material (PDF, DOCX, JPG, PNG)
 // ---------------------
-router.post('/upload', optionalAuth, handleModuleFileUpload, (req, res) => {
+router.post('/upload', optionalAuth, handleModuleFileUpload, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
+  await persistUploadedFileToDb({
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    mimeType: req.file.mimetype,
+    filePath: req.file.path,
+  });
   const fileUrl = `/uploads/modules/${req.file.filename}`;
   res.status(201).json({
     fileUrl,

@@ -1688,15 +1688,39 @@ async function loadPdfDocument() {
   }
 
   try {
-    const loadingTask = pdfjsLib.getDocument({
-      url: props.pdfUrl,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-      cMapPacked: true
-    });
-    currentLoadingTask = loadingTask;
-
-    const doc = await loadingTask.promise;
-    currentLoadingTask = null;
+    let doc = null;
+    try {
+      const loadingTask = pdfjsLib.getDocument({
+        url: props.pdfUrl,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
+      });
+      currentLoadingTask = loadingTask;
+      doc = await loadingTask.promise;
+      currentLoadingTask = null;
+    } catch (primaryErr) {
+      if (primaryErr?.name === 'RenderingCancelledException') throw primaryErr;
+      currentLoadingTask = null;
+      if (!props.moduleId) {
+        throw primaryErr;
+      }
+      // Fallback: fetch authenticated PDF binary directly via backend /api/modules/:id/download
+      const fallbackRes = await api.get(`/modules/${props.moduleId}/download`, {
+        responseType: 'arraybuffer',
+        timeout: 60000
+      });
+      const pdfBytes = new Uint8Array(fallbackRes.data);
+      const fallbackTask = pdfjsLib.getDocument({
+        data: pdfBytes,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
+      });
+      currentLoadingTask = fallbackTask;
+      doc = await fallbackTask.promise;
+      currentLoadingTask = null;
+    }
 
     // Retrieve aspect ratio of first page for zero-shift slot sizing
     try {
