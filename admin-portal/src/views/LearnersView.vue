@@ -417,7 +417,7 @@
             </div>
 
             <!-- Login Information Callout Box -->
-            <div class="info-alert-box" style="margin-bottom: 1.15rem;">
+            <div class="info-alert-box">
               <div class="info-alert-icon-wrap">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="info-alert-icon">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -427,22 +427,21 @@
               <div class="info-alert-content">
                 <strong>Automatic Full Name Login:</strong>
                 <p>
-                  Learners will login directly using their registered <strong>Full Name</strong> (e.g. <code>{{ learnerFullNamePreview || 'Juan Dela Cruz' }}</code>). No separate username generation needed.
+                  Learners will login directly using their registered <strong>Full Name</strong> (e.g. <code class="login-name-example-code">{{ learnerFullNamePreview || 'Juan Dela Cruz' }}</code>). No separate username generation needed.
                 </p>
               </div>
             </div>
 
-            <div class="field-group" style="margin-bottom: 0.85rem;">
+            <div class="field-group login-name-field-group">
               <label class="field-label" for="learner-login-name">Login Name (Full Name)</label>
               <LockedFieldTooltip message="This field cannot be edited.">
                 <input
                   id="learner-login-name"
                   :value="learnerFullNamePreview || '—'"
                   type="text"
-                  class="field-input"
+                  class="field-input field-login-name-preview"
                   readonly
                   title="This field cannot be edited."
-                  style="background-color: #f8fafc; color: #1e40af; font-weight: 600;"
                 />
               </LockedFieldTooltip>
             </div>
@@ -672,7 +671,7 @@ const learnerFullNamePreview = computed(() => {
   if (last && first) {
     return middle ? `${last}, ${first} ${middle}` : `${last}, ${first}`;
   }
-  return [last, first, middle].filter(Boolean).join(' ') || '';
+  return '';
 });
 
 // Toast notification system
@@ -1180,31 +1179,39 @@ onMounted(async () => {
 }
 
 /* Callout Box */
+.modal-register-learner .info-alert-box,
 .info-alert-box {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 10px;
   padding: 0.85rem 1rem;
   margin-top: 1rem;
+  margin-bottom: 1.15rem;
+  min-height: 74px;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
   box-sizing: border-box;
 }
 
+.modal-register-learner .info-alert-icon-wrap,
 .info-alert-icon-wrap {
   flex-shrink: 0;
   margin-top: 1px;
 }
 
+.modal-register-learner .info-alert-icon,
 .info-alert-icon {
   color: #2563eb;
 }
 
+.modal-register-learner .info-alert-content,
 .info-alert-content {
   flex: 1;
+  min-width: 0;
 }
 
+.modal-register-learner .info-alert-content strong,
 .info-alert-content strong {
   display: block;
   font-size: 0.875rem;
@@ -1213,11 +1220,52 @@ onMounted(async () => {
   margin-bottom: 2px;
 }
 
+.modal-register-learner .info-alert-content p,
 .info-alert-content p {
   font-size: 0.8125rem;
   color: #1d4ed8;
   margin: 0;
   line-height: 1.45;
+}
+
+.modal-register-learner .info-alert-content p strong,
+.info-alert-content p strong {
+  display: inline;
+  font-size: inherit;
+  color: inherit;
+  font-weight: 700;
+  margin-bottom: 0;
+}
+
+.modal-register-learner .login-name-example-code,
+.login-name-example-code {
+  display: inline-block;
+  max-width: 220px;
+  vertical-align: bottom;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.modal-register-learner .login-name-field-group,
+.login-name-field-group {
+  margin-bottom: 0.85rem;
+}
+
+.modal-register-learner .field-login-name-preview,
+.field-login-name-preview {
+  height: 42px;
+  min-height: 42px;
+  background-color: #f8fafc !important;
+  color: #1e40af !important;
+  font-weight: 600 !important;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Form Error Banner */
