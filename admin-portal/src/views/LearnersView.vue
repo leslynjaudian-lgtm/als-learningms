@@ -957,6 +957,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.modal.modal-register-learner,
 .modal-register-learner {
   background: #ffffff;
   border-radius: 16px;
@@ -968,6 +969,7 @@ onMounted(async () => {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   box-sizing: border-box;
   overflow: hidden;
+  overflow-y: hidden;
   animation: modalEnter 0.22s ease-out;
 }
 
@@ -1075,6 +1077,7 @@ onMounted(async () => {
 }
 
 /* 2-Column Responsive Grid */
+.modal-register-learner .form-grid-2,
 .form-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1083,6 +1086,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 600px) {
+  .modal-register-learner .form-grid-2,
   .form-grid-2 {
     grid-template-columns: 1fr;
     gap: 0.75rem;
@@ -1090,26 +1094,33 @@ onMounted(async () => {
 }
 
 /* Field Styles */
+.modal-register-learner .field-group,
 .field-group {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
+.modal-register-learner .field-label,
 .field-label {
   font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
 }
 
+.modal-register-learner .required,
 .required {
   color: #ef4444;
   margin-left: 2px;
 }
 
+.modal-register-learner .field-input,
+.modal-register-learner .field-select,
 .field-input,
 .field-select {
   width: 100%;
+  height: auto;
+  min-height: 0;
   padding: 0.625rem 0.85rem;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -1121,6 +1132,8 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
+.modal-register-learner .field-input:focus,
+.modal-register-learner .field-select:focus,
 .field-input:focus,
 .field-select:focus {
   border-color: #2563eb;
@@ -1145,13 +1158,19 @@ onMounted(async () => {
   opacity: 0.9;
 }
 
+.modal-register-learner .select-wrapper,
 .select-wrapper {
   position: relative;
+  display: block;
+  width: 100%;
 }
 
+.modal-register-learner .select-wrapper .field-select,
+.modal-register-learner .field-select,
 .field-select {
   appearance: none;
   -webkit-appearance: none;
+  -moz-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
@@ -1270,6 +1289,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 600px) {
+  .modal.modal-register-learner,
   .modal-register-learner {
     max-height: 94vh;
     border-radius: 12px;
