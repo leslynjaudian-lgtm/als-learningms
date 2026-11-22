@@ -30,7 +30,9 @@
         <div class="help-step-body">
           <h2 class="help-step-title">Tubaga ang Pre-Test</h2>
           <p class="help-step-desc">
-            Sa dili pa mobasa sa module, tubaga una ang <strong>Pre-Test</strong> aron maablihan ang sunod nga lakang.
+            Sa dili pa nimo basahon ang module, tubaga una ang <strong>Pre-Test</strong>.
+            Basaha ang matag pangutana ug pilia ang imong tubag.
+            Human nimo matubag ang tanan, pindota ang button aron mahuman ang <strong>Pre-Test</strong>.
           </p>
         </div>
       </div>
@@ -38,9 +40,11 @@
       <div class="help-card">
         <div class="help-step-num">3</div>
         <div class="help-step-body">
-          <h2 class="help-step-title">Basaha ang Learning Module</h2>
+          <h2 class="help-step-title">Basaha ang Module</h2>
           <p class="help-step-desc">
-            Basaha ang PDF sa module. Mahimo nimong gamiton ang <strong>Long Strip</strong> o <strong>Wide Strip</strong> nga paagi sa pagbasa.
+            Basaha ang PDF sa module.
+            Gamita ang <strong>I-scroll Pababa</strong> aron mag-scroll pataas ug paubos, o <strong>I-swipe Pakilid</strong> aron mag-swipe pakilid.
+            Pindota ang screen aron matago o makita ang mga button.
           </p>
         </div>
       </div>
@@ -48,9 +52,119 @@
       <div class="help-card">
         <div class="help-step-num">4</div>
         <div class="help-step-body">
-          <h2 class="help-step-title">Post-Test ug Activity</h2>
+          <h2 class="help-step-title">I-download ang Module</h2>
           <p class="help-step-desc">
-            Human sa pagbasa, tubaga ang <strong>Post-Test</strong> ug i-submit ang imong <strong>Activity</strong>.
+            Kung gusto nimo basahon ang module bisan walay internet, pindota ang <strong>I-download ang Module</strong> button.
+            Kinahanglan og internet sa pag-download, ug hulata nga mahuman kini.
+            Ablihi ang na-download nga PDF sa imong cellphone gamit ang PDF reader aron mabasa nimo bisan walay data.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">5</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Tubaga ang Post-Test</h2>
+          <p class="help-step-desc">
+            Human nimo mabasa ang module, pindota ang <strong>Padayon sa Post-Test</strong>.
+            Basaha ang matag pangutana ug pilia ang imong tubag.
+            Siguroha nga nahuman nimo ang tanan.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">6</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Ipasa ang Activity</h2>
+          <p class="help-step-desc">
+            Kung naa kay activity nga ipasa, pindota ang kahon sa pag-upload aron mopili og file o mokuha og litrato, dayon pindota ang <strong>Ipasa ang Activity</strong>.
+            Siguroha nga klaro ug sakto ang imong gipili sa dili pa nimo ipasa.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">7</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Tan-awa ang Gipasa</h2>
+          <p class="help-step-desc">
+            Aron makita ang imong gipasa nga activity, adto sa imong submission.
+            Pindota ang litrato o PDF file nga imong gipasa aron makita nimo kini.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">8</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Ilisi o Tangtanga ang File</h2>
+          <p class="help-step-desc">
+            Kung sayop ang imong napili nga file, pwede nimo kini tangtangon pinaagi sa pagpindot sa <strong>X</strong> sa kilid niini, kung gitugotan pa sa system.
+            Human niini, pwede ka mopili ug <strong>Dugang og File</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">9</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title help-step-title-with-icon">
+            <span>Bantayi ang Deadline</span>
+            <svg class="help-deadline-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </h2>
+          <p class="help-step-desc">
+            Tan-awa kanunay ang <strong>Deadline</strong> sa imong activity.
+            Kung molapas na sa <strong>Deadline</strong>, dili na ka maka-<strong>Upload</strong>, makapang-<strong>Ilis</strong>, o makapang-<strong>Tangtang</strong> sa imong gipasa nga file, gawas na lang kung gihatagan ka og extension sa imong teacher.
+            Ang mga file nga napasa na pwede gihapon nimo tan-awon.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">10</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Tan-awa ang Mga Pahibalo</h2>
+          <p class="help-step-desc">
+            Kung gusto nimo makita ang mga bag-ong pahibalo, pindota ang <strong>bell icon</strong> sa taas o ang <strong>Mga Pahibalo</strong> sa Home.
+            Dinhi nimo makita ang mga importanteng anunsyo ug pahibalo bahin sa imong pagtuon gikan sa imong ALS Teacher o Admin.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">11</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Tan-awa ang Akong Profile</h2>
+          <p class="help-step-desc">
+            Kung gusto nimo makita ang imong impormasyon, pindota ang <strong>Akong Profile</strong> sa Home o sa <strong>Uban</strong> nga menu.
+            Dinhi nimo makita ang imong ngalan, LRN, Learning Center, ug ALS Teacher, ug pwede ka mag-<strong>Ibutang og Litrato</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">12</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Gamita ang Uban</h2>
+          <p class="help-step-desc">
+            Kung gusto nimo makita ang ubang opsyon, pindota ang <strong>Uban</strong> sa ubos sa screen.
+            Dinhi nimo makita ang <strong>Home</strong>, <strong>Akong Modules</strong>, <strong>Mga Pahibalo</strong>, <strong>Akong Profile</strong>, <strong>Tabang / Giya</strong>, ug <strong>Sign Out</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="help-card">
+        <div class="help-step-num">13</div>
+        <div class="help-step-body">
+          <h2 class="help-step-title">Pag-sign Out</h2>
+          <p class="help-step-desc">
+            Kung nahuman na ka sa paggamit sa ALS LMS, pindota ang <strong>Uban</strong> sa ubos sa screen.
+            Pangitaa ug pindota ang <strong>Sign Out</strong> aron makagawas sa imong account.
           </p>
         </div>
       </div>
@@ -66,7 +180,7 @@
         <div class="help-step-body">
           <h2 class="help-step-title">Nagkinahanglan pa ug tabang?</h2>
           <p class="help-step-desc">
-            Kontaka o pangutana sa imong <strong>ALS Teacher</strong> sa inyong Community Learning Center (CLC).
+            Kung naa kay pangutana o naglisod ka sa paggamit sa ALS LMS, pangayo ug tabang sa imong <strong>ALS Teacher</strong>.
           </p>
         </div>
       </div>
@@ -83,7 +197,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 2.5rem;
 }
 
 .help-header {
@@ -181,6 +295,17 @@
   color: #0b1e36;
   margin: 0 0 0.25rem;
   line-height: 1.3;
+}
+
+.help-step-title-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.help-deadline-icon {
+  color: #d97706;
+  flex-shrink: 0;
 }
 
 .help-step-desc {

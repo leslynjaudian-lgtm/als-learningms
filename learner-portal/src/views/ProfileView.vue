@@ -46,7 +46,7 @@
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
-        <span>{{ uploading ? 'Uploading...' : (hasPhoto ? 'Ilisi ang Litrato' : 'Add Photo') }}</span>
+        <span>{{ uploading ? 'Uploading...' : (hasPhoto ? 'Ilisi ang Litrato' : 'Ibutang og Litrato') }}</span>
       </button>
 
       <!-- Feedback message -->
@@ -63,8 +63,8 @@
         {{ feedbackMessage }}
       </div>
 
-      <h2 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; line-height: 1.2; text-align: center;">
-        {{ user.name || 'Learner' }}
+      <h2 style="font-size: 1.25rem; font-weight: 800; color: #0f172a; line-height: 1.25; text-align: center; word-break: break-word; overflow-wrap: anywhere; max-width: 100%;">
+        {{ displayFullName || 'Learner' }}
       </h2>
       <div style="font-size: 0.82rem; font-weight: 700; color: #64748b; margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em;">
         {{ user.role || 'LEARNER' }}
@@ -73,16 +73,16 @@
 
     <!-- Info Field Rows Card -->
     <div class="learner-card" style="padding: 0.5rem 1rem;">
-      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; border-bottom: 1px solid #f1f5f9;">
-        <div style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; color: #64748b; font-weight: 600;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.85rem 0; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; color: #64748b; font-weight: 600; flex-shrink: 0;">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>
           <span>Full Name</span>
         </div>
-        <div style="font-size: 0.875rem; font-weight: 700; color: #0f172a;">
-          {{ user.name || '—' }}
+        <div style="font-size: 0.875rem; font-weight: 700; color: #0f172a; text-align: right; word-break: break-word; overflow-wrap: anywhere;">
+          {{ displayFullName || '—' }}
         </div>
       </div>
 
@@ -174,9 +174,14 @@
 import { computed, onMounted, ref } from 'vue';
 import api from '../api/axios';
 import { formatStrandName } from '../utils/formatStrand.js';
+import { formatLearnerDisplayName } from '../utils/formatLearnerName.js';
 
 const stored = localStorage.getItem('als_learner_user');
 const user = ref(stored ? JSON.parse(stored) : {});
+
+const displayFullName = computed(() => {
+  return formatLearnerDisplayName(user.value);
+});
 
 const displayStrand = computed(() => {
   if (!user.value.strand || user.value.strand === '—') return '—';
@@ -191,8 +196,9 @@ const feedbackMessage = ref('');
 const feedbackType = ref('success');
 
 const initials = computed(() => {
-  if (!user.value.name) return 'L';
-  return user.value.name
+  const nameToUse = displayFullName.value || user.value.name || '';
+  if (!nameToUse) return 'L';
+  return nameToUse
     .split(' ')
     .filter(Boolean)
     .map(w => w[0])
@@ -311,6 +317,9 @@ onMounted(async () => {
       user.value = {
         ...user.value,
         name: d.fullName || d.user?.fullName || user.value.name,
+        firstName: d.firstName ?? user.value.firstName ?? '',
+        middleName: d.middleName ?? user.value.middleName ?? '',
+        lastName: d.lastName ?? user.value.lastName ?? '',
         lrn: d.lrn || user.value.lrn,
         learningCenter: d.learningCenter?.name || d.learningCenter || user.value.learningCenter,
         teacher: d.teacher?.fullName || d.teacher || d.teacher?.user?.fullName || d.assignedTeacher || user.value.teacher,
