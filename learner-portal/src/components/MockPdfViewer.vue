@@ -350,28 +350,6 @@
           &times;
         </button>
       </div>
-
-      <!-- Pre-Reading Instruction Alert Banner (When visible) -->
-      <div v-if="showInstructionBanner" class="reading-instruction-banner" @click.stop>
-        <div class="instruction-content">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="instruction-icon">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="16" x2="12" y2="12"/>
-            <line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          <span class="instruction-text">
-            {{ displayInstructions }}
-          </span>
-        </div>
-        <button
-          type="button"
-          class="instruction-dismiss-btn"
-          @click="showInstructionBanner = false"
-          aria-label="Dismiss banner"
-        >
-          &times;
-        </button>
-      </div>
     </div>
 
     <!-- 3. First-Use Instruction Hint (Auto-hides after ~4s, manual X dismiss) -->
@@ -613,10 +591,6 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  instructions: {
-    type: String,
-    default: ''
-  },
   initialPage: {
     type: Number,
     default: 1
@@ -724,13 +698,6 @@ function emitProgressUpdate() {
   });
 }
 
-// Reading Instructions Banner Text
-const DEFAULT_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
-
-const displayInstructions = computed(() => {
-  return props.instructions?.trim() || DEFAULT_INSTRUCTIONS;
-});
-
 // Long Strip Bottom Detection State
 const isLongStripAtBottom = ref(false);
 
@@ -754,7 +721,6 @@ const isPostTestButtonVisible = computed(() => {
 
 // Controls Visibility State (Immersive full-screen toggle)
 const controlsVisible = ref(true);
-const showInstructionBanner = ref(true);
 // On mobile, thumbnail dock is collapsed by default per user requirement
 const isMobileViewport = ref(typeof window !== 'undefined' && window.innerWidth < 768);
 const thumbnailsOpen = ref(!isMobileViewport.value);
@@ -1139,7 +1105,7 @@ let lastPointerPanY = 0;
 function isInteractiveElement(target) {
   if (!target || !(target instanceof Element)) return false;
   return Boolean(
-    target.closest('button, a, input, select, .wide-nav-arrow, .tap-hint-pill, .immersive-post-test-btn, .immersive-page-pill, .wide-thumbnail-dock, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .reading-instruction-banner, .viewer-top-overlay, .viewer-bottom-overlay, .pdf-text-selection-toolbar')
+    target.closest('button, a, input, select, .wide-nav-arrow, .tap-hint-pill, .immersive-post-test-btn, .immersive-page-pill, .wide-thumbnail-dock, .viewer-controls-bar, .viewer-top-bar, .viewer-bottom-bar, .viewer-top-overlay, .viewer-bottom-overlay, .pdf-text-selection-toolbar')
   );
 }
 
@@ -3078,49 +3044,6 @@ watch(
   background: transparent;
   border: none;
   color: #fca5a5;
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.25rem;
-}
-
-/* Pre-Reading Instruction Banner */
-.reading-instruction-banner {
-  background: #1e3a8a;
-  border-bottom: 1px solid #2563eb;
-  padding: 0.45rem 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  flex-shrink: 0;
-  z-index: 20;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.instruction-content {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-
-.instruction-text {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #dbeafe;
-  line-height: 1.35;
-  white-space: pre-line;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-.instruction-dismiss-btn {
-  background: transparent;
-  border: none;
-  color: #93c5fd;
   font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;

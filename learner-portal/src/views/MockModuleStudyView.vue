@@ -423,7 +423,6 @@
         :code="moduleCode"
         :subtitle="moduleSubheading"
         :downloadFileName="moduleDownloadFileName"
-        :instructions="moduleReadingInstructions"
         :initialPage="progress.pdfCurrentPage || 1"
         :initialMode="progress.pdfViewMode || 'long'"
         :initialPagesRead="progress.pagesRead || []"
@@ -1861,12 +1860,6 @@ const moduleInstructions = computed(() => {
 
 const sanitizedModuleInstructions = computed(() => {
   return sanitizeRichText(moduleInstructions.value);
-});
-
-const moduleReadingInstructions = computed(() => {
-  if (isMock.value) return (MOCK_MODULE.readingInstructions || MOCK_MODULE.learningNotes || '').trim();
-  const raw = moduleData.value?.readingInstructions ?? moduleData.value?.learningNotes ?? '';
-  return String(raw).trim();
 });
 
 const pdfUrl = computed(() => {

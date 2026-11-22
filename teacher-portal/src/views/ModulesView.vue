@@ -667,19 +667,6 @@
               </div>
             </div>
           </div>
-
-          <div class="field-item" style="margin-top: 1.5rem;">
-            <label class="field-lbl">Teacher Reading Instructions</label>
-            <p class="field-helper-text">
-              Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
-            </p>
-            <textarea
-              v-model="newModule.learningNotes"
-              rows="3"
-              class="field-textarea-box"
-              placeholder="Instructions for the learner (e.g., Read Sections 1 through 3 before attempting Post-Test activities)..."
-            ></textarea>
-          </div>
         </div>
 
         <!-- STEP 4: POST-TEST -->
@@ -1283,8 +1270,6 @@ async function loadLearningAreas() {
   }
 }
 
-const DEFAULT_READING_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
-
 const newModule = reactive({
   title: '',
   learningAreaId: '',
@@ -1304,8 +1289,6 @@ const newModule = reactive({
   fileName: '',
   fileType: 'PDF',
   fileSize: '',
-  learningNotes: DEFAULT_READING_INSTRUCTIONS,
-  readingInstructions: DEFAULT_READING_INSTRUCTIONS,
   postTestInstructions: '',
   postTest: [createBlankQuestion()],
 });
@@ -1909,8 +1892,6 @@ function resetWizard() {
   newModule.fileName = '';
   newModule.fileType = 'PDF';
   newModule.fileSize = '';
-  newModule.learningNotes = DEFAULT_READING_INSTRUCTIONS;
-  newModule.readingInstructions = DEFAULT_READING_INSTRUCTIONS;
   currentStepIndex.value = 0;
   step1ErrorMessage.value = '';
   step2ErrorMessage.value = '';
@@ -1971,8 +1952,6 @@ async function publishCompleteModule() {
       assignedLearnerIds: newModule.isAllLearners ? [] : (newModule.selectedLearnerIds || []).map(Number),
       fileUrl: uploadedFileUrl,
       fileName: newModule.fileName || null,
-      learningNotes: newModule.learningNotes ? newModule.learningNotes.trim() : '',
-      readingInstructions: newModule.learningNotes ? newModule.learningNotes.trim() : '',
       preTestInstructions: sanitizeRichText(newModule.preTestInstructions),
       postTestInstructions: sanitizeRichText(newModule.postTestInstructions),
       preTest: newModule.preTest.map((q, idx) => ({

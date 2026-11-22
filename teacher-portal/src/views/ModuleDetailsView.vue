@@ -1362,20 +1362,6 @@
                 />
               </div>
 
-              <!-- Teacher Reading Instructions -->
-              <div class="field-item full-width">
-                <label class="field-lbl">Teacher Reading Instructions</label>
-                <p class="field-helper-text">
-                  Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
-                </p>
-                <textarea
-                  v-model="editForm.readingInstructions"
-                  rows="3"
-                  class="field-textarea-box"
-                  placeholder="Instructions for the learner (e.g., Read Sections 1 through 3 before attempting Post-Test activities)..."
-                ></textarea>
-              </div>
-
               <!-- ROW 3 — TWO COLUMNS: Target ALS Level * | Learning Strand * -->
               <div class="field-item">
                 <label class="field-lbl">Target ALS Level <span class="req">*</span></label>
@@ -2763,9 +2749,6 @@ function openEditModal() {
 
   editForm.title = moduleData.value.title || '';
   editForm.instructions = sanitizeRichText(moduleData.value.instructions || moduleData.value.description || '');
-  editForm.readingInstructions = moduleData.value.readingInstructions !== undefined
-    ? moduleData.value.readingInstructions
-    : (moduleData.value.learningNotes !== undefined ? moduleData.value.learningNotes : '');
   editForm.learningAreaId = moduleData.value.learningAreaId ? Number(moduleData.value.learningAreaId) : '';
   editForm.strand = moduleData.value.learningArea?.name || moduleData.value.strand || '';
   editForm.level = normLevel;
@@ -2859,8 +2842,6 @@ async function saveEditModule() {
     const payload = {
       title: editForm.title.trim(),
       instructions: sanitizeRichText(editForm.instructions),
-      readingInstructions: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
-      learningNotes: editForm.readingInstructions != null ? editForm.readingInstructions.trim() : '',
       learningAreaId: Number(editForm.learningAreaId),
       strand: editForm.strand,
       level: editForm.level,

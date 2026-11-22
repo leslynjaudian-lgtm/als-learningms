@@ -7,6 +7,9 @@ const eligibleUnreadCount = ref(0);
 const shouldAnimateBell = ref(false);
 const loading = ref(false);
 
+let bellAnimationTimer = null;
+const BELL_ANIMATION_DURATION_MS = 1600;
+
 function getStoredLearnerParams() {
   try {
     const raw = localStorage.getItem('als_learner_user');
@@ -22,11 +25,98 @@ function getStoredLearnerParams() {
   }
 }
 
-function applyPayload(data) {
-  notifications.value = Array.isArray(data?.notifications) ? data.notifications : [];
-  unreadCount.value = Number(data?.unreadCount || 0);
-  eligibleUnreadCount.value = Number(data?.eligibleUnreadCount || 0);
-  shouldAnimateBell.value = Boolean(data?.shouldAnimateBell);
+function getSeenKeysStorageKey(dataUserId) {
+  const params = getStoredLearnerParams();
+  const uid = dataUserId || params.userId || params.learnerId;
+  return uid ? `als_learner_seen_notif_keys_${uid}` : null;
+}
+
+function loadSeenKeys(storageKey) {
+  if (!storageKey) return null;
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSeenKeys(storageKey, keysSet) {
+  if (!storageKey || !keysSet) return;
+  try {
+    // Keep at most the latest 200 keys to prevent unbounded storage growth
+    const arr = Array.from(keysSet).slice(-200);
+    localStorage.setItem(storageKey, JSON.stringify(arr));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function triggerShortBellAnimation() {
+  if (bellAnimationTimer) {
+    clearTimeout(bellAnimationTimer);
+    bellAnimationTimer = null;
+  }
+  shouldAnimateBell.value = true;
+  bellAnimationTimer = setTimeout(() => {
+    shouldAnimateBell.value = false;
+    bellAnimationTimer = null;
+  }, BELL_ANIMATION_DURATION_MS);
+}
+
+function stopBellAnimation() {
+  if (bellAnimationTimer) {
+    clearTimeout(bellAnimationTimer);
+    bellAnimationTimer = null;
+  }
+  shouldAnimateBell.value = false;
+}
+
+function applyPayload(data, { detectNew = false } = {}) {
+  const list = Array.isArray(data?.notifications) ? data.notifications : [];
+  notifications.value = list;
+  unreadCount.value = Number(data?.unreadCount ?? list.filter((n) => !n.isRead).length);
+  eligibleUnreadCount.value = Number(data?.eligibleUnreadCount ?? unreadCount.value);
+
+  if (!detectNew) {
+    return;
+  }
+
+  const storageKey = getSeenKeysStorageKey(data?.userId);
+  if (!storageKey) return;
+
+  const existingSeen = loadSeenKeys(storageKey);
+  const currentKeys = list
+    .map((n) => n?.notificationKey)
+    .filter(Boolean)
+    .map(String);
+
+  if (!existingSeen) {
+    // First time seeing notifications for this learner: seed baseline without ringing on initial load/refresh
+    saveSeenKeys(storageKey, new Set(currentKeys));
+    return;
+  }
+
+  const hasNewUnread = list.some(
+    (n) => n && !n.isRead && n.notificationKey && !existingSeen.has(String(n.notificationKey))
+  );
+
+  let updated = false;
+  for (const k of currentKeys) {
+    if (!existingSeen.has(k)) {
+      existingSeen.add(k);
+      updated = true;
+    }
+  }
+  if (updated) {
+    saveSeenKeys(storageKey, existingSeen);
+  }
+
+  if (hasNewUnread) {
+    triggerShortBellAnimation();
+  }
 }
 
 export function useNotifications() {
@@ -42,7 +132,7 @@ export function useNotifications() {
     try {
       const params = getStoredLearnerParams();
       const { data } = await api.get('/notifications', { params });
-      applyPayload(data);
+      applyPayload(data, { detectNew: true });
     } catch (_err) {
       // Keep existing state on transient network failure
     } finally {
@@ -59,7 +149,9 @@ export function useNotifications() {
       target.isEligibleForAnimation = false;
       unreadCount.value = notifications.value.filter((n) => !n.isRead).length;
       eligibleUnreadCount.value = notifications.value.filter((n) => n.isEligibleForAnimation).length;
-      shouldAnimateBell.value = eligibleUnreadCount.value > 0;
+      if (unreadCount.value === 0) {
+        stopBellAnimation();
+      }
     }
 
     try {
@@ -83,7 +175,7 @@ export function useNotifications() {
     }
     unreadCount.value = 0;
     eligibleUnreadCount.value = 0;
-    shouldAnimateBell.value = false;
+    stopBellAnimation();
 
     try {
       const params = getStoredLearnerParams();
@@ -98,7 +190,7 @@ export function useNotifications() {
     notifications.value = [];
     unreadCount.value = 0;
     eligibleUnreadCount.value = 0;
-    shouldAnimateBell.value = false;
+    stopBellAnimation();
   }
 
   return {

@@ -391,19 +391,6 @@
                 </button>
               </div>
             </div>
-
-            <div class="field-item" style="margin-top: 1.5rem;">
-              <label class="field-lbl">Teacher Reading Instructions</label>
-              <p class="field-helper-text">
-                Provide clear instructions for learners on how to read the module and complete its activities. You may edit or personalize the suggested instructions below.
-              </p>
-              <textarea
-                v-model="newModule.learningNotes"
-                rows="3"
-                class="field-textarea-box"
-                placeholder="Instructions for the learner (e.g., Read Sections 1 through 3 before attempting Post-Test activities)..."
-              ></textarea>
-            </div>
           </div>
 
           <!-- STEP 4: POST-TEST (Mastery Evaluation) -->
@@ -655,8 +642,6 @@ const internalStrands = [
   { slug: 'entrepreneurship', name: '7. Entrepreneurship' },
 ];
 
-const DEFAULT_READING_INSTRUCTIONS = 'Read the module carefully and answer the activities on paper. Keep your written answers because you will upload them after completing the Post-Test.';
-
 const newModule = reactive({
   title: '',
   strand: '1. Communication Skills (English)',
@@ -680,7 +665,6 @@ const newModule = reactive({
   fileName: 'LS1_Oral_Communication_Module.pdf',
   fileType: 'PDF',
   fileSize: '3.4 MB',
-  learningNotes: DEFAULT_READING_INSTRUCTIONS,
   postTest: [
     {
       prompt: 'In a workplace setting, what is the most appropriate way to resolve a misunderstanding?',
@@ -809,7 +793,6 @@ function publishCompleteModule() {
     fileName: newModule.fileName,
     fileType: newModule.fileType,
     fileSize: newModule.fileSize,
-    learningNotes: newModule.learningNotes,
     author: teacherName.value || 'Maria Santos',
   });
 

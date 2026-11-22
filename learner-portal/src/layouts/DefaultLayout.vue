@@ -16,13 +16,13 @@
             type="button"
             class="header-icon-btn notification-bell"
             :class="{ 'is-shaking': shouldAnimateBell }"
-            title="Notifications"
-            aria-label="Notifications"
+            title="Mga Pahibalo"
+            :aria-label="unreadCount > 0 ? `Mga Pahibalo (${unreadCount} wala pa mabasa)` : 'Mga Pahibalo'"
             :aria-expanded="notifPanelOpen"
             @click.stop="toggleNotifPanel"
           >
             <svg
-              :class="['bell-icon', { 'bell-electric-shake': shouldAnimateBell }]"
+              :class="['bell-icon', { 'bell-ringing': shouldAnimateBell }]"
               width="24"
               height="24"
               viewBox="0 0 24 24"
@@ -35,7 +35,14 @@
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
-            <span v-if="unreadCount > 0" class="header-notif-dot"></span>
+            <span
+              v-if="unreadCount > 0"
+              class="header-notif-badge"
+              :class="{ 'is-wide': unreadCount >= 10 }"
+              aria-hidden="true"
+            >
+              {{ unreadCount > 9 ? '9+' : unreadCount }}
+            </span>
           </button>
 
           <!-- Notification Dropdown Panel -->
@@ -567,59 +574,82 @@ function confirmLogout() {
   color: #0b1e36;
 }
 
-.header-notif-dot {
+.header-notif-badge {
   position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 7px;
-  height: 7px;
+  top: 1px;
+  right: 0px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
   background: #ef4444;
-  border-radius: 50%;
+  color: #ffffff;
+  border-radius: 9999px;
   border: 1.5px solid #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.header-notif-badge.is-wide {
+  padding: 0 5px;
+  font-size: 0.6rem;
 }
 
 .bell-icon {
   display: block;
   width: 24px;
   height: 24px;
-  transform-box: fill-box;
   transform-origin: 50% 15%;
 }
 
-.notification-bell.is-shaking svg,
-.bell-icon.bell-electric-shake {
+.notification-bell.is-shaking .bell-icon,
+.bell-icon.bell-ringing {
   transform-origin: 50% 15%;
-  animation: electricBellShake 0.3s ease-in-out infinite;
+  animation: headerBellRing 1.5s ease-in-out 1;
   will-change: transform;
 }
 
-@keyframes electricBellShake {
-  0%, 100% {
+@keyframes headerBellRing {
+  0% {
     transform: rotate(0deg);
   }
-  15% {
-    transform: rotate(-8deg);
+  10% {
+    transform: rotate(14deg);
+  }
+  20% {
+    transform: rotate(-14deg);
   }
   30% {
+    transform: rotate(12deg);
+  }
+  40% {
+    transform: rotate(-12deg);
+  }
+  52% {
     transform: rotate(8deg);
   }
-  45% {
-    transform: rotate(-7deg);
+  64% {
+    transform: rotate(-8deg);
   }
-  60% {
-    transform: rotate(7deg);
+  76% {
+    transform: rotate(4deg);
   }
-  75% {
-    transform: rotate(-5deg);
+  88% {
+    transform: rotate(-3deg);
   }
-  90% {
-    transform: rotate(5deg);
+  100% {
+    transform: rotate(0deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .notification-bell.is-shaking svg,
-  .bell-icon.bell-electric-shake {
+  .notification-bell.is-shaking .bell-icon,
+  .bell-icon.bell-ringing {
     animation: none;
   }
 }
