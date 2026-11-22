@@ -129,8 +129,11 @@
       </div>
 
       <!-- Subtle Floating Page Indicator & Accessible Post-Test Button in Immersive Mode -->
-      <transition name="fade">
-        <div v-if="!controlsVisible && !loading && !error" class="immersive-bottom-wrap">
+      <div
+        v-if="!controlsVisible && !loading && !error && (isPostTestButtonVisible || showFloatingPageIndicator)"
+        class="immersive-bottom-wrap"
+      >
+        <transition name="fade">
           <button
             v-if="isPostTestButtonVisible"
             type="button"
@@ -143,15 +146,18 @@
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
           </button>
+        </transition>
+        <transition name="page-pill-fade">
           <div
+            v-if="showFloatingPageIndicator"
             class="immersive-page-pill"
             @pointerdown.stop
             @click.stop="toggleControls"
           >
             Pahina {{ currentPage }} sa {{ totalPages }}
           </div>
-        </div>
-      </transition>
+        </transition>
+      </div>
     </div>
 
     <!-- 2. TOP CONTROLS OVERLAY (Overlay above PDF, GPU transform/opacity transitions) -->
@@ -1029,6 +1035,31 @@ function dismissTapHint() {
   } catch (e) {}
 }
 
+// Floating Page Indicator auto-hide state (2 seconds of inactivity)
+const showFloatingPageIndicator = ref(false);
+let floatingPageIndicatorTimer = null;
+
+function showFloatingIndicatorWithAutoHide() {
+  if (loading.value || error.value) return;
+  showFloatingPageIndicator.value = true;
+  if (floatingPageIndicatorTimer) {
+    clearTimeout(floatingPageIndicatorTimer);
+    floatingPageIndicatorTimer = null;
+  }
+  floatingPageIndicatorTimer = setTimeout(() => {
+    showFloatingPageIndicator.value = false;
+    floatingPageIndicatorTimer = null;
+  }, 2000);
+}
+
+function hideFloatingIndicator() {
+  if (floatingPageIndicatorTimer) {
+    clearTimeout(floatingPageIndicatorTimer);
+    floatingPageIndicatorTimer = null;
+  }
+  showFloatingPageIndicator.value = false;
+}
+
 let lastToggleTime = 0;
 function toggleControls() {
   if (loading.value || error.value) return;
@@ -1044,6 +1075,12 @@ function toggleControls() {
     : null;
 
   controlsVisible.value = !controlsVisible.value;
+
+  if (!controlsVisible.value) {
+    showFloatingIndicatorWithAutoHide();
+  } else {
+    hideFloatingIndicator();
+  }
 
   if (showTapHint.value) {
     dismissTapHint();
@@ -1970,6 +2007,7 @@ function initReadingObserver() {
     clearTimeout(tapHintTimer);
     tapHintTimer = null;
   }
+  hideFloatingIndicator();
   if (readingObserver) {
     readingObserver.disconnect();
     readingObserver = null;
@@ -2149,6 +2187,7 @@ function updateLongStripScrollPosition() {
 }
 
 function onLongStripScroll() {
+  showFloatingIndicatorWithAutoHide();
   if (scrollRafId) return;
   scrollRafId = requestAnimationFrame(() => {
     scrollRafId = null;
@@ -2273,6 +2312,7 @@ function goToPage(pageNumber) {
   clearTextSelection();
   resetPan();
   currentPage.value = pageNumber;
+  showFloatingIndicatorWithAutoHide();
 
   if (viewMode.value === 'wide') {
     renderWidePage(pageNumber);
@@ -2312,6 +2352,11 @@ async function switchViewMode(newMode) {
   clearTextSelection();
   flushActivePageRead();
   resetPan();
+  if (controlsVisible.value) {
+    hideFloatingIndicator();
+  } else {
+    showFloatingIndicatorWithAutoHide();
+  }
   viewMode.value = newMode;
   emitProgressUpdate();
 
@@ -2322,6 +2367,7 @@ async function switchViewMode(newMode) {
     clearTimeout(tapHintTimer);
     tapHintTimer = null;
   }
+  hideFloatingIndicator();
   if (readingObserver) {
       readingObserver.disconnect();
       readingObserver = null;
@@ -2437,6 +2483,7 @@ onBeforeUnmount(() => {
     clearTimeout(tapHintTimer);
     tapHintTimer = null;
   }
+  hideFloatingIndicator();
   if (readingObserver) {
     readingObserver.disconnect();
     readingObserver = null;
@@ -3383,7 +3430,7 @@ watch(
   align-items: center;
   gap: 0.5rem;
   z-index: 35;
-  pointer-events: auto;
+  pointer-events: none;
   max-width: 90vw;
 }
 
@@ -3790,6 +3837,28 @@ watch(
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.page-pill-fade-enter-active {
+  transition: opacity 0.15s ease;
+}
+
+.page-pill-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.page-pill-fade-enter-from,
+.page-pill-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-enter-active,
+  .fade-leave-active,
+  .page-pill-fade-enter-active,
+  .page-pill-fade-leave-active {
+    transition: none;
+  }
 }
 
 @keyframes spin {
