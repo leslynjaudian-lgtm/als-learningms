@@ -8,7 +8,8 @@ const shouldAnimateBell = ref(false);
 const loading = ref(false);
 
 let bellAnimationTimer = null;
-const BELL_ANIMATION_DURATION_MS = 1600;
+let bellAnimationFrame = null;
+const BELL_ANIMATION_DURATION_MS = 1500;
 
 function getStoredLearnerParams() {
   try {
@@ -59,14 +60,27 @@ function triggerShortBellAnimation() {
     clearTimeout(bellAnimationTimer);
     bellAnimationTimer = null;
   }
-  shouldAnimateBell.value = true;
-  bellAnimationTimer = setTimeout(() => {
-    shouldAnimateBell.value = false;
-    bellAnimationTimer = null;
-  }, BELL_ANIMATION_DURATION_MS);
+  if (bellAnimationFrame) {
+    cancelAnimationFrame(bellAnimationFrame);
+    bellAnimationFrame = null;
+  }
+  // Briefly reset to false so CSS keyframe animation restarts cleanly if already active
+  shouldAnimateBell.value = false;
+  bellAnimationFrame = requestAnimationFrame(() => {
+    bellAnimationFrame = null;
+    shouldAnimateBell.value = true;
+    bellAnimationTimer = setTimeout(() => {
+      shouldAnimateBell.value = false;
+      bellAnimationTimer = null;
+    }, BELL_ANIMATION_DURATION_MS);
+  });
 }
 
 function stopBellAnimation() {
+  if (bellAnimationFrame) {
+    cancelAnimationFrame(bellAnimationFrame);
+    bellAnimationFrame = null;
+  }
   if (bellAnimationTimer) {
     clearTimeout(bellAnimationTimer);
     bellAnimationTimer = null;

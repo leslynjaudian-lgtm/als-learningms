@@ -436,6 +436,12 @@ function handleWindowFocus() {
   fetchNotifications();
 }
 
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    fetchNotifications();
+  }
+}
+
 watch(
   () => route.fullPath,
   () => {
@@ -452,6 +458,7 @@ onMounted(() => {
   fetchNotifications();
   pollTimer = setInterval(fetchNotifications, 15000);
   document.addEventListener('click', handleDocumentClick);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('focus', handleWindowFocus);
   window.addEventListener('als-notifications-updated', handleWindowFocus);
 });
@@ -459,6 +466,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
   document.removeEventListener('click', handleDocumentClick);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('focus', handleWindowFocus);
   window.removeEventListener('als-notifications-updated', handleWindowFocus);
 });
@@ -610,40 +618,31 @@ function confirmLogout() {
 .notification-bell.is-shaking .bell-icon,
 .bell-icon.bell-ringing {
   transform-origin: 50% 15%;
-  animation: headerBellRing 1.5s ease-in-out 1;
+  animation: electricBellShake 0.12s linear 12;
   will-change: transform;
 }
 
-@keyframes headerBellRing {
-  0% {
+@keyframes electricBellShake {
+  0%, 100% {
     transform: rotate(0deg);
   }
-  10% {
-    transform: rotate(14deg);
-  }
-  20% {
-    transform: rotate(-14deg);
+  15% {
+    transform: rotate(-12deg);
   }
   30% {
     transform: rotate(12deg);
   }
-  40% {
-    transform: rotate(-12deg);
+  45% {
+    transform: rotate(-11deg);
   }
-  52% {
-    transform: rotate(8deg);
+  60% {
+    transform: rotate(11deg);
   }
-  64% {
+  75% {
     transform: rotate(-8deg);
   }
-  76% {
-    transform: rotate(4deg);
-  }
-  88% {
-    transform: rotate(-3deg);
-  }
-  100% {
-    transform: rotate(0deg);
+  90% {
+    transform: rotate(8deg);
   }
 }
 
