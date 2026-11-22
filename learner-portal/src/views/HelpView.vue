@@ -185,10 +185,6 @@
         </div>
       </div>
     </div>
-
-    <router-link to="/modules" class="help-primary-btn">
-      Tan-awa ang Akong mga Module
-    </router-link>
   </div>
 </template>
 
@@ -313,25 +309,5 @@
   color: #334155;
   line-height: 1.45;
   margin: 0;
-}
-
-.help-primary-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 50px;
-  padding: 0.85rem 1.25rem;
-  background: #165dfc;
-  color: #ffffff;
-  font-size: 1rem;
-  font-weight: 700;
-  border-radius: 14px;
-  text-align: center;
-  margin-top: 0.25rem;
-}
-
-.help-primary-btn:hover {
-  background: #0d4ed8;
 }
 </style>
