@@ -66,7 +66,7 @@
           </div>
           <!-- Discreet Page Divider Tag -->
           <div class="page-divider-tag">
-            <span>Page {{ pageNum }} of {{ totalPages }}</span>
+            <span>Pahina {{ pageNum }} sa {{ totalPages }}</span>
           </div>
         </div>
 
@@ -148,7 +148,7 @@
             @pointerdown.stop
             @click.stop="toggleControls"
           >
-            {{ currentPage }} / {{ totalPages }}
+            Pahina {{ currentPage }} sa {{ totalPages }}
           </div>
         </div>
       </transition>
@@ -213,7 +213,9 @@
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
             <span v-else class="download-btn-spinner" aria-hidden="true"></span>
-            <span class="download-pdf-label">{{ isDownloading ? 'Nag-download...' : 'I-download ang Module' }}</span>
+            <span class="download-pdf-label">
+              {{ isDownloading ? 'Nag-download...' : (previewOnly ? 'I-download' : 'I-download ang Module') }}
+            </span>
           </button>
 
           <!-- Fullscreen Toggle Button -->
@@ -247,14 +249,14 @@
             :aria-selected="viewMode === 'long'"
           >
             <!-- Vertical Scroll Directional Icon -->
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="5" y="3" width="14" height="18" rx="2"/>
               <line x1="12" y1="7" x2="12" y2="17"/>
               <polyline points="9 10 12 7 15 10"/>
               <polyline points="9 14 12 17 15 14"/>
             </svg>
-            <span class="mode-label-full">Long Strip</span>
-            <span class="mode-label-short">Long</span>
+            <span class="mode-label-full">I-scroll Pababa</span>
+            <span class="mode-label-short">I-scroll Pababa</span>
           </button>
           <button
             type="button"
@@ -265,21 +267,21 @@
             :aria-selected="viewMode === 'wide'"
           >
             <!-- Horizontal Swipe Directional Icon -->
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="16" rx="2"/>
               <line x1="7" y1="12" x2="17" y2="12"/>
               <polyline points="10 9 7 12 10 15"/>
               <polyline points="14 9 17 12 14 15"/>
             </svg>
-            <span class="mode-label-full">Wide Strip</span>
-            <span class="mode-label-short">Wide</span>
+            <span class="mode-label-full">I-swipe Pakilid</span>
+            <span class="mode-label-short">I-swipe Pakilid</span>
           </button>
         </div>
 
         <!-- Center Page Badge Indicator -->
         <div class="page-badge-pill">
-          <span class="page-badge-full">Page <strong>{{ currentPage }}</strong> of {{ totalPages || 29 }}</span>
-          <span class="page-badge-short"><strong>{{ currentPage }}</strong> / {{ totalPages || 29 }}</span>
+          <span class="page-badge-full">Pahina <strong>{{ currentPage }}</strong> sa {{ totalPages || 29 }}</span>
+          <span class="page-badge-short">Pahina <strong>{{ currentPage }}</strong> sa {{ totalPages || 29 }}</span>
         </div>
 
         <!-- Dugang nga Opsyon toggle (Mobile) -->
@@ -372,14 +374,24 @@
       </div>
     </div>
 
-    <!-- 3. First-Use Instruction Hint (Floats discreetly, dismissed on first interaction) -->
+    <!-- 3. First-Use Instruction Hint (Auto-hides after ~4s, manual X dismiss) -->
     <transition name="fade">
-      <div v-if="showTapHint" class="tap-hint-pill" @click="dismissTapHint">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+      <div v-if="showTapHint && !loading && !error" class="tap-hint-pill" role="status" @click.stop>
+        <svg class="hint-hand-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v0"/>
+          <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/>
+          <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/>
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
         </svg>
-        <span class="hint-text">Pindota ang screen aron ipakita o itago ang mga kontrol.</span>
-        <button type="button" class="hint-close-btn" aria-label="Dismiss">&times;</button>
+        <span class="hint-text">Pindota ang screen aron matago o makita ang mga button.</span>
+        <button
+          type="button"
+          class="hint-close-btn"
+          aria-label="Sirado"
+          @click.stop="dismissTapHint"
+        >
+          &times;
+        </button>
       </div>
     </transition>
 
@@ -392,21 +404,21 @@
             type="button"
             class="dock-toggle-btn"
             @click="toggleThumbnails"
-            aria-label="Toggle Page Strip"
+            aria-label="Mga Pahina"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="7" height="7"/>
               <rect x="14" y="3" width="7" height="7"/>
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>{{ thumbnailsOpen ? 'Tagoa ang mga Pahina' : 'Tan-awa ang mga Pahina' }}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <span>Mga Pahina</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline v-if="thumbnailsOpen" points="6 9 12 15 18 9"></polyline>
               <polyline v-else points="18 15 12 9 6 15"></polyline>
             </svg>
           </button>
-          <span class="dock-hint">Tap any page thumbnail to navigate</span>
+          <span class="dock-hint">Pindota ang pahina nga gusto nimong tan-awon.</span>
         </div>
 
         <div
@@ -427,7 +439,7 @@
             @click="onThumbnailClick(p)"
             role="button"
             tabindex="0"
-            :aria-label="`Page ${p}`"
+            :aria-label="`Pahina ${p}`"
             :aria-current="currentPage === p ? 'page' : undefined"
             @keydown.enter="onThumbnailClick(p)"
             @keydown.space.prevent="onThumbnailClick(p)"
@@ -616,6 +628,10 @@ const props = defineProps({
   initialPagesRead: {
     type: Array,
     default: () => []
+  },
+  previewOnly: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -722,6 +738,9 @@ const isLongStripAtBottom = ref(false);
 // Wide Strip: Visible only when learner navigates to the final page (Page totalPages of totalPages)
 // Long Strip: Visible only when learner reaches the bottom of the final PDF page
 const isPostTestButtonVisible = computed(() => {
+  if (props.previewOnly) {
+    return false;
+  }
   if (loading.value || error.value || totalPages.value <= 0) {
     return false;
   }
@@ -1015,13 +1034,29 @@ function resetPan() {
 
 // First-use tap hint state
 const showTapHint = ref(false);
+let tapHintTimer = null;
 try {
   showTapHint.value = !localStorage.getItem('als_pdf_tap_hint_dismissed');
 } catch (e) {
   showTapHint.value = true;
 }
 
+function startTapHintAutoHide() {
+  if (tapHintTimer) {
+    clearTimeout(tapHintTimer);
+    tapHintTimer = null;
+  }
+  if (!showTapHint.value) return;
+  tapHintTimer = setTimeout(() => {
+    dismissTapHint();
+  }, 4000);
+}
+
 function dismissTapHint() {
+  if (tapHintTimer) {
+    clearTimeout(tapHintTimer);
+    tapHintTimer = null;
+  }
   showTapHint.value = false;
   try {
     localStorage.setItem('als_pdf_tap_hint_dismissed', 'true');
@@ -1030,6 +1065,7 @@ function dismissTapHint() {
 
 let lastToggleTime = 0;
 function toggleControls() {
+  if (loading.value || error.value) return;
   const now = Date.now();
   if (now - lastToggleTime < 350) {
     return;
@@ -1964,6 +2000,10 @@ let readingObserver = null;
 const visiblePageDwellTimers = new Map();
 
 function initReadingObserver() {
+  if (tapHintTimer) {
+    clearTimeout(tapHintTimer);
+    tapHintTimer = null;
+  }
   if (readingObserver) {
     readingObserver.disconnect();
     readingObserver = null;
@@ -2312,7 +2352,11 @@ async function switchViewMode(newMode) {
   await nextTick();
   if (newMode === 'wide') {
     if (intersectionObserver) intersectionObserver.disconnect();
-    if (readingObserver) {
+    if (tapHintTimer) {
+    clearTimeout(tapHintTimer);
+    tapHintTimer = null;
+  }
+  if (readingObserver) {
       readingObserver.disconnect();
       readingObserver = null;
     }
@@ -2373,6 +2417,15 @@ watch(
   }
 );
 
+watch(
+  () => loading.value,
+  (isLoadingNow) => {
+    if (!isLoadingNow && !error.value && showTapHint.value) {
+      startTapHintAutoHide();
+    }
+  }
+);
+
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange);
   window.addEventListener('orientationchange', onOrientationChange);
@@ -2413,6 +2466,10 @@ onBeforeUnmount(() => {
   if (copyTimeout) {
     clearTimeout(copyTimeout);
     copyTimeout = null;
+  }
+  if (tapHintTimer) {
+    clearTimeout(tapHintTimer);
+    tapHintTimer = null;
   }
   if (readingObserver) {
     readingObserver.disconnect();
@@ -2935,37 +2992,56 @@ watch(
 /* First-Use Floating Tap Instruction */
 .tap-hint-pill {
   position: absolute;
-  top: 96px;
+  top: 102px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.92);
+  max-width: calc(100vw - 24px);
+  background: rgba(15, 23, 42, 0.94);
   border: 1px solid #38bdf8;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
   color: #ffffff;
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.85rem;
   border-radius: 9999px;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   z-index: 50;
-  cursor: pointer;
   white-space: nowrap;
+}
+
+.hint-hand-icon {
+  flex-shrink: 0;
 }
 
 .hint-text {
   color: #e2e8f0;
+  line-height: 1.3;
 }
 
 .hint-close-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   border: none;
-  color: #94a3b8;
+  color: #cbd5e1;
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0 2px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.hint-close-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
 }
 
 /* Download Error Banner */
@@ -3909,26 +3985,28 @@ watch(
     font-size: 0.7rem;
   }
   .tap-hint-pill {
-    max-width: 90vw;
-    font-size: 0.7rem;
-    padding: 0.35rem 0.65rem;
+    max-width: calc(100vw - 24px);
+    font-size: 0.74rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
     white-space: normal;
+    border-radius: 14px;
   }
 }
 
 @media (max-width: 360px) {
   .viewer-controls-bar {
-    padding: 0.3rem 0.35rem;
-    gap: 0.2rem;
+    padding: 0.35rem 0.4rem;
+    gap: 0.3rem;
+    flex-wrap: wrap;
   }
   .mode-btn {
-    padding: 0.3rem 0.4rem;
+    padding: 0.3rem 0.42rem;
     gap: 0.25rem;
     font-size: 0.7rem;
   }
   .page-badge-pill {
-    padding: 0.2rem 0.3rem;
-    font-size: 0.65rem;
+    padding: 0.22rem 0.4rem;
+    font-size: 0.68rem;
   }
   .zoom-btn {
     width: 26px;

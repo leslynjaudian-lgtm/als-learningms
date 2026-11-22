@@ -61,7 +61,7 @@
     "viewMode": "long"
   },
   "18_34": {
-    "currentPage": 29,
+    "currentPage": 41,
     "pagesRead": [
       1,
       2,
@@ -326,7 +326,7 @@
     "viewMode": "long"
   },
   "18_45": {
-    "currentPage": 43,
+    "currentPage": 29,
     "pagesRead": [
       1,
       2,
@@ -373,15 +373,15 @@
       43
     ],
     "highestPageReached": 43,
-    "viewMode": "wide"
+    "viewMode": "long"
   },
   "18_46": {
-    "currentPage": 2,
+    "currentPage": 1,
     "pagesRead": [
       1,
       2
     ],
     "highestPageReached": 2,
-    "viewMode": "long"
+    "viewMode": "wide"
   }
 }

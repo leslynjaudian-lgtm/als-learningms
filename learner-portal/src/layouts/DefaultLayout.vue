@@ -148,85 +148,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Profile Icon & Dropdown Wrapper -->
-        <div class="profile-wrapper" ref="profileContainerRef">
-          <button
-            type="button"
-            class="header-icon-btn header-profile-btn"
-            :class="{ 'is-active': profileMenuOpen }"
-            title="My Profile & Options"
-            aria-label="Profile and account menu"
-            :aria-expanded="profileMenuOpen"
-            @click.stop="toggleProfileMenu"
-          >
-            <div class="profile-avatar-circle" :class="{ 'has-photo': hasProfilePhoto }">
-              <img
-                v-if="hasProfilePhoto"
-                :src="profilePhotoUrl"
-                alt="Learner Profile Photo"
-                class="profile-avatar-img"
-                @error="handlePhotoError"
-              />
-              <svg
-                v-else
-                class="profile-avatar-default"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-            </div>
-          </button>
-
-          <!-- Profile Dropdown Menu -->
-          <div v-if="profileMenuOpen" class="profile-dropdown-panel" @click.stop>
-            <div v-if="learnerName" class="profile-dropdown-header">
-              <div class="profile-dropdown-name">{{ learnerName }}</div>
-              <div class="profile-dropdown-role">Learner</div>
-            </div>
-
-            <div class="profile-dropdown-menu">
-              <button
-                type="button"
-                class="profile-dropdown-item"
-                @click="handleNavigateToProfile"
-              >
-                <span class="profile-item-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                </span>
-                <span class="profile-item-label">My Profile</span>
-              </button>
-
-              <div class="profile-dropdown-divider"></div>
-
-              <button
-                type="button"
-                class="profile-dropdown-item item-signout"
-                @click="handleProfileLogout"
-              >
-                <span class="profile-item-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/>
-                    <line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                </span>
-                <span class="profile-item-label">Sign Out</span>
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </header>
 
@@ -258,7 +179,7 @@
         class="bottom-tab-item"
         :class="{ active: isMoreTabActive }"
         @click="drawerOpen = !drawerOpen"
-        aria-label="Open More Menu"
+        aria-label="Ablihi ang Uban nga Menu"
         :aria-expanded="drawerOpen"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -266,7 +187,7 @@
           <circle cx="12" cy="5" r="1"/>
           <circle cx="12" cy="19" r="1"/>
         </svg>
-        <span>More</span>
+        <span>Uban</span>
       </button>
     </nav>
 
@@ -300,7 +221,7 @@
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
             </svg>
-            <span>My Modules</span>
+            <span>Akong Modules</span>
           </router-link>
 
           <router-link to="/notifications" class="drawer-nav-item" :class="{ active: isNotificationsRoute }" @click="drawerOpen = false">
@@ -308,7 +229,7 @@
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
-            <span>Notifications</span>
+            <span>Mga Pahibalo</span>
           </router-link>
 
           <router-link to="/profile" class="drawer-nav-item" :class="{ active: isProfileRoute }" @click="drawerOpen = false">
@@ -316,7 +237,7 @@
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
               <circle cx="12" cy="7" r="4"/>
             </svg>
-            <span>My Profile</span>
+            <span>Akong Profile</span>
           </router-link>
 
           <router-link to="/help" class="drawer-nav-item" :class="{ active: isHelpRoute }" @click="drawerOpen = false">
@@ -394,56 +315,6 @@ const notifPanelOpen = ref(false);
 const notifContainerRef = ref(null);
 const mainContentRef = ref(null);
 
-const profileMenuOpen = ref(false);
-const profileContainerRef = ref(null);
-const photoError = ref(false);
-const learnerUser = ref(loadStoredLearner());
-
-function loadStoredLearner() {
-  try {
-    const raw = localStorage.getItem('als_learner_user');
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function refreshLearnerData() {
-  photoError.value = false;
-  learnerUser.value = loadStoredLearner();
-}
-
-function handlePhotoError() {
-  photoError.value = true;
-}
-
-const learnerName = computed(() => {
-  return learnerUser.value?.name || learnerUser.value?.fullName || 'Learner';
-});
-
-const profilePhotoUrl = computed(() => {
-  if (photoError.value) return '';
-  const raw =
-    learnerUser.value?.profilePhoto ||
-    learnerUser.value?.user?.profilePhoto ||
-    learnerUser.value?.photo ||
-    '';
-  if (!raw) return '';
-  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
-    return raw;
-  }
-  const apiUrl = (import.meta.env.VITE_API_URL || '').trim();
-  if (apiUrl && apiUrl.startsWith('http')) {
-    const root = apiUrl.replace(/\/api\/?$/, '');
-    return `${root}${raw.startsWith('/') ? '' : '/'}${raw}`;
-  }
-  return raw;
-});
-
-const hasProfilePhoto = computed(() => {
-  return Boolean(profilePhotoUrl.value);
-});
-
 const {
   notifications,
   unreadCount,
@@ -517,28 +388,6 @@ function isCurrentRoute(path) {
 
 function toggleNotifPanel() {
   notifPanelOpen.value = !notifPanelOpen.value;
-  if (notifPanelOpen.value) {
-    profileMenuOpen.value = false;
-  }
-}
-
-function toggleProfileMenu() {
-  profileMenuOpen.value = !profileMenuOpen.value;
-  if (profileMenuOpen.value) {
-    notifPanelOpen.value = false;
-  }
-}
-
-function handleNavigateToProfile() {
-  profileMenuOpen.value = false;
-  if (route.path !== '/profile') {
-    router.push('/profile');
-  }
-}
-
-function handleProfileLogout() {
-  profileMenuOpen.value = false;
-  triggerLogout();
 }
 
 function formatNotifType(type) {
@@ -574,20 +423,10 @@ function handleDocumentClick(e) {
   if (notifPanelOpen.value && notifContainerRef.value && !notifContainerRef.value.contains(e.target)) {
     notifPanelOpen.value = false;
   }
-  if (profileMenuOpen.value && profileContainerRef.value && !profileContainerRef.value.contains(e.target)) {
-    profileMenuOpen.value = false;
-  }
 }
 
 function handleWindowFocus() {
   fetchNotifications();
-  refreshLearnerData();
-}
-
-function handleStorageChange(e) {
-  if (e.key === 'als_learner_user') {
-    refreshLearnerData();
-  }
 }
 
 watch(
@@ -595,9 +434,7 @@ watch(
   () => {
     drawerOpen.value = false;
     notifPanelOpen.value = false;
-    profileMenuOpen.value = false;
     fetchNotifications();
-    refreshLearnerData();
     if (mainContentRef.value) {
       mainContentRef.value.scrollTop = 0;
     }
@@ -605,14 +442,11 @@ watch(
 );
 
 onMounted(() => {
-  refreshLearnerData();
   fetchNotifications();
   pollTimer = setInterval(fetchNotifications, 15000);
   document.addEventListener('click', handleDocumentClick);
   window.addEventListener('focus', handleWindowFocus);
   window.addEventListener('als-notifications-updated', handleWindowFocus);
-  window.addEventListener('als-learner-profile-updated', refreshLearnerData);
-  window.addEventListener('storage', handleStorageChange);
 });
 
 onBeforeUnmount(() => {
@@ -620,21 +454,16 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick);
   window.removeEventListener('focus', handleWindowFocus);
   window.removeEventListener('als-notifications-updated', handleWindowFocus);
-  window.removeEventListener('als-learner-profile-updated', refreshLearnerData);
-  window.removeEventListener('storage', handleStorageChange);
 });
 
 function triggerLogout() {
   drawerOpen.value = false;
-  profileMenuOpen.value = false;
   logoutModalOpen.value = true;
 }
 
 function confirmLogout() {
   logoutModalOpen.value = false;
   notifPanelOpen.value = false;
-  profileMenuOpen.value = false;
-  learnerUser.value = null;
   clearNotificationsState();
   clearLearnerSessionStorage();
   router.push({ name: 'Login' });
@@ -702,18 +531,11 @@ function confirmLogout() {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: flex-end;
   position: relative;
 }
 
 .notif-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.profile-wrapper {
   position: relative;
   display: flex;
   align-items: center;
@@ -756,183 +578,12 @@ function confirmLogout() {
   border: 1.5px solid #ffffff;
 }
 
-.header-profile-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  line-height: 1;
-}
-
-.header-profile-btn:hover {
-  background: #f1f5f9;
-}
-
-.header-profile-btn.is-active {
-  background: #e2e8f0;
-}
-
-.profile-avatar-circle {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #dbeafe;
-  color: #1d4ed8;
-  border: 1.5px solid #bfdbfe;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  transition: all 0.15s ease;
-}
-
-.profile-avatar-circle.has-photo {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.profile-avatar-img {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-}
-
-.profile-avatar-default {
-  display: block;
-  color: #1d4ed8;
-}
-
 .bell-icon {
   display: block;
   width: 24px;
   height: 24px;
   transform-box: fill-box;
   transform-origin: 50% 15%;
-}
-
-/* Profile Dropdown Panel */
-.profile-dropdown-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 190px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.14), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
-  padding: 6px;
-  z-index: 1250;
-  display: flex;
-  flex-direction: column;
-  color: #1e293b;
-}
-
-.profile-dropdown-header {
-  padding: 8px 10px 6px;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 4px;
-}
-
-.profile-dropdown-name {
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-dropdown-role {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 1px;
-}
-
-.profile-dropdown-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.profile-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 10px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: #1e293b;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.profile-dropdown-item:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.profile-item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: #64748b;
-  flex-shrink: 0;
-}
-
-.profile-dropdown-item:hover .profile-item-icon {
-  color: #0f172a;
-}
-
-.profile-item-label {
-  flex: 1;
-}
-
-.profile-dropdown-divider {
-  height: 1px;
-  background: #f1f5f9;
-  margin: 3px 0;
-}
-
-.profile-dropdown-item.item-signout {
-  color: #dc2626;
-}
-
-.profile-dropdown-item.item-signout .profile-item-icon {
-  color: #dc2626;
-}
-
-.profile-dropdown-item.item-signout:hover {
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.profile-dropdown-item.item-signout:hover .profile-item-icon {
-  color: #b91c1c;
 }
 
 .notification-bell.is-shaking svg,

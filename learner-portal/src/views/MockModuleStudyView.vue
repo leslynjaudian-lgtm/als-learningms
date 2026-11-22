@@ -666,11 +666,11 @@
           </div>
           <div class="banner-text-col">
             <h3 class="banner-title">Nahuman na ang Pag-check</h3>
-            <p class="banner-subtext">Nacheck na sa imong ALS Teacher ang imong Activity. Dili na nimo kini mailisan.</p>
+            <p class="banner-subtext">Nacheck na sa imong ALS Teacher ang imong Activity. Dili na nimo kini mailisan o matangtang.</p>
           </div>
         </div>
 
-        <!-- Submission Closed Notice if Deadline Passed (and review not finalized) -->
+        <!-- Submission Closed Notice if Deadline Passed (Scenario C & Scenario D) -->
         <div v-else-if="isSubmissionClosed" class="submission-closed-banner">
           <div class="banner-icon-col">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -680,12 +680,18 @@
             </svg>
           </div>
           <div class="banner-text-col">
-            <h3 class="banner-title">Submission Closed</h3>
-            <p class="banner-subtext">The deadline has passed. You can still view your submitted files, but you can no longer make changes.</p>
+            <h3 class="banner-title">Sirado na ang Pagpasa</h3>
+            <p class="banner-subtext">
+              {{
+                progress.activitySubmitted
+                  ? 'Milapas na ang deadline. Pwede pa nimo tan-awon ang imong gipasa nga mga file, pero dili na kini mausab.'
+                  : 'Milapas na ang deadline. Dili na makapasa og bag-ong activity.'
+              }}
+            </p>
           </div>
         </div>
 
-        <!-- Success Message if Submitted & Not Finalized & Not Closed -->
+        <!-- Success Message if Submitted & Not Finalized & Not Closed (Scenario B) -->
         <div v-else-if="progress.activitySubmitted" class="sent-success-banner">
           <div class="banner-icon-col">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -694,12 +700,12 @@
             </svg>
           </div>
           <div class="banner-text-col">
-            <h3 class="sent-title">Activity Submitted!</h3>
-            <p class="sent-subtext">Your teacher can now check your work.</p>
+            <h3 class="sent-title">Naipasa na ang imong Activity!</h3>
+            <p class="sent-subtext">Makita na sa imong teacher ang imong gipasa nga buluhaton.</p>
           </div>
         </div>
 
-        <!-- File Upload Area (Dropzone) if Not Submitted Yet and Not Closed -->
+        <!-- File Upload Area (Dropzone) if Not Submitted Yet and Not Closed (Scenario A) -->
         <div
           v-if="!progress.activitySubmitted && !isSubmissionClosed"
           class="dropzone-box"
@@ -735,7 +741,7 @@
         </div>
 
         <!-- Validation Error Message -->
-        <div v-if="uploadError" class="upload-error-alert">
+        <div v-if="uploadError" class="upload-error-alert" role="alert">
           {{ uploadError }}
         </div>
 
@@ -748,111 +754,61 @@
               v-for="f in displayFilesList"
               :key="`file-${f.index}-${f.name}`"
               class="file-item-card"
-              role="button"
-              tabindex="0"
-              :aria-label="`View ${f.name}`"
-              @click="handleViewFile(f)"
-              @keydown.enter="handleViewFile(f)"
-              @keydown.space.prevent="handleViewFile(f)"
             >
-              <!-- Thumbnail / File Icon -->
-              <div class="file-thumb-wrap">
-                <img
-                  v-if="isImageFile(f) && (f.previewUrl || f.fileUrl)"
-                  :src="f.previewUrl || resolveFileUrl(f.fileUrl)"
-                  :alt="f.name"
-                  class="file-img-preview"
-                />
-                <div v-else class="file-pdf-thumb">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                  <span class="pdf-tag">PDF</span>
+              <!-- Directly Clickable File Area (Thumbnail + Metadata) -->
+              <button
+                type="button"
+                class="file-card-main-btn"
+                :aria-label="`Tan-awa ang ${f.name}`"
+                @click="handleViewFile(f)"
+              >
+                <div class="file-thumb-wrap">
+                  <img
+                    v-if="isImageFile(f) && (f.previewUrl || f.fileUrl)"
+                    :src="f.previewUrl || resolveFileUrl(f.fileUrl)"
+                    :alt="f.name"
+                    class="file-img-preview"
+                  />
+                  <div v-else class="file-pdf-thumb">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span class="pdf-tag">PDF</span>
+                  </div>
                 </div>
-              </div>
 
-              <!-- Metadata -->
-              <div class="file-details">
-                <span class="file-name" :title="f.name">{{ f.name }}</span>
-                <span class="file-size">{{ formatFileSize(f.size) }}</span>
-              </div>
-
-              <!-- One Three-Dot Menu (NO separate eye icon) -->
-              <div class="file-menu-wrap" @click.stop>
-                <button
-                  type="button"
-                  class="three-dot-btn"
-                  :aria-expanded="activeMenuFileIndex === f.index"
-                  aria-label="File options"
-                  @click.stop="toggleFileMenu(f.index)"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="5" r="2"/>
-                    <circle cx="12" cy="12" r="2"/>
-                    <circle cx="12" cy="19" r="2"/>
-                  </svg>
-                </button>
-
-                <div
-                  v-if="activeMenuFileIndex === f.index"
-                  class="file-dropdown-menu"
-                >
-                  <button
-                    type="button"
-                    class="menu-action-item"
-                    @click="handleViewFile(f)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    <span>View File</span>
-                  </button>
-
-                  <button
-                    v-if="!isReviewFinalized && !isSubmissionClosed"
-                    type="button"
-                    class="menu-action-item"
-                    @click="promptReplaceFile(f.index)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 2v6h-6"/>
-                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                      <path d="M3 22v-6h6"/>
-                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                    </svg>
-                    <span>Replace File</span>
-                  </button>
-
-                  <button
-                    v-if="!isReviewFinalized && !isSubmissionClosed"
-                    type="button"
-                    class="menu-action-item item-danger"
-                    @click="promptRemoveFile(f.index)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      <line x1="10" y1="11" x2="10" y2="17"/>
-                      <line x1="14" y1="11" x2="14" y2="17"/>
-                    </svg>
-                    <span>Delete File</span>
-                  </button>
+                <div class="file-details">
+                  <span class="file-name" :title="f.name">{{ f.name }}</span>
+                  <span class="file-size">{{ formatFileSize(f.size) }} · Pindota aron tan-awon</span>
                 </div>
-              </div>
+              </button>
+
+              <!-- Simple Red X Delete Button (only when deletion is allowed) -->
+              <button
+                v-if="canModifyFiles"
+                type="button"
+                class="file-delete-x-btn"
+                :disabled="isUpdatingFiles"
+                :aria-label="`Tangtangon ang ${f.name}`"
+                title="Tangtangon ang File"
+                @click.stop="promptRemoveFile(f.index)"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Hidden Inputs for File Actions -->
-        <input
-          type="file"
-          ref="replaceFileInputRef"
-          style="display: none;"
-          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-          @change="onReplaceFileSelected"
-        />
+        <!-- Empty State before deadline when no files selected yet -->
+        <p v-else-if="!progress.activitySubmitted && !isSubmissionClosed" class="files-empty-hint">
+          Wala pa kay napili nga file.
+        </p>
+
+        <!-- Hidden Input for Adding More Files -->
         <input
           type="file"
           ref="addMoreFileInputRef"
@@ -861,9 +817,10 @@
           multiple
           @change="onAddMoreFilesSelected"
         />
+
         <!-- Action Buttons Area -->
         <div class="activity-actions">
-          <!-- When Not Submitted Yet: Initial Submit Button -->
+          <!-- When Not Submitted Yet -->
           <div v-if="!progress.activitySubmitted" class="submitted-actions-wrap">
             <div
               v-if="isSubmissionClosed"
@@ -873,7 +830,7 @@
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
-              <span>Submission Closed</span>
+              <span>Sirado na ang Pagpasa</span>
             </div>
             <button
               v-else
@@ -907,7 +864,7 @@
           <div v-else class="submitted-actions-wrap">
             <!-- Add More Files Button (if review not finalized and not closed) -->
             <button
-              v-if="!isReviewFinalized && !isSubmissionClosed"
+              v-if="canModifyFiles"
               type="button"
               class="btn-primary add-more-btn"
               :disabled="isUpdatingFiles"
@@ -917,7 +874,7 @@
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span>Add More Files</span>
+              <span>{{ isUpdatingFiles ? 'Nagdugang og File...' : 'Dugang og File' }}</span>
             </button>
 
             <!-- Clear Submission Closed indicator if deadline passed and not finalized -->
@@ -929,7 +886,7 @@
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
               </svg>
-              <span>Submission Closed</span>
+              <span>Sirado na ang Pagpasa</span>
             </div>
 
             <!-- Bottom Back Button directly below Add More Files / Submission Closed -->
@@ -953,15 +910,16 @@
     <!-- Confirmation Modal: Delete File -->
     <div v-if="fileToRemove !== null" class="custom-modal-overlay" @click.self="cancelRemoveFile">
       <div class="custom-modal-box delete-confirm-modal-box" role="dialog" aria-modal="true" aria-labelledby="remove-modal-title">
-        <h3 id="remove-modal-title" class="custom-modal-title">Delete this file?</h3>
-        <p class="custom-modal-text">Are you sure you want to delete this file?</p>
+        <h3 id="remove-modal-title" class="custom-modal-title">Tangtangon ang File?</h3>
+        <p class="custom-modal-text">Sigurado ka nga gusto nimong tangtangon kini nga file?</p>
         <div class="custom-modal-actions">
           <button
             type="button"
             class="modal-btn modal-cancel-btn"
+            :disabled="isUpdatingFiles"
             @click="cancelRemoveFile"
           >
-            Cancel
+            Dili
           </button>
           <button
             type="button"
@@ -969,8 +927,8 @@
             :disabled="isUpdatingFiles"
             @click="confirmRemoveFile"
           >
-            <span v-if="isUpdatingFiles">Deleting...</span>
-            <span v-else>Delete File</span>
+            <span v-if="isUpdatingFiles">Gintangtang...</span>
+            <span v-else>Oo, Tangtanga</span>
           </button>
         </div>
       </div>
@@ -979,9 +937,9 @@
     <!-- Confirmation Modal: Unsaved Files Before Leaving Module -->
     <div v-if="showUnsavedLeaveModal" class="custom-modal-overlay" @click.self="cancelLeaveModule">
       <div class="custom-modal-box" role="dialog" aria-modal="true" aria-labelledby="unsaved-modal-title">
-        <h3 id="unsaved-modal-title" class="custom-modal-title">Discard unsaved files?</h3>
+        <h3 id="unsaved-modal-title" class="custom-modal-title">Ibilin ang mga Wala pa Mapasa nga File?</h3>
         <p class="custom-modal-text">
-          You have selected activity file(s) that have not been submitted yet. Leaving this module will discard these files.
+          Naa kay napili nga file nga wala pa mapasa. Kon mobiya ka karon, mawala kini.
         </p>
         <div class="custom-modal-actions">
           <button
@@ -989,21 +947,34 @@
             class="modal-btn modal-cancel-btn"
             @click="cancelLeaveModule"
           >
-            Stay
+            Pabilin
           </button>
           <button
             type="button"
             class="modal-btn modal-danger-btn"
             @click="confirmLeaveModule"
           >
-            Discard &amp; Leave
+            Biyai
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Preview Modal: View File -->
-    <div v-if="previewingFile" class="custom-modal-overlay" @click.self="closeFilePreview">
+    <!-- PDF Viewer Overlay for Uploaded PDFs -->
+    <div v-if="previewingFile && isPdfFile(previewingFile)" class="pdf-preview-fullscreen-overlay" role="dialog" aria-modal="true">
+      <MockPdfViewer
+        :pdf-url="previewingFile.previewUrl || resolveFileUrl(previewingFile.fileUrl)"
+        :title="previewingFile.name"
+        code="PDF"
+        :subtitle="formatFileSize(previewingFile.size)"
+        :download-file-name="previewingFile.name"
+        :preview-only="true"
+        @back="closeFilePreview"
+      />
+    </div>
+
+    <!-- Preview Modal: View Image or Other File -->
+    <div v-else-if="previewingFile" class="custom-modal-overlay" @click.self="closeFilePreview">
       <div class="preview-modal-box" role="dialog" aria-modal="true">
         <div class="preview-modal-header">
           <span class="preview-file-title" :title="previewingFile.name">{{ previewingFile.name }}</span>
@@ -1011,7 +982,7 @@
             type="button"
             class="preview-close-btn"
             @click="closeFilePreview"
-            aria-label="Close preview"
+            aria-label="Sirado ang preview"
           >
             &times;
           </button>
@@ -1031,23 +1002,31 @@
             <p class="preview-doc-name">{{ previewingFile.name }}</p>
             <p class="preview-doc-sub">{{ formatFileSize(previewingFile.size) }}</p>
             <a
-              v-if="previewingFile.fileUrl"
-              :href="resolveFileUrl(previewingFile.fileUrl)"
+              v-if="previewingFile.fileUrl || previewingFile.previewUrl"
+              :href="previewingFile.previewUrl || resolveFileUrl(previewingFile.fileUrl)"
               target="_blank"
               rel="noopener noreferrer"
               class="btn-primary open-in-tab-btn"
             >
-              Open Document in New Tab
+              Ablihi ang File
             </a>
           </div>
         </div>
         <div class="preview-modal-footer">
+          <a
+            v-if="previewingFile.fileUrl || previewingFile.previewUrl"
+            :href="previewingFile.previewUrl || resolveFileUrl(previewingFile.fileUrl)"
+            :download="previewingFile.name"
+            class="modal-btn modal-download-btn"
+          >
+            I-download
+          </a>
           <button
             type="button"
             class="modal-btn modal-cancel-btn"
             @click="closeFilePreview"
           >
-            Close
+            Sirado
           </button>
         </div>
       </div>
@@ -1515,36 +1494,42 @@ const isAssessmentResultsView = computed(() => {
 
 // Step 4: Activity submission & correction state
 const fileInputRef = ref(null);
-const replaceFileInputRef = ref(null);
 const addMoreFileInputRef = ref(null);
 const selectedFiles = ref([]);
 const isDragging = ref(false);
 const uploadError = ref('');
 const isReviewingPdfOutside = ref(false);
 const submissionRecord = ref(null);
-const activeMenuFileIndex = ref(null);
 const previewingFile = ref(null);
 const fileToRemove = ref(null);
 const isUpdatingFiles = ref(false);
 const toastMessage = ref('');
-const replaceTargetIndex = ref(null);
 const deadlinePassedOverride = ref(false);
 
 const isSubmissionClosed = computed(() => {
   if (isMock.value) return false;
   if (deadlinePassedOverride.value) return true;
-  if (moduleData.value?.isSubmissionClosed) return true;
+
+  // Prefer module-level deadline (which includes learner-specific assignment dueDate extensions)
+  if (moduleData.value) {
+    if (moduleData.value.isSubmissionClosed) return true;
+    const modDeadline =
+      moduleData.value.dueDate ||
+      moduleData.value.submissionDeadline ||
+      moduleData.value.dateEnded;
+    if (modDeadline) {
+      return evaluateDeadlinePassed(modDeadline);
+    }
+    return false;
+  }
+
   if (submissionRecord.value?.isSubmissionClosed) return true;
+  const subDeadline = submissionRecord.value?.dueDate || submissionRecord.value?.dateEnded;
+  return subDeadline ? evaluateDeadlinePassed(subDeadline) : false;
+});
 
-  const rawDeadline =
-    moduleData.value?.dueDate ||
-    moduleData.value?.submissionDeadline ||
-    moduleData.value?.dateEnded ||
-    submissionRecord.value?.dueDate ||
-    submissionRecord.value?.dateEnded;
-
+function evaluateDeadlinePassed(rawDeadline) {
   if (!rawDeadline) return false;
-
   try {
     const rawStr = String(rawDeadline).trim();
     const ymd = rawStr.split('T')[0];
@@ -1561,7 +1546,7 @@ const isSubmissionClosed = computed(() => {
     console.warn('Error evaluating submission deadline:', err);
   }
   return false;
-});
+}
 
 function showToast(msg) {
   toastMessage.value = msg;
@@ -1570,12 +1555,6 @@ function showToast(msg) {
       toastMessage.value = '';
     }
   }, 3500);
-}
-
-function handleDocumentClick(e) {
-  if (!e.target?.closest || !e.target.closest('.file-menu-wrap')) {
-    activeMenuFileIndex.value = null;
-  }
 }
 
 const showUnsavedLeaveModal = ref(false);
@@ -1621,12 +1600,10 @@ function handleBeforeUnload(e) {
 }
 
 onMounted(() => {
-  window.addEventListener('click', handleDocumentClick);
   window.addEventListener('beforeunload', handleBeforeUnload);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('click', handleDocumentClick);
   window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 
@@ -1705,12 +1682,19 @@ const displayFilesList = computed(() => {
   }));
 });
 
-function toggleFileMenu(idx) {
-  activeMenuFileIndex.value = activeMenuFileIndex.value === idx ? null : idx;
+const canModifyFiles = computed(() => {
+  return !isReviewFinalized.value && !isSubmissionClosed.value;
+});
+
+function isPdfFile(f) {
+  if (!f) return false;
+  const type = String(f.type || f.fileType || f.mimeType || '').toLowerCase();
+  if (type === 'application/pdf') return true;
+  const name = String(f.name || f.fileName || f.fileUrl || '').toLowerCase().split('?')[0];
+  return name.endsWith('.pdf');
 }
 
 function handleViewFile(file) {
-  activeMenuFileIndex.value = null;
   previewingFile.value = file;
 }
 
@@ -1718,23 +1702,13 @@ function closeFilePreview() {
   previewingFile.value = null;
 }
 
-function promptReplaceFile(idx) {
-  activeMenuFileIndex.value = null;
-  if (isReviewFinalized.value || isSubmissionClosed.value) return;
-  replaceTargetIndex.value = idx;
-  if (replaceFileInputRef.value) {
-    replaceFileInputRef.value.value = '';
-    replaceFileInputRef.value.click();
-  }
-}
-
 function promptRemoveFile(idx) {
-  activeMenuFileIndex.value = null;
-  if (isReviewFinalized.value || isSubmissionClosed.value) return;
+  if (!canModifyFiles.value) return;
   fileToRemove.value = idx;
 }
 
 function cancelRemoveFile() {
+  if (isUpdatingFiles.value) return;
   fileToRemove.value = null;
 }
 
@@ -2373,11 +2347,11 @@ function addFiles(files) {
   files.forEach((file) => {
     const ext = '.' + file.name.split('.').pop().toLowerCase();
     if (!validExtensions.includes(ext)) {
-      uploadError.value = `Unsupported file "${file.name}". Please upload JPG, PNG, or PDF.`;
+      uploadError.value = `Dili suportado ang file nga "${file.name}". Palihug pag-upload og JPG, PNG, o PDF.`;
       return;
     }
     if (file.size > maxBytes) {
-      uploadError.value = `File "${file.name}" exceeds the 15MB size limit.`;
+      uploadError.value = `Ang file nga "${file.name}" milapas sa 15MB nga limit.`;
       return;
     }
 
@@ -2425,7 +2399,7 @@ function handleSubmitActivities() {
 
 function submitMockActivities() {
   if (selectedFiles.value.length === 0) {
-    uploadError.value = 'Please select at least one activity photo or document.';
+    uploadError.value = 'Palihug pagpili og bisan usa ka litrato o PDF sa imong Activity.';
     return;
   }
 
@@ -2441,12 +2415,12 @@ function submitMockActivities() {
   progress.value.completedAt = new Date().toISOString();
   saveProgress();
   selectedFiles.value = [];
-  showToast('Your answers have been sent to your teacher.');
+  showToast('Naipasa na ang imong Activity sa imong teacher.');
 }
 
 async function submitRealActivities() {
   if (selectedFiles.value.length === 0) {
-    uploadError.value = 'Please select at least one activity photo or document.';
+    uploadError.value = 'Palihug pagpili og bisan usa ka litrato o PDF sa imong Activity.';
     return;
   }
 
@@ -2469,7 +2443,7 @@ async function submitRealActivities() {
         });
         uploadedFileUrl = upRes.data?.fileUrl;
         if (!uploadedFileUrl) {
-          throw new Error(`Failed to upload "${f.name}". Please try again.`);
+          throw new Error(`Napakyas ang pag-upload sa "${f.name}". Palihug sulayi pag-usab.`);
         }
         if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
         if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
@@ -2529,20 +2503,22 @@ async function submitRealActivities() {
     progress.value.completedAt = new Date().toISOString();
     saveProgress();
     selectedFiles.value = [];
-    showToast('Your answers have been sent to your teacher.');
+    showToast('Naipasa na ang imong Activity sa imong teacher.');
   } catch (err) {
     console.error('Failed to submit activities:', err);
     if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
       deadlinePassedOverride.value = true;
+      uploadError.value = 'Milapas na ang deadline. Dili na makapasa og bag-ong activity.';
+    } else {
+      uploadError.value = 'Napakyas ang pagpasa sa imong Activity. Palihug susiha ang imong internet ug sulayi pag-usab.';
     }
-    uploadError.value = err.response?.data?.error || 'Failed to submit activities. Please check your connection and try again.';
   } finally {
     isSubmittingActivity.value = false;
   }
 }
 
 async function confirmRemoveFile() {
-  if (fileToRemove.value === null || isSubmissionClosed.value) return;
+  if (fileToRemove.value === null || !canModifyFiles.value) return;
   const idx = fileToRemove.value;
   fileToRemove.value = null;
   isUpdatingFiles.value = true;
@@ -2602,145 +2578,24 @@ async function confirmRemoveFile() {
         progress.value.completedAt = null;
       }
       saveProgress();
-      showToast('Your files have been updated.');
+      showToast('Natangtang na ang file.');
     } else {
       removeFile(idx);
+      showToast('Natangtang na ang file.');
     }
   } catch (err) {
     console.error('Failed to remove file:', err);
     if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
       deadlinePassedOverride.value = true;
     }
-    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
-  } finally {
-    isUpdatingFiles.value = false;
-  }
-}
-
-async function onReplaceFileSelected(e) {
-  const file = e.target.files?.[0];
-  if (!file || replaceTargetIndex.value === null) return;
-  const targetIdx = replaceTargetIndex.value;
-  replaceTargetIndex.value = null;
-
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
-  const maxBytes = 15 * 1024 * 1024;
-  const ext = '.' + file.name.split('.').pop().toLowerCase();
-  if (!validExtensions.includes(ext)) {
-    uploadError.value = `Unsupported file "${file.name}". Please upload JPG, PNG, or PDF.`;
-    return;
-  }
-  if (file.size > maxBytes) {
-    uploadError.value = `File "${file.name}" exceeds the 15MB size limit.`;
-    return;
-  }
-
-  isUpdatingFiles.value = true;
-  uploadError.value = '';
-
-  try {
-    let previewUrl = null;
-    if (file.type.startsWith('image/')) {
-      previewUrl = URL.createObjectURL(file);
-    } else if (file.type === 'application/pdf' || ext === '.pdf') {
-      previewUrl = URL.createObjectURL(file);
-    }
-
-    if (progress.value.activitySubmitted) {
-      let uploadedFileUrl = null;
-      let uploadedFileSize = file.size;
-      let uploadedFileType = file.type;
-
-      if (!isMock.value) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const upRes = await api.post('/modules/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        uploadedFileUrl = upRes.data?.fileUrl;
-        if (!uploadedFileUrl) {
-          throw new Error(`Failed to upload "${file.name}". Please try again.`);
-        }
-        if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
-        if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
-      }
-
-      const nowIso = new Date().toISOString();
-      const updatedMeta = [...(progress.value.submittedFilesMeta || [])];
-      const previousMeta = updatedMeta[targetIdx];
-      updatedMeta[targetIdx] = {
-        name: file.name,
-        size: uploadedFileSize,
-        type: uploadedFileType,
-        fileUrl: uploadedFileUrl || null,
-        previewUrl,
-        uploadedAt: nowIso
-      };
-
-      let finalMeta = updatedMeta;
-      if (!isMock.value) {
-        const payloadFiles = updatedMeta.map((f) => ({
-          fileName: f.name || f.fileName,
-          fileSize: f.size || f.fileSize,
-          fileType: f.type || f.fileType,
-          fileUrl: f.fileUrl || null,
-          submittedAt: f.uploadedAt || nowIso
-        }));
-
-        const res = await api.post('/submissions', {
-          moduleId: Number(effectiveModuleId.value),
-          title: `${moduleTitle.value} - Activity Output`,
-          files: payloadFiles,
-          replaceFiles: true,
-          action: 'FILE_REPLACED',
-          content: `Replaced file "${file.name}"`
-        });
-        submissionRecord.value = res.data;
-        if (Array.isArray(res.data?.files) && res.data.files.length > 0) {
-          finalMeta = res.data.files.map((sf, sfIdx) => ({
-            name: sf.fileName || sf.name || 'Submitted Activity',
-            size: sf.fileSize || 0,
-            type: sf.fileType || sf.mimeType || '',
-            fileUrl: sf.fileUrl || '',
-            previewUrl: sfIdx === targetIdx ? previewUrl : (updatedMeta[sfIdx]?.previewUrl || ''),
-            uploadedAt: sf.submittedAt || nowIso
-          }));
-        }
-      }
-
-      if (previousMeta?.previewUrl && String(previousMeta.previewUrl).startsWith('blob:')) {
-        try { URL.revokeObjectURL(previousMeta.previewUrl); } catch {}
-      }
-
-      progress.value.submittedFilesMeta = finalMeta;
-      progress.value.activitySubmitted = finalMeta.length > 0;
-      saveProgress();
-      showToast('Your files have been updated.');
-    } else {
-      if (selectedFiles.value[targetIdx]?.previewUrl) {
-        URL.revokeObjectURL(selectedFiles.value[targetIdx].previewUrl);
-      }
-      selectedFiles.value[targetIdx] = {
-        file,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        previewUrl
-      };
-    }
-  } catch (err) {
-    console.error('Failed to replace file:', err);
-    if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
-      deadlinePassedOverride.value = true;
-    }
-    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
+    uploadError.value = 'Dili matangtang ang file. Sulayi pag-usab.';
   } finally {
     isUpdatingFiles.value = false;
   }
 }
 
 function triggerAddFiles() {
-  if (isReviewFinalized.value || isSubmissionClosed.value) return;
+  if (!canModifyFiles.value) return;
   if (addMoreFileInputRef.value) {
     addMoreFileInputRef.value.value = '';
     addMoreFileInputRef.value.click();
@@ -2748,6 +2603,7 @@ function triggerAddFiles() {
 }
 
 async function onAddMoreFilesSelected(e) {
+  if (!canModifyFiles.value) return;
   const files = Array.from(e.target.files || []);
   if (files.length === 0) return;
 
@@ -2766,7 +2622,14 @@ async function onAddMoreFilesSelected(e) {
 
     for (const file of files) {
       const ext = '.' + file.name.split('.').pop().toLowerCase();
-      if (!validExtensions.includes(ext) || file.size > maxBytes) continue;
+      if (!validExtensions.includes(ext)) {
+        uploadError.value = `Dili suportado ang file nga "${file.name}". Palihug pag-upload og JPG, PNG, o PDF.`;
+        continue;
+      }
+      if (file.size > maxBytes) {
+        uploadError.value = `Ang file nga "${file.name}" milapas sa 15MB nga limit.`;
+        continue;
+      }
 
       let previewUrl = null;
       if (file.type.startsWith('image/')) {
@@ -2787,7 +2650,7 @@ async function onAddMoreFilesSelected(e) {
         });
         uploadedFileUrl = upRes.data?.fileUrl;
         if (!uploadedFileUrl) {
-          throw new Error(`Failed to upload "${file.name}". Please try again.`);
+          throw new Error(`Napakyas ang pag-upload sa "${file.name}". Palihug sulayi pag-usab.`);
         }
         if (upRes.data?.fileSize) uploadedFileSize = upRes.data.fileSize;
         if (upRes.data?.fileType) uploadedFileType = upRes.data.fileType;
@@ -2841,14 +2704,16 @@ async function onAddMoreFilesSelected(e) {
       progress.value.submittedFilesMeta = finalCombined;
       progress.value.activitySubmitted = finalCombined.length > 0;
       saveProgress();
-      showToast('Your files have been updated.');
+      showToast('Nadugang na ang bag-ong file.');
     }
   } catch (err) {
     console.error('Failed to add files:', err);
     if (err.response?.status === 403 && (err.response?.data?.isDeadlinePassed || /deadline/i.test(err.response?.data?.error || ''))) {
       deadlinePassedOverride.value = true;
+      uploadError.value = 'Milapas na ang deadline. Dili na makadugang og file.';
+    } else {
+      uploadError.value = 'Napakyas ang pagdugang sa file. Palihug sulayi pag-usab.';
     }
-    uploadError.value = err.response?.data?.error || 'Failed to update files. Please try again.';
   } finally {
     isUpdatingFiles.value = false;
   }
@@ -3874,8 +3739,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding-bottom: 2.5rem;
+  padding-bottom: 0.25rem;
   box-sizing: border-box;
+}
+
+.activity-header {
+  margin-bottom: 0.85rem;
+}
+
+.activity-desc {
+  font-size: 0.92rem;
+  color: #334155;
+  margin: 0;
+  line-height: 1.45;
 }
 
 /* Dropzone Box */
@@ -3946,33 +3822,54 @@ onUnmounted(() => {
 .file-item-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
+  gap: 0.5rem;
+  padding: 0.5rem;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.file-item-card:hover {
+  border-color: #93c5fd;
+  background-color: #f8fafc;
+}
+
+.file-card-main-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+  font-family: inherit;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.file-item-card:hover {
-  border-color: #cbd5e1;
-  background-color: #f8fafc;
-}
-
-.file-item-card:focus-visible {
-  outline: 2px solid #2563eb;
+.file-card-main-btn:focus-visible {
+  outline: 2px solid #165dfc;
   outline-offset: 2px;
 }
 
+.file-card-main-btn:active {
+  opacity: 0.85;
+}
+
 .file-thumb-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 6px;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   overflow: hidden;
   background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -4143,81 +4040,71 @@ onUnmounted(() => {
   user-select: none;
 }
 
-/* Three Dot Button and Dropdown */
-.file-menu-wrap {
-  position: relative;
-  margin-left: auto;
-  flex-shrink: 0;
+.files-empty-hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0 0 1rem 0;
 }
 
-.three-dot-btn {
+/* Red X Delete Button (minimum 44x44 touch target, visually separate) */
+.file-delete-x-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  border-radius: 8px;
-  background: transparent;
-  border: none;
-  color: #64748b;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
   cursor: pointer;
-  transition: all 0.15s ease;
+  flex-shrink: 0;
   padding: 0;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.three-dot-btn:hover {
-  background: #f1f5f9;
-  color: #1e293b;
+.file-delete-x-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #b91c1c;
 }
 
-.file-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  min-width: 160px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  padding: 4px;
+.file-delete-x-btn:active:not(:disabled) {
+  background: #fecaca;
+  transform: scale(0.95);
+}
+
+.file-delete-x-btn:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
+.file-delete-x-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pdf-preview-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: #0f172a;
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-.menu-action-item {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.825rem;
-  font-weight: 600;
-  color: #334155;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s ease;
+.modal-download-btn {
+  background: #eff6ff;
+  color: #165dfc;
+  border: 1px solid #bfdbfe;
+  text-decoration: none;
 }
 
-.menu-action-item:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-
-.menu-action-item.item-danger {
-  color: #dc2626;
-}
-
-.menu-action-item.item-danger:hover {
-  background: #fef2f2;
-  color: #b91c1c;
+.modal-download-btn:hover {
+  background: #dbeafe;
 }
 
 /* File Actions Row in Submitted State */
@@ -4522,6 +4409,7 @@ onUnmounted(() => {
   border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: flex-end;
+  gap: 0.65rem;
   background: #ffffff;
 }
 
@@ -6019,7 +5907,7 @@ onUnmounted(() => {
   }
 
   .activity-upload-section {
-    padding-bottom: 4.5rem;
+    padding-bottom: 0;
   }
 }
 
